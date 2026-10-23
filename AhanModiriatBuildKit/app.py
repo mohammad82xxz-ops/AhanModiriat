@@ -77,17 +77,21 @@ def jalali_today():
     return f"{y:04d}-{m:02d}-{d:02d}"
 
 def to_iso_date(value):
-    value = (value or "").strip().replace("/", "-")
+    value = (value or "").strip()
     if not value:
         return TODAY
-    parts = value.split("-")
+    trans = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+    value = value.translate(trans).replace("-", "/")
+    parts = value.split("/")
     if len(parts) != 3:
         raise ValueError("تاریخ را به شکل ۱۴۰۵/۰۷/۰۱ وارد کنید.")
-    y,m,d = map(int, parts)
-    if y < 1700: # Jalali year
-        gy,gm,gd = jalali_to_gregorian(y,m,d)
-        return datetime.date(gy,gm,gd).isoformat()
-    return datetime.date(y,m,d).isoformat()
+    y, m, d = map(int, parts)
+    if y < 1700:
+        gy, gm, gd = jalali_to_gregorian(y, m, d)
+        result = datetime.date(gy, gm, gd)
+    else:
+        result = datetime.date(y, m, d)
+    return result.isoformat()
 
 def show_date(value):
     try:
@@ -176,7 +180,7 @@ def table(headers, rows):
 def options_products(c): return [(r['id'],f"{r['name']} (موجودی: {r['stock']:g} {r['unit']})") for r in c.execute('SELECT * FROM products ORDER BY name')]
 def options_loans(c): return [(r['id'],r['title']) for r in c.execute('SELECT * FROM loans ORDER BY title')]
 def dash(c):
-    now=datetime.date.today(); week=(now-datetime.timedelta(days=now.weekday())).isoformat(); month=now.replace(day=1).isoformat(); year=now.replace(month=1,day=1).isoformat()
+    now=datetime.date.today(); week=(now-datetime.timedelta(days=now.weekday())).isoformat(); month=jalali_month_start_iso(); year=jalali_year_start_iso()
     d=calc(c,now.isoformat(),now.isoformat()); m=calc(c,month,now.isoformat()); y=calc(c,year,now.isoformat())
     stock_value=scalar(c,'SELECT SUM(stock*avg_cost) FROM products'); market_value=scalar(c,'SELECT SUM(stock*market_price) FROM products'); stock_delta=market_value-stock_value
     cash_in=scalar(c,'SELECT COALESCE(SUM(received),0) FROM sales')+scalar(c,'SELECT COALESCE(SUM(received),0) FROM services')
@@ -268,12 +272,12 @@ class Handler(BaseHTTPRequestHandler):
                 for r in c.execute('SELECT date,category,amount,business,notes FROM expenses'):w.writerow(['پرداخت',*r])
                 self.send('\ufeff'+out.getvalue(),'text/csv; charset=utf-8'); return
             if path=='reports':
-                start=q.get('start',[datetime.date.today().replace(day=1).isoformat()])[0]; end=q.get('end',[TODAY])[0]
+                start=to_iso_date(q.get('start',[show_date(jalali_month_start_iso())])[0]); end=to_iso_date(q.get('end',[show_date(TODAY)])[0])
                 try:
                     x=calc(c,start,end)
-                    body=f'''<h1>گزارش بازه انتخابی</h1><div class="small">از {esc(start)} تا {esc(end)}</div><div class="grid section"><div class="card metric"><div class="label">فروش کالا</div><div class="value">{money(x['sales_rev'])}</div></div><div class="card metric"><div class="label">سود فروش کالا</div><div class="value">{money(x['sales_rev']-x['sales_cost']-x['sales_extra'])}</div></div><div class="card metric"><div class="label">سود خدمات</div><div class="value">{money(x['service_rev']-x['service_cost'])}</div></div><div class="card metric"><div class="label">سود خالص</div><div class="value {'positive' if x['net']>=0 else 'negative'}">{money(x['net'])}</div></div></div><div class="card section">{table(['شرح','مبلغ تومان'],[['فروش کالا',money(x['sales_rev'])],['بهای تمام‌شده کالای فروخته‌شده',money(x['sales_cost'])],['هزینه مستقیم فروش',money(x['sales_extra'])],['درآمد خدمات',money(x['service_rev'])],['هزینه اجرای خدمات',money(x['service_cost'])],['هزینه‌های کسب‌وکار',money(x['exp'])],['سود/کارمزد اقساط',money(x['interest'])],['سود خالص این بازه',money(x['net'])],['وجه دریافت‌شده از فروش کالا',money(x['sales_received'])],['وجه دریافت‌شده خدمات',money(x['services_received'])],['پرداخت خرید ثبت‌شده',money(x['purchases_paid'])],['کل اقساط پرداختی (خروج نقد)',money(x['loan_paid'])]])}</div><div class="actions"><a class="btn secondary" href="/reports">بازگشت به گزارش‌های دوره‌ای</a></div>'''
+                    body=f'''<h1>گزارش بازه انتخابی</h1><div class="small">از {esc(show_date(start))} تا {esc(show_date(end))}</div><div class="grid section"><div class="card metric"><div class="label">فروش کالا</div><div class="value">{money(x['sales_rev'])}</div></div><div class="card metric"><div class="label">سود فروش کالا</div><div class="value">{money(x['sales_rev']-x['sales_cost']-x['sales_extra'])}</div></div><div class="card metric"><div class="label">سود خدمات</div><div class="value">{money(x['service_rev']-x['service_cost'])}</div></div><div class="card metric"><div class="label">سود خالص</div><div class="value {'positive' if x['net']>=0 else 'negative'}">{money(x['net'])}</div></div></div><div class="card section">{table(['شرح','مبلغ تومان'],[['فروش کالا',money(x['sales_rev'])],['بهای تمام‌شده کالای فروخته‌شده',money(x['sales_cost'])],['هزینه مستقیم فروش',money(x['sales_extra'])],['درآمد خدمات',money(x['service_rev'])],['هزینه اجرای خدمات',money(x['service_cost'])],['هزینه‌های کسب‌وکار',money(x['exp'])],['سود/کارمزد اقساط',money(x['interest'])],['سود خالص این بازه',money(x['net'])],['وجه دریافت‌شده از فروش کالا',money(x['sales_received'])],['وجه دریافت‌شده خدمات',money(x['services_received'])],['پرداخت خرید ثبت‌شده',money(x['purchases_paid'])],['کل اقساط پرداختی (خروج نقد)',money(x['loan_paid'])]])}</div><div class="actions"><a class="btn secondary" href="/reports">بازگشت به گزارش‌های دوره‌ای</a></div>'''
                     self.send(page('گزارش بازه',body,'reports',msg)); return
-                except Exception:self.send(page('گزارش‌ها','<div class="notice">تاریخ‌ها را به شکل YYYY-MM-DD وارد کنید.</div>','reports'));return
+                except Exception:self.send(page('گزارش‌ها','<div class="notice">تاریخ‌ها را به شکل شمسی ۱۴۰۵/۰۷/۰۱ وارد کنید.</div>','reports'));return
             pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
@@ -298,9 +302,9 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,price,extra,v('customer'),received,v('notes'),p['avg_cost']))
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(qty,pid)); dest='/sales';msg='فروش ثبت شد و موجودی کم شد.'
                 elif path=='add_service':
-                    c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(v('date',TODAY),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')));dest='/services';msg='درآمد خدمات ثبت شد.'
+                    c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')));dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
-                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(v('date',TODAY),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')));dest='/expenses';msg='پرداخت ثبت شد.'
+                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')));dest='/expenses';msg='پرداخت ثبت شد.'
                 elif path=='add_loan':
                     c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes) VALUES(?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes')));dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
@@ -308,15 +312,15 @@ class Handler(BaseHTTPRequestHandler):
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
                     if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
                     if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
-                    c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,v('date',TODAY),amount,principal,interest,v('source','نامشخص'),v('notes')))
+                    c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
                     nextdate=v('next_date')
                     c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=CASE WHEN next_date<>"" THEN date(next_date,"+1 month") ELSE next_date END WHERE id=?',(principal,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل وام کاهش یافت.'
                 elif path=='add_price':
                     pid=int(v('product_id')); price=num(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
-                    c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(v('date',TODAY),pid,price,v('notes')));c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
+                    c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')));c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
                 elif path=='save_capital':
-                    c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(num(v('amount')),v('date',TODAY)));dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
+                    c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(num(v('amount')),to_iso_date(v('date',jalali_today()))));dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
                 else:raise ValueError('درخواست نامعتبر است.')
             self.redirect(dest,msg)
         except Exception as e:
