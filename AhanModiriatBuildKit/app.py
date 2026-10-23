@@ -14,6 +14,90 @@ DB = DATA / 'business.db'
 TODAY = datetime.date.today().isoformat()
 LOCK = threading.Lock()
 
+# Jalali calendar conversion; database continues to store Gregorian ISO dates.
+def gregorian_to_jalali(gy, gm, gd):
+    g_days = [0,31,59,90,120,151,181,212,243,273,304,334]
+    gy2 = gy + 1 if gm > 2 else gy
+    days = 355666 + 365*gy + (gy2+3)//4 - (gy2+99)//100 + (gy2+399)//400 + gd + g_days[gm-1]
+    jy = -1595 + 33*(days//12053)
+    days %= 12053
+    jy += 4*(days//1461)
+    days %= 1461
+    if days > 365:
+        jy += (days-1)//365
+        days = (days-1)%365
+    if days < 186:
+        jm = 1 + days//31
+        jd = 1 + days%31
+    else:
+        jm = 7 + (days-186)//30
+        jd = 1 + (days-186)%30
+    return jy, jm, jd
+
+def jalali_to_gregorian(jy, jm, jd):
+    jy += 1595
+    days = -355668 + 365*jy + (jy//33)*8 + ((jy%33)+3)//4 + jd
+    if jm < 7:
+        days += (jm-1)*31
+    else:
+        days += 186 + (jm-7)*30
+    gy = 400*(days//146097)
+    days %= 146097
+    if days > 36524:
+        gy += 100*((days-1)//36524)
+        days = (days-1)%36524
+        if days >= 365:
+            days += 1
+    gy += 4*(days//1461)
+    days %= 1461
+    if days > 365:
+        gy += (days-1)//365
+        days = (days-1)%365
+    gd = days+1
+    leap = (gy%4==0 and gy%100!=0) or gy%400==0
+    month_days = [0,31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31]
+    gm = 1
+    while gm <= 12 and gd > month_days[gm]:
+        gd -= month_days[gm]
+        gm += 1
+    return gy, gm, gd
+
+def jalali_month_start_iso():
+    jy,jm,jd = gregorian_to_jalali(*map(int, datetime.date.today().strftime("%Y-%m-%d").split("-")))
+    gy,gm,gd = jalali_to_gregorian(jy,jm,1)
+    return datetime.date(gy,gm,gd).isoformat()
+
+def jalali_year_start_iso():
+    jy,jm,jd = gregorian_to_jalali(*map(int, datetime.date.today().strftime("%Y-%m-%d").split("-")))
+    gy,gm,gd = jalali_to_gregorian(jy,1,1)
+    return datetime.date(gy,gm,gd).isoformat()
+
+def jalali_today():
+    y,m,d = gregorian_to_jalali(*map(int, datetime.date.today().strftime("%Y-%m-%d").split("-")))
+    return f"{y:04d}-{m:02d}-{d:02d}"
+
+def to_iso_date(value):
+    value = (value or "").strip().replace("/", "-")
+    if not value:
+        return TODAY
+    parts = value.split("-")
+    if len(parts) != 3:
+        raise ValueError("تاریخ را به شکل ۱۴۰۵/۰۷/۰۱ وارد کنید.")
+    y,m,d = map(int, parts)
+    if y < 1700: # Jalali year
+        gy,gm,gd = jalali_to_gregorian(y,m,d)
+        return datetime.date(gy,gm,gd).isoformat()
+    return datetime.date(y,m,d).isoformat()
+
+def show_date(value):
+    try:
+        gy,gm,gd = map(int, str(value).split("-")[:3])
+        jy,jm,jd = gregorian_to_jalali(gy,gm,gd)
+        return f"{jy:04d}/{jm:02d}/{jd:02d}"
+    except Exception:
+        return str(value or "")
+
+
 def conn():
     c=sqlite3.connect(DB, timeout=20); c.row_factory=sqlite3.Row; c.execute('PRAGMA foreign_keys=ON'); return c
 
@@ -76,7 +160,12 @@ def page(title, body, active='', msg=''):
     nav=''.join(f'<a class="{"active" if key==active else ""}" href="/{key}">{label}</a>' for key,label in NAV)
     return f'''<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(title)} | آهن‌مدیریت</title><style>{CSS}</style></head><body><header><div><strong>آهن‌مدیریت</strong><br><small>مدیریت محلی انبار، سود، سرمایه و نقدینگی</small></div><div class="small" style="color:#d2e3de">ذخیره روی همین کامپیوتر · بدون نیاز به اینترنت</div></header><nav>{nav}</nav><main>{f'<div class="success">{esc(msg)}</div>' if msg else ''}{body}</main><footer>آهن‌مدیریت · نسخه اولیه محلی · قبل از ثبت اطلاعات واقعی، از پایگاه داده پشتیبان بگیرید.</footer></body></html>'''
 def field(label,name,typ='text',value='',required=False,step=None,placeholder=''):
-    req='required' if required else ''; st=f' step="{step}"' if step else ''; ph=f' placeholder="{esc(placeholder)}"' if placeholder else ''
+    req='required' if required else ''; st=f' step="{step}"' if step else ''
+    if typ == 'date':
+        typ = 'text'
+        value = show_date(value) if value else show_date(TODAY)
+        placeholder = placeholder or '۱۴۰۵/۰۷/۰۱'
+    ph=f' placeholder="{esc(placeholder)}"' if placeholder else ''
     return f'<div class="field"><label>{label}</label><input name="{name}" type="{typ}" value="{esc(value)}" {req}{st}{ph}></div>'
 def selectfield(label,name,opts,required=True):
     opt=''.join(f'<option value="{esc(v)}">{esc(t)}</option>' for v,t in opts)
@@ -96,10 +185,10 @@ def dash(c):
     due=c.execute("SELECT title,installment,next_date FROM loans WHERE remaining>0 ORDER BY next_date LIMIT 5").fetchall()
     def metric(label,val,note='',cls=''):
         return f'<div class="card metric"><div class="label">{label}</div><div class="value {cls}">{money(val)} تومان</div><div class="muted">{note}</div></div>'
-    body=f'''<h1>داشبورد مدیریتی</h1><div class="small">تاریخ سیستم: {now.isoformat()} · مبالغ به تومان هستند. اعداد فقط بر اساس تراکنش‌های ثبت‌شده محاسبه می‌شوند.</div>
-    <div class="grid section">{metric('سود خالص امروز',d['net'],'فروش و خدمات منهای هزینه‌ها و سود وام','positive' if d['net']>=0 else 'negative')}{metric('سود خالص این ماه',m['net'],'از ابتدای ماه تا امروز','positive' if m['net']>=0 else 'negative')}{metric('سود خالص امسال',y['net'],'از ابتدای سال میلادی تا امروز','positive' if y['net']>=0 else 'negative')}{metric('ارزش موجودی به بهای خرید',stock_value,'برآورد بر اساس میانگین بهای ثبت‌شده')}</div>
+    body=f'''<h1>داشبورد مدیریتی</h1><div class="small">تاریخ شمسی: {show_date(now.isoformat())} · مبالغ به تومان هستند. اعداد فقط بر اساس تراکنش‌های ثبت‌شده محاسبه می‌شوند.</div>
+    <div class="grid section">{metric('سود خالص امروز',d['net'],'فروش و خدمات منهای هزینه‌ها و سود وام','positive' if d['net']>=0 else 'negative')}{metric('سود خالص این ماه',m['net'],'از ابتدای ماه تا امروز','positive' if m['net']>=0 else 'negative')}{metric('سود خالص امسال',y['net'],'از ابتدای سال شمسی تا امروز','positive' if y['net']>=0 else 'negative')}{metric('ارزش موجودی به بهای خرید',stock_value,'برآورد بر اساس میانگین بهای ثبت‌شده')}</div>
     <div class="grid section">{metric('ارزش موجودی به قیمت روز',market_value,'با آخرین قیمت روز واردشده')}{metric('تغییر ارزش برآوردی انبار',stock_delta,'جدا از سود نقدی فروش','positive' if stock_delta>=0 else 'negative')}{metric('کل اقساط پرداخت‌شده',scalar(c,'SELECT COALESCE(SUM(amount),0) FROM loan_payments'),'اصل و سود؛ خروج وجه نقد')}{metric('مانده اصل وام‌ها',scalar(c,'SELECT COALESCE(SUM(remaining),0) FROM loans'),'مانده ثبت‌شده وام‌ها')}</div>
-    <div class="twocol section"><div class="card"><h2>هشدار موجودی کم</h2>{table(['کالا','موجودی','حداقل'],[[esc(r['name']),f"{r['stock']:g} {esc(r['unit'])}",f"{r['min_stock']:g}"] for r in low])}</div><div class="card"><h2>وام‌ها و اقساط آینده</h2>{table(['وام','قسط','سررسید بعدی'],[[esc(r['title']),money(r['installment'])+' تومان',esc(r['next_date'] or 'ثبت نشده')] for r in due])}</div></div>
+    <div class="twocol section"><div class="card"><h2>هشدار موجودی کم</h2>{table(['کالا','موجودی','حداقل'],[[esc(r['name']),f"{r['stock']:g} {esc(r['unit'])}",f"{r['min_stock']:g}"] for r in low])}</div><div class="card"><h2>وام‌ها و اقساط آینده</h2>{table(['وام','قسط','سررسید بعدی'],[[esc(r['title']),money(r['installment'])+' تومان',esc(show_date(r['next_date']) if r['next_date'] else 'ثبت نشده')] for r in due])}</div></div>
     <div class="notice section"><b>تفسیر درست:</b> سود خالص با تغییر ارزش انبار یکی نیست. خرید کالا به‌خودی‌خود هزینه کامل سودوزیان محسوب نمی‌شود؛ بهای کالا هنگام فروش در سود معامله منظور می‌شود. پرداخت اصل وام نیز هزینه سودوزیان نیست، اما از نقدینگی کم می‌کند. این نسخه «بودجه خرج امن» را به‌صورت قطعی تعیین نمی‌کند مگر اینکه موجودی نقد آغاز دوره، مطالبات، بدهی‌های سررسیدشده و ذخیره خرید مجدد را هم دقیق ثبت کنی.</div>'''
     return page('داشبورد',body,'')
 
@@ -110,7 +199,7 @@ def products(c):
 def purchases(c):
     prods=options_products(c); opt=[(v,t) for v,t in prods]
     body=f'''<h1>ثبت خرید</h1><div class="card section"><form method="post" action="/add_purchase"><div class="formgrid">{field('تاریخ خرید','date','date',TODAY,True)}{selectfield('کالا','product_id',opt)}{field('مقدار خرید','qty','number','1',True,'0.001')}{field('قیمت خرید هر واحد (تومان)','unit_cost','number','0',True,'0.01')}{field('هزینه جانبی کل (حمل/تخلیه)','extra_cost','number','0',False,'0.01')}{field('مبلغ پرداخت‌شده','paid','number','0',True,'0.01')}{field('فروشنده','supplier')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خرید و افزایش موجودی</button></div></form><p class="small">پس از ثبت خرید، موجودی و میانگین موزون بهای خرید به‌روزرسانی می‌شود. هزینه جانبی به بهای تمام‌شده خرید اضافه می‌شود.</p></div>'''
-    rows=[[r['date'],esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(r['qty']*r['unit_cost']+r['extra_cost']),esc(r['supplier']),money(r['paid'])] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id ORDER BY p.date DESC,p.id DESC LIMIT 100')]
+    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(r['qty']*r['unit_cost']+r['extra_cost']),esc(r['supplier']),money(r['paid'])] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id ORDER BY p.date DESC,p.id DESC LIMIT 100')]
     body+=f'<div class="card section"><h2>آخرین خریدها</h2>{table(["تاریخ","کالا","مقدار","قیمت واحد","هزینه جانبی","جمع بهای خرید","فروشنده","پرداخت‌شده"],rows)}</div>'
     return page('خرید',body,'purchases')
 def sales(c):
@@ -130,7 +219,7 @@ def expenses(c):
     return page('هزینه‌ها',body,'expenses')
 def loans(c):
     body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
-    rows=[[r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(r['next_date']),esc(r['rate_note'])] for r in c.execute('SELECT * FROM loans ORDER BY next_date')]
+    rows=[[r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),esc(r['rate_note'])] for r in c.execute('SELECT * FROM loans ORDER BY next_date')]
     body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","شرایط"],rows)}</div>'
     payments=[[r['date'],esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute('SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id ORDER BY lp.date DESC LIMIT 100')]
     body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments)}</div>'
@@ -141,10 +230,10 @@ def prices(c):
     body+=f'<div class="card section"><h2>تاریخچه قیمت‌ها</h2>{table(["تاریخ","کالا","قیمت روز","یادداشت"],rows)}</div>'
     return page('قیمت روز',body,'prices')
 def reports(c):
-    start=html.escape(datetime.date.today().replace(day=1).isoformat()); end=TODAY
+    start=html.escape(jalali_month_start_iso()); end=TODAY
     # query date range submitted by GET
     rows=[]
-    for label,s,e in [('امروز',TODAY,TODAY),('این هفته',(datetime.date.today()-datetime.timedelta(days=datetime.date.today().weekday())).isoformat(),TODAY),('این ماه',datetime.date.today().replace(day=1).isoformat(),TODAY),('امسال',datetime.date.today().replace(month=1,day=1).isoformat(),TODAY)]:
+    for label,s,e in [('امروز',TODAY,TODAY),('این هفته',(datetime.date.today()-datetime.timedelta(days=datetime.date.today().weekday())).isoformat(),TODAY),('این ماه',jalali_month_start_iso(),TODAY),('امسال',jalali_year_start_iso(),TODAY)]:
         x=calc(c,s,e); rows.append([label,money(x['sales_rev']),money(x['sales_rev']-x['sales_cost']-x['sales_extra']),money(x['service_rev']-x['service_cost']),money(x['exp']),money(x['interest']),money(x['net'])])
     body=f'''<h1>گزارش سود، زیان و جریان نقدی</h1><div class="card section"><h2>مقایسه دوره‌ها (تاریخ بر اساس تقویم سیستم)</h2>{table(["دوره","فروش کالا","سود فروش کالا پس از هزینه مستقیم","سود خدمات","هزینه کسب‌وکار","سود/کارمزد وام","سود خالص"],rows)}</div>
     <div class="card section"><h2>گزارش بازه دلخواه</h2><form method="get" action="/reports"><div class="formgrid">{field('از تاریخ','start','date',start,True)}{field('تا تاریخ','end','date',end,True)}</div><div class="actions"><button>محاسبه بازه</button><a class="btn secondary" href="/export.csv">خروجی CSV تراکنش‌ها</a></div></form></div>'''
@@ -200,20 +289,20 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id')); qty=num(v('qty')); cost=num(v('unit_cost')); extra=num(v('extra_cost')); paid=num(v('paid')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0: raise ValueError('کالا، مقدار یا قیمت خرید نامعتبر است.')
                     newstock=p['stock']+qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
-                    c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(v('date',TODAY),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
+                    c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg='خرید ثبت شد و موجودی به‌روزرسانی شد.'
                 elif path=='add_sale':
                     pid=int(v('product_id')); qty=num(v('qty')); price=num(v('unit_price')); extra=num(v('extra_cost')); received=num(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or price<0:raise ValueError('کالا، مقدار یا قیمت فروش نامعتبر است.')
                     if qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
-                    c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(v('date',TODAY),pid,qty,price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,price,extra,v('customer'),received,v('notes'),p['avg_cost']))
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(qty,pid)); dest='/sales';msg='فروش ثبت شد و موجودی کم شد.'
                 elif path=='add_service':
                     c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(v('date',TODAY),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')));dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
                     c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(v('date',TODAY),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')));dest='/expenses';msg='پرداخت ثبت شد.'
                 elif path=='add_loan':
-                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes) VALUES(?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),v('next_date'),v('rate_note'),v('notes')));dest='/loans';msg='وام ثبت شد.'
+                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes) VALUES(?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes')));dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
                     lid=int(v('loan_id')); amount=num(v('amount')); principal=num(v('principal_part')); interest=num(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
