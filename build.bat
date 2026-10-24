@@ -34,18 +34,18 @@ if errorlevel 1 goto :failed
 
 echo [4/4] Building EXE...
 if exist "build" rmdir /s /q "build"
-if exist "dist\AhanModiriati.exe" del /q "dist\AhanModiriati.exe"
+if exist "dist\AhanModiriat.exe" del /q "dist\AhanModiriat.exe"
 python -m PyInstaller --clean --noconfirm --onefile --console --name AhanModiriat "AhanModiriatBuildKit\app.py"
 if errorlevel 1 goto :failed
 
-if not exist "dist\AhanModiriati.exe" (
+if not exist "dist\AhanModiriat.exe" (
   echo ERROR: The EXE was not created.
   goto :failed
 )
 
 if not exist "dist\data" mkdir "dist\data"
 echo.
-echo SUCCESS: dist\AhanModiriati.exe
+echo SUCCESS: dist\AhanModiriat.exe
 echo Database folder: dist\data
 echo Keep the data folder when moving/updating the application.
 pause
