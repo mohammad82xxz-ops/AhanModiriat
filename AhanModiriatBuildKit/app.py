@@ -88,8 +88,14 @@ def to_iso_date(value):
         raise ValueError("تاریخ را به شکل ۱۴۰۵/۰۷/۰۱ وارد کنید.")
     y, m, d = map(int, parts)
     if y < 1700:
+        # Validate the Jalali date before conversion; the arithmetic converter
+        # can otherwise normalize out-of-range month/day values silently.
+        if not 1 <= m <= 12 or d < 1 or d > (31 if m <= 6 else 30):
+            raise ValueError("تاریخ شمسی نامعتبر است.")
         gy, gm, gd = jalali_to_gregorian(y, m, d)
         result = datetime.date(gy, gm, gd)
+        if gregorian_to_jalali(gy, gm, gd) != (y, m, d):
+            raise ValueError("تاریخ شمسی نامعتبر است.")
     else:
         result = datetime.date(y, m, d)
     return result.isoformat()
