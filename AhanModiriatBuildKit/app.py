@@ -8,8 +8,9 @@ from pathlib import Path
 import sqlite3, json, datetime, html, os, threading, webbrowser, sys
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
-DATA = ROOT / 'data'
-DATA.mkdir(exist_ok=True)
+# Optional override supports isolated tests and custom persistent data locations.
+DATA = Path(os.environ.get('AHAN_DATA_DIR', str(ROOT / 'data'))).expanduser().resolve()
+DATA.mkdir(parents=True, exist_ok=True)
 DB = DATA / 'business.db'
 TODAY = datetime.date.today().isoformat()
 LOCK = threading.Lock()
