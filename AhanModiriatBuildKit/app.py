@@ -128,6 +128,22 @@ def init():
         CREATE TABLE IF NOT EXISTS opening_capital(id INTEGER PRIMARY KEY CHECK(id=1), amount REAL NOT NULL DEFAULT 0, date TEXT NOT NULL);
         INSERT OR IGNORE INTO opening_capital(id,amount,date) VALUES(1,0,date('now'));
         ''')
+    # Safe additive migration; existing transactions and history are preserved.
+    with conn() as c:
+        cols = {row['name'] for row in c.execute("PRAGMA table_info(products)")}
+        for name, decl in {
+            "category": "TEXT NOT NULL DEFAULT 'سایر'",
+            "purchase_unit": "TEXT NOT NULL DEFAULT ''",
+            "purchase_factor": "REAL NOT NULL DEFAULT 1",
+            "sale_unit": "TEXT NOT NULL DEFAULT ''",
+            "sale_factor": "REAL NOT NULL DEFAULT 1",
+            "roll_weight": "REAL NOT NULL DEFAULT 0",
+            "sheet_area": "REAL NOT NULL DEFAULT 0",
+        }.items():
+            if name not in cols:
+                c.execute(f"ALTER TABLE products ADD COLUMN {name} {decl}")
+        c.execute("UPDATE products SET purchase_unit=unit WHERE purchase_unit=''")
+        c.execute("UPDATE products SET sale_unit=unit WHERE sale_unit=''")
 
 def num(v, default=0):
     try: return float(str(v).replace(',','').strip() or default)
@@ -204,9 +220,48 @@ def dash(c):
     return page('داشبورد',body,'')
 
 def products(c):
-    rows=[[r['id'],esc(r['name']),esc(r['code']),esc(r['unit']),f"{r['stock']:g}",money(r['avg_cost']),money(r['market_price']),money(r['stock']*r['avg_cost']), 'کمبود' if r['stock']<=r['min_stock'] else 'عادی'] for r in c.execute('SELECT * FROM products ORDER BY name')]
-    body=f'''<h1>کالاها و موجودی انبار</h1><div class="card section"><h2>ثبت کالای جدید</h2><form method="post" action="/add_product"><div class="formgrid">{field('نام کالا','name',required=True)}{field('کد کالا','code')}{selectfield('واحد شمارش','unit',[('کیلوگرم','کیلوگرم'),('تن','تن'),('شاخه','شاخه'),('متر','متر'),('عدد','عدد'),('ورق','ورق')])}{field('موجودی اولیه','stock','number','0',True,'0.001')}{field('بهای خرید متوسط هر واحد (تومان)','avg_cost','number','0',True,'0.01')}{field('قیمت روز هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('حداقل موجودی هشدار','min_stock','number','0',False,'0.001')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت کالا</button></div></form></div><div class="card section"><h2>فهرست موجودی</h2>{table(['شناسه','نام کالا','کد','واحد','موجودی','میانگین بهای خرید','قیمت روز','ارزش به بهای خرید','وضعیت'],rows)}</div>'''
+    rows=[]
+    for r in c.execute('SELECT * FROM products ORDER BY name'):
+        status='<span class="pill" style="background:#fff0ee;color:#b42318">موجودی کم</span>' if r['stock']<=r['min_stock'] else '<span class="pill">عادی</span>'
+        edit=f'<a class="btn secondary" href="/edit_product?id={r["id"]}">ویرایش</a>'
+        rows.append([esc(r['name']),esc(r['category']),esc(r['code']),f"{r['stock']:g} {esc(r['unit'])}",money(r['avg_cost']),money(r['market_price']),money(r['stock']*r['avg_cost']),status,edit])
+    units=[('کیلوگرم','کیلوگرم'),('تن','تن'),('شاخه','شاخه'),('متر','متر'),('مترمربع','مترمربع'),('عدد','عدد'),('ورق','ورق')]
+    cats=[('رابیتس','رابیتس'),('طلق','طلق'),('سیم مفتول','سیم مفتول'),('پروفیل','پروفیل'),('ورق','ورق'),('سایر','سایر')]
+    body=f'''<h1>کالاها و موجودی انبار</h1>
+    <div class="grid section"><div class="card metric"><div class="label">تعداد انواع کالا</div><div class="value">{scalar(c,'SELECT COUNT(*) FROM products')}</div></div><div class="card metric"><div class="label">ارزش موجودی به بهای خرید</div><div class="value">{money(scalar(c,'SELECT COALESCE(SUM(stock*avg_cost),0) FROM products'))}</div><div class="muted">تومان</div></div><div class="card metric"><div class="label">کالاهای کم‌موجودی</div><div class="value">{scalar(c,'SELECT COUNT(*) FROM products WHERE stock<=min_stock')}</div></div></div>
+    <div class="card section"><h2>ثبت کالای جدید</h2><form method="post" action="/add_product"><div class="formgrid">
+    {field('نام کالا','name',required=True)}{field('کد کالا','code')}{selectfield('دسته‌بندی','category',cats)}
+    {selectfield('واحد پایه موجودی','unit',units)}{field('واحد خرید (بسته/برگ/رول)','purchase_unit',value='عدد')}
+    {field('ضریب خرید به واحد پایه','purchase_factor','number','1',True,'0.001')}{field('واحد فروش','sale_unit',value='عدد')}
+    {field('ضریب فروش به واحد پایه','sale_factor','number','1',True,'0.001')}{field('وزن هر رول (کیلوگرم)','roll_weight','number','0',False,'0.001')}
+    {field('مساحت هر برگ (مترمربع)','sheet_area','number','0',False,'0.001')}{field('موجودی اولیه به واحد پایه','stock','number','0',True,'0.001')}
+    {field('بهای خرید متوسط هر واحد پایه (تومان)','avg_cost','number','0',True,'0.01')}{field('قیمت روز هر واحد پایه (تومان)','market_price','number','0',True,'0.01')}
+    {field('حداقل موجودی هشدار','min_stock','number','0',False,'0.001')}{field('یادداشت','notes')}
+    </div><p class="small">نمونه: رابیتس بسته ۱۰ عددی = ضریب ۱۰؛ طلق برگ ۶×۲٫۱۰ متر = ضریب ۱۲٫۶؛ سیم مفتول رول = ضریب برابر وزن رول.</p><div class="actions"><button>ثبت کالا</button></div></form></div>
+    <div class="card section"><h2>فهرست کالاها</h2><div class="field"><label>جست‌وجو</label><input id="productSearch" placeholder="نام، کد یا دسته‌بندی" oninput="filterProducts()"></div>
+    {table(['کالا','دسته‌بندی','کد','موجودی','بهای پایه','قیمت روز پایه','ارزش موجودی','وضعیت','عملیات'],rows)}</div>
+    <script>function filterProducts(){{const q=document.getElementById('productSearch').value.toLowerCase();document.querySelectorAll('table tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none')}}</script>'''
     return page('کالاها',body,'products')
+
+def product_editor(c, pid):
+    p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+    if not p: return page('کالا پیدا نشد','<div class="notice">این کالا وجود ندارد.</div>','products')
+    units=[('کیلوگرم','کیلوگرم'),('تن','تن'),('شاخه','شاخه'),('متر','متر'),('مترمربع','مترمربع'),('عدد','عدد'),('ورق','ورق')]
+    cats=[('رابیتس','رابیتس'),('طلق','طلق'),('سیم مفتول','سیم مفتول'),('پروفیل','پروفیل'),('ورق','ورق'),('سایر','سایر')]
+    def inp(label,name,value,typ='text',step=None):
+        return field(label,name,typ,str(value if value is not None else ''),name in ('name','unit','purchase_unit','purchase_factor','sale_unit','sale_factor'),step)
+    def sel(label,name,opts,value):
+        out=''.join(f'<option value="{esc(v)}" {"selected" if str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
+        return f'<div class="field"><label>{label}</label><select name="{name}" required>{out}</select></div>'
+    body=f'''<h1>ویرایش کالا: {esc(p['name'])}</h1><div class="card section"><div class="notice">واحد پایه کالای دارای سابقه خرید یا فروش را بدون تبدیل کنترل‌شده تغییر ندهید. موجودی و مبالغ این فرم در واحد پایه ثبت می‌شوند.</div><form method="post" action="/update_product"><input type="hidden" name="product_id" value="{pid}"><div class="formgrid">
+    {inp('نام کالا','name',p['name'])}{inp('کد کالا','code',p['code'])}{sel('دسته‌بندی','category',cats,p['category'])}{sel('واحد پایه موجودی','unit',units,p['unit'])}
+    {inp('واحد خرید','purchase_unit',p['purchase_unit'])}{inp('ضریب خرید به واحد پایه','purchase_factor',p['purchase_factor'],'number','0.001')}
+    {inp('واحد فروش','sale_unit',p['sale_unit'])}{inp('ضریب فروش به واحد پایه','sale_factor',p['sale_factor'],'number','0.001')}
+    {inp('وزن هر رول (کیلوگرم)','roll_weight',p['roll_weight'],'number','0.001')}{inp('مساحت هر برگ (مترمربع)','sheet_area',p['sheet_area'],'number','0.001')}
+    {inp('موجودی فعلی به واحد پایه','stock',p['stock'],'number','0.001')}{inp('میانگین بهای خرید هر واحد پایه','avg_cost',p['avg_cost'],'number','0.01')}
+    {inp('قیمت روز هر واحد پایه','market_price',p['market_price'],'number','0.01')}{inp('حداقل موجودی هشدار','min_stock',p['min_stock'],'number','0.001')}{inp('یادداشت','notes',p['notes'])}
+    </div><div class="actions"><button>ذخیره تغییرات</button><a class="btn secondary" href="/products">بازگشت</a></div></form></div>'''
+    return page('ویرایش کالا',body,'products')
 def purchases(c):
     prods=options_products(c); opt=[(v,t) for v,t in prods]
     body=f'''<h1>ثبت خرید</h1><div class="card section"><form method="post" action="/add_purchase"><div class="formgrid">{field('تاریخ خرید','date','date',TODAY,True)}{selectfield('کالا','product_id',opt)}{field('مقدار خرید','qty','number','1',True,'0.001')}{field('قیمت خرید هر واحد (تومان)','unit_cost','number','0',True,'0.01')}{field('هزینه جانبی کل (حمل/تخلیه)','extra_cost','number','0',False,'0.01')}{field('مبلغ پرداخت‌شده','paid','number','0',True,'0.01')}{field('فروشنده','supplier')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خرید و افزایش موجودی</button></div></form><p class="small">پس از ثبت خرید، موجودی و میانگین موزون بهای خرید به‌روزرسانی می‌شود. هزینه جانبی به بهای تمام‌شده خرید اضافه می‌شود.</p></div>'''
@@ -285,6 +340,10 @@ class Handler(BaseHTTPRequestHandler):
                     body=f'''<h1>گزارش بازه انتخابی</h1><div class="small">از {esc(show_date(start))} تا {esc(show_date(end))}</div><div class="grid section"><div class="card metric"><div class="label">فروش کالا</div><div class="value">{money(x['sales_rev'])}</div></div><div class="card metric"><div class="label">سود فروش کالا</div><div class="value">{money(x['sales_rev']-x['sales_cost']-x['sales_extra'])}</div></div><div class="card metric"><div class="label">سود خدمات</div><div class="value">{money(x['service_rev']-x['service_cost'])}</div></div><div class="card metric"><div class="label">سود خالص</div><div class="value {'positive' if x['net']>=0 else 'negative'}">{money(x['net'])}</div></div></div><div class="card section">{table(['شرح','مبلغ تومان'],[['فروش کالا',money(x['sales_rev'])],['بهای تمام‌شده کالای فروخته‌شده',money(x['sales_cost'])],['هزینه مستقیم فروش',money(x['sales_extra'])],['درآمد خدمات',money(x['service_rev'])],['هزینه اجرای خدمات',money(x['service_cost'])],['هزینه‌های کسب‌وکار',money(x['exp'])],['سود/کارمزد اقساط',money(x['interest'])],['سود خالص این بازه',money(x['net'])],['وجه دریافت‌شده از فروش کالا',money(x['sales_received'])],['وجه دریافت‌شده خدمات',money(x['services_received'])],['پرداخت خرید ثبت‌شده',money(x['purchases_paid'])],['کل اقساط پرداختی (خروج نقد)',money(x['loan_paid'])]])}</div><div class="actions"><a class="btn secondary" href="/reports">بازگشت به گزارش‌های دوره‌ای</a></div>'''
                     self.send(page('گزارش بازه',body,'reports',msg)); return
                 except Exception:self.send(page('گزارش‌ها','<div class="notice">تاریخ‌ها را به شکل شمسی ۱۴۰۵/۰۷/۰۱ وارد کنید.</div>','reports'));return
+            if path=='edit_product':
+                try: self.send(product_editor(c,int(parse_qs(urlparse(self.path).query).get('id',['0'])[0])))
+                except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
+                return
             pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
@@ -295,19 +354,35 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with LOCK, conn() as c:
                 if path=='add_product':
-                    c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes) VALUES(?,?,?,?,?,?,?,?)',(v('name'),v('code'),v('unit','کیلوگرم'),num(v('stock')),num(v('avg_cost')),num(v('market_price')),num(v('min_stock')),v('notes'))); dest='/products'; msg='کالا ثبت شد.'
+                    pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
+                    if not v('name') or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
+                    c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(v('name'),v('code'),v('unit','کیلوگرم'),num(v('stock')),num(v('avg_cost')),num(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area')))); dest='/products'; msg='کالا ثبت شد.'
+                elif path=='update_product':
+                    pid=int(v('product_id')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    if not p: raise ValueError('کالا پیدا نشد.')
+                    if v('unit')!=p['unit'] and (scalar(c,'SELECT COUNT(*) FROM purchases WHERE product_id=?',(pid,)) or scalar(c,'SELECT COUNT(*) FROM sales WHERE product_id=?',(pid,))):
+                        raise ValueError('این کالا سابقه تراکنش دارد؛ تغییر واحد پایه برای جلوگیری از خراب‌شدن سوابق مسدود شد.')
+                    pf=num(v('purchase_factor')); sf=num(v('sale_factor'))
+                    if not v('name') or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
+                    c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',(v('name'),v('code'),v('unit'),num(v('stock')),num(v('avg_cost')),num(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
+                    dest='/products'; msg='مشخصات کالا به‌روزرسانی شد.'
                 elif path=='add_purchase':
                     pid=int(v('product_id')); qty=num(v('qty')); cost=num(v('unit_cost')); extra=num(v('extra_cost')); paid=num(v('paid')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0: raise ValueError('کالا، مقدار یا قیمت خرید نامعتبر است.')
-                    newstock=p['stock']+qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
+                    factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
+                    if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
+                    base_qty=qty*factor
+                    newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
                     c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
-                    c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg='خرید ثبت شد و موجودی به‌روزرسانی شد.'
+                    c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
                     pid=int(v('product_id')); qty=num(v('qty')); price=num(v('unit_price')); extra=num(v('extra_cost')); received=num(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or price<0:raise ValueError('کالا، مقدار یا قیمت فروش نامعتبر است.')
-                    if qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
-                    c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,price,extra,v('customer'),received,v('notes'),p['avg_cost']))
-                    c.execute('UPDATE products SET stock=stock-? WHERE id=?',(qty,pid)); dest='/sales';msg='فروش ثبت شد و موجودی کم شد.'
+                    base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
+                    if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
+                    base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
+                    c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
                     c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')));dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
@@ -331,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:raise ValueError('درخواست نامعتبر است.')
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))
