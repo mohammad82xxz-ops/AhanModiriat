@@ -109,10 +109,36 @@ def show_date(value):
         return str(value or "")
 
 
+def create_startup_backup():
+    """Create a consistent pre-startup backup and keep only the newest seven."""
+    if not DB.exists() or DB.stat().st_size == 0:
+        return
+    backup_dir = DATA / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    target = backup_dir / f"business_{stamp}.db"
+    try:
+        with sqlite3.connect(DB, timeout=20) as source, sqlite3.connect(target) as dest:
+            source.backup(dest)
+        backups = sorted(backup_dir.glob("business_*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in backups[7:]:
+            try: old.unlink()
+            except OSError: pass
+    except Exception:
+        try: target.unlink(missing_ok=True)
+        except OSError: pass
+        raise
+
 def conn():
-    c=sqlite3.connect(DB, timeout=20); c.row_factory=sqlite3.Row; c.execute('PRAGMA foreign_keys=ON'); return c
+    c=sqlite3.connect(DB, timeout=20)
+    c.row_factory=sqlite3.Row
+    c.execute('PRAGMA foreign_keys=ON')
+    c.execute('PRAGMA journal_mode=WAL')
+    c.execute('PRAGMA synchronous=NORMAL')
+    return c
 
 def init():
+    create_startup_backup()
     with conn() as c:
         c.executescript('''
         CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT DEFAULT '', unit TEXT NOT NULL DEFAULT 'کیلوگرم', stock REAL NOT NULL DEFAULT 0, avg_cost REAL NOT NULL DEFAULT 0, market_price REAL NOT NULL DEFAULT 0, min_stock REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '');
@@ -125,6 +151,10 @@ def init():
         CREATE TABLE IF NOT EXISTS cash_events(id INTEGER PRIMARY KEY, date TEXT NOT NULL, kind TEXT NOT NULL, amount REAL NOT NULL, source TEXT NOT NULL DEFAULT '', notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS price_history(id INTEGER PRIMARY KEY, date TEXT NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id), market_price REAL NOT NULL, notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS audit_log(
+            id INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            action TEXT NOT NULL, details TEXT NOT NULL DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS opening_capital(id INTEGER PRIMARY KEY CHECK(id=1), amount REAL NOT NULL DEFAULT 0, date TEXT NOT NULL);
         INSERT OR IGNORE INTO opening_capital(id,amount,date) VALUES(1,0,date('now'));
         ''')
@@ -308,7 +338,7 @@ def reports(c):
     return page('گزارش‌ها',body,'reports')
 def settings(c):
     capital=c.execute('SELECT * FROM opening_capital WHERE id=1').fetchone()
-    body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',str(capital['amount']),True,'0.01')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>فایل پایگاه داده در مسیر <code>data/business.db</code> ذخیره می‌شود. برنامه را ببند و این فایل را در یک محل امن دیگر کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div></div>'''
+    body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',str(capital['amount']),True,'0.01')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>پشتیبان خودکار پیش از شروع برنامه ساخته می‌شود و ۷ نسخه آخر در پوشه <code>data/backups</code> می‌ماند. برای نگهداری خارج از دستگاه، فایل پشتیبان را نیز جداگانه کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div><p class="small">دیتابیس با حالت WAL اجرا می‌شود. بازیابی از فایل هنوز در این مرحله اضافه نشده است.</p></div>'''
     return page('تنظیمات',body,'settings')
 
 class Handler(BaseHTTPRequestHandler):
@@ -404,6 +434,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif path=='save_capital':
                     c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(num(v('amount')),to_iso_date(v('date',jalali_today()))));dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
                 else:raise ValueError('درخواست نامعتبر است.')
+                c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, json.dumps(d, ensure_ascii=False)))
             self.redirect(dest,msg)
         except Exception as e:
             self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings'}.get(path,'')),str(e))
