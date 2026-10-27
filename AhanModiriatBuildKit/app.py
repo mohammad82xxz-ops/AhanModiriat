@@ -264,7 +264,9 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
         typ = 'text'
         value = show_date(value) if value else show_date(TODAY)
         placeholder = placeholder or '۱۴۰۵/۰۷/۰۱'
-        attrs = ' data-date-input="true" autocomplete="off"'
+        today_value=show_date(TODAY)
+        yesterday_value=show_date((datetime.date.today()-datetime.timedelta(days=1)).isoformat())
+        attrs = f' data-date-input="true" data-today="{today_value}" data-yesterday="{yesterday_value}" autocomplete="off"'
     if typ == 'number':
         typ = 'text'
         attrs += ' inputmode="decimal" data-numeric="true"'
