@@ -32,6 +32,8 @@ def main():
     assert app.num("۲٬۵۰۰٬۰۰۰") == 2500000
     money_field = app.field("مبلغ", "amount", "number", "۲۵۰۰۰۰۰")
     assert 'data-money="true"' in money_field and "amount-words" in money_field
+    date_field = app.field("تاریخ", "date", "date", app.TODAY)
+    assert 'data-date-input="true"' in date_field and "data-today=" in date_field and "data-yesterday=" in date_field
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
