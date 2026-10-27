@@ -32,7 +32,8 @@ def main():
     assert app.num("۲٬۵۰۰٬۰۰۰") == 2500000
     money_field = app.field("مبلغ", "amount", "number", "۲۵۰۰۰۰۰")
     assert 'data-money="true"' in money_field and "amount-words" in money_field
-    server, port = app.make_server()
+    server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
