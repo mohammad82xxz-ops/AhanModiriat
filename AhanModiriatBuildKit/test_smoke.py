@@ -18,7 +18,7 @@ def main():
             assert name in tables, name
         for html in (app.dash(c), app.products(c), app.purchases(c), app.sales(c),
                      app.services(c), app.expenses(c), app.loans(c), app.prices(c),
-                     app.reports(c), app.settings(c)):
+                     app.reports(c), app.settings(c), app.design_page(c)):
             assert "<html" in html and "</html>" in html
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("GitHub branch smoke tests passed.")
