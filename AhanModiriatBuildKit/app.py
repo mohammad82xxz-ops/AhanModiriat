@@ -176,9 +176,13 @@ def init():
         c.execute("UPDATE products SET purchase_unit=unit WHERE purchase_unit=''")
         c.execute("UPDATE products SET sale_unit=unit WHERE sale_unit=''")
 
+DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 def num(v, default=0):
-    try: return float(str(v).replace(',','').strip() or default)
-    except: return float(default)
+    try:
+        cleaned = str(v).translate(DIGIT_TRANSLATION).replace(',', '').replace('٬', '').replace(' ', '').strip()
+        return float(cleaned or default)
+    except (ValueError, TypeError):
+        return float(default)
 def money(v): return f'{v:,.0f}'
 def esc(v): return html.escape(str(v if v is not None else ''))
 def fval(row,key,default=''):
@@ -251,14 +255,25 @@ def design_page(c=None):
     <section class="card section"><h2>وضعیت پیام‌ها</h2><div class="success" role="status">ذخیره شد؛ اطلاعات ثبت شدند.</div><div class="notice err" role="alert">ذخیره انجام نشد؛ پایگاه داده قفل است. کمی بعد دوباره تلاش کن.</div></section>'''
     return page('سیستم طراحی',body,'design')
 
+MONEY_FIELDS = {'unit_cost','unit_price','extra_cost','paid','received','revenue','cost','amount','principal','remaining','installment','principal_part','interest_part','market_price','avg_cost','capital'}
 def field(label,name,typ='text',value='',required=False,step=None,placeholder=''):
-    req='required' if required else ''; st=f' step="{step}"' if step else ''
+    req='required' if required else ''
+    st=f' step="{step}"' if step and typ != 'date' else ''
+    attrs=''
     if typ == 'date':
         typ = 'text'
         value = show_date(value) if value else show_date(TODAY)
         placeholder = placeholder or '۱۴۰۵/۰۷/۰۱'
+        attrs = ' data-date-input="true" autocomplete="off"'
+    if typ == 'number':
+        typ = 'text'
+        attrs += ' inputmode="decimal" data-numeric="true"'
+        if name in MONEY_FIELDS:
+            attrs += ' data-money="true" data-unit="تومان"'
     ph=f' placeholder="{esc(placeholder)}"' if placeholder else ''
-    return f'<div class="field"><label>{label}</label><input name="{name}" type="{typ}" value="{esc(value)}" {req}{st}{ph}></div>'
+    safe_name=esc(name)
+    monetary = f'<span class="field-unit">تومان</span><span class="amount-words" data-words-for="{safe_name}" aria-live="polite"></span>' if name in MONEY_FIELDS and 'data-money="true"' in attrs else ''
+    return f'<div class="field"><label for="field-{safe_name}">{label}</label><div class="input-wrap"><input id="field-{safe_name}" name="{safe_name}" type="{typ}" value="{esc(value)}" {req}{st}{attrs}{ph}></div>{monetary}</div>'
 def selectfield(label,name,opts,required=True):
     opt=''.join(f'<option value="{esc(v)}">{esc(t)}</option>' for v,t in opts)
     return f'<div class="field"><label>{label}</label><select name="{name}" {"required" if required else ""}>{opt}</select></div>'
