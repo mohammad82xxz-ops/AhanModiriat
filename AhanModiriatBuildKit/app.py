@@ -5,9 +5,10 @@ Python standard library only. Data stays in ./data/business.db.
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
-import sqlite3, json, datetime, html, os, threading, webbrowser, sys
+import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
+STATIC_DIR = Path(getattr(sys, '_MEIPASS', ROOT)) / 'static'
 # Optional override supports isolated tests and custom persistent data locations.
 DATA = Path(os.environ.get('AHAN_DATA_DIR', str(ROOT / 'data'))).expanduser().resolve()
 DATA.mkdir(parents=True, exist_ok=True)
@@ -209,13 +210,47 @@ def calc(c, start=None, end=None):
     purchases_paid=scalar(c,'SELECT COALESCE(SUM(paid),0) FROM purchases'+where,args)
     return dict(sales_rev=sales_rev,sales_cost=sales_cost,sales_extra=sales_extra,service_rev=service_rev,service_cost=service_cost,exp=exp,interest=interest,gross=gross,net=net,paid_exp=paid_exp,loan_paid=loan_paid,sales_received=sales_received,services_received=services_received,purchases_paid=purchases_paid)
 
-CSS='''
-:root{--bg:#f3f5f8;--card:#fff;--ink:#172033;--muted:#667085;--line:#e3e7ef;--accent:#126b55;--accent2:#0d4e40;--bad:#b42318;--gold:#b7791f}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Tahoma,"Segoe UI",sans-serif;direction:rtl}header{background:#132c2a;color:white;padding:18px max(18px,calc((100% - 1180px)/2));display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}header strong{font-size:22px}header small{color:#c7ddd7}nav{background:#fff;border-bottom:1px solid var(--line);padding:10px max(12px,calc((100% - 1180px)/2));display:flex;gap:7px;flex-wrap:wrap}nav a{padding:9px 12px;border-radius:9px;color:#344054;text-decoration:none;font-size:13px}nav a:hover,nav a.active{background:#e3f2ed;color:#075e49}main{max-width:1180px;margin:22px auto;padding:0 16px 40px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:17px;box-shadow:0 2px 8px #10182808}.metric .label{font-size:13px;color:var(--muted)}.metric .value{font-size:23px;font-weight:700;margin:10px 0 4px;overflow-wrap:anywhere}.muted{color:var(--muted);font-size:12px}.positive{color:var(--accent)}.negative{color:var(--bad)}h1{font-size:24px;margin:0 0 8px}h2{font-size:17px;margin:0 0 14px}.section{margin-top:18px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}.formgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:#475467}input,select,textarea{font:inherit;border:1px solid #d0d5dd;border-radius:8px;padding:10px;background:white;color:#101828;min-width:0;width:100%}textarea{min-height:70px}button,.btn{background:var(--accent);border:0;border-radius:9px;color:white;padding:11px 15px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}button:hover,.btn:hover{background:var(--accent2)}.btn.secondary{background:#eef2f6;color:#344054}.btn.warn{background:#a33d23}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:right;padding:11px 9px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:#475467;background:#f8fafc;font-weight:600}.notice{padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #ffe2a8;color:#7a4a00;font-size:13px;line-height:1.8}.success{padding:12px 14px;border-radius:10px;background:#e9f7f0;color:#126044;margin-bottom:12px}.small{font-size:12px;color:var(--muted);line-height:1.8}.pill{display:inline-block;padding:4px 8px;border-radius:30px;background:#eef2f6;font-size:11px}.empty{padding:25px;text-align:center;color:var(--muted)}footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.formgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.twocol{grid-template-columns:1fr}}@media(max-width:520px){header strong{font-size:18px}.grid{grid-template-columns:1fr 1fr;gap:8px}.metric .value{font-size:18px}.card{padding:12px}.formgrid{grid-template-columns:1fr}main{padding:0 10px 25px}nav{gap:2px}nav a{padding:8px;font-size:12px}}
-'''
-NAV=[('','داشبورد'),('products','کالاها'),('purchases','خرید'),('sales','فروش'),('services','خدمات'),('expenses','هزینه‌ها'),('loans','وام‌ها'),('prices','قیمت روز'),('reports','گزارش‌ها'),('settings','تنظیمات')]
+NAV_GROUPS=[
+    ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
+    ('انبار',[('products','کالاها و موجودی','box'),('prices','قیمت روز','chart')]),
+    ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
+    ('مدیریت',[('loans','وام‌ها','calendar'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
+]
+def svg_icon(name, cls='icon'):
+    return f'<svg class="{cls}" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{esc(name)}"></use></svg>'
+
 def page(title, body, active='', msg=''):
-    nav=''.join(f'<a class="{"active" if key==active else ""}" href="/{key}">{label}</a>' for key,label in NAV)
-    return f'''<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(title)} | آهن‌مدیریت</title><style>{CSS}</style></head><body><header><div><strong>آهن‌مدیریت</strong><br><small>مدیریت محلی انبار، سود، سرمایه و نقدینگی</small></div><div class="small" style="color:#d2e3de">ذخیره روی همین کامپیوتر · بدون نیاز به اینترنت</div></header><nav>{nav}</nav><main>{f'<div class="success">{esc(msg)}</div>' if msg else ''}{body}</main><footer>آهن‌مدیریت · نسخه اولیه محلی · قبل از ثبت اطلاعات واقعی، از پایگاه داده پشتیبان بگیرید.</footer></body></html>'''
+    groups=[]
+    for group_label, items in NAV_GROUPS:
+        links=[]
+        for key, label, icon in items:
+            href='/' if not key else f'/{key}'
+            links.append(f'<a class="nav-link {"active" if key==active else ""}" href="{href}" title="{esc(label)}">{svg_icon(icon)}<span>{esc(label)}</span></a>')
+        groups.append(f'<section class="nav-group"><h2 class="nav-group-label">{esc(group_label)}</h2>{"".join(links)}</section>')
+    backup_items=sorted((DATA / 'backups').glob('business_*.db'), key=lambda p:p.stat().st_mtime, reverse=True) if (DATA / 'backups').exists() else []
+    backup_label='پشتیبان ثبت نشده'; backup_class='backup-chip stale'
+    if backup_items:
+        age=datetime.datetime.now()-datetime.datetime.fromtimestamp(backup_items[0].stat().st_mtime)
+        backup_class='backup-chip stale' if age.days>=7 else 'backup-chip'
+        backup_label='آخرین پشتیبان: '+('کمتر از یک ساعت پیش' if age.total_seconds()<3600 else (f'{age.days} روز پیش' if age.days else f'{age.seconds//3600} ساعت پیش'))
+    today_label=show_date(TODAY)
+    return f'''<!doctype html><html lang="fa" dir="rtl" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{esc(title)} | آهن‌مدیریت</title><link rel="stylesheet" href="/static/tokens.css"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head><body>
+    <div class="app-shell"><aside class="sidebar" id="app-sidebar"><a class="brand" href="/"><span class="brand-mark">{svg_icon('grid')}</span><span>آهن‌مدیریت</span></a><button type="button" class="secondary sidebar-collapse" id="sidebar-collapse" aria-label="جمع کردن منو">{svg_icon('chevron')}</button><nav class="nav-groups">{"".join(groups)}</nav><div class="sidebar-bottom"><span class="status-chip">{svg_icon('shield')}اطلاعات روی همین دستگاه ذخیره می‌شود</span></div></aside>
+    <div class="app-main"><header class="topbar"><button type="button" class="secondary mobile-menu" id="mobile-menu" aria-label="باز کردن منو">{svg_icon('menu')}</button><div class="topbar-heading"><strong>{esc(title)}</strong><span class="breadcrumb">خانه / {esc(title)}</span></div><label class="global-search">{svg_icon('search')}<input id="global-search" type="search" placeholder="جستجوی صفحه یا اقدام" aria-label="جستجوی سراسری"><kbd>Ctrl K</kbd></label><div class="topbar-actions"><span class="date-chip">{svg_icon('calendar')}<span>امروز {esc(today_label)}</span></span><span class="{backup_class}">{svg_icon('backup')}{esc(backup_label)}</span><button type="button" class="secondary" id="theme-toggle" aria-label="تغییر تم" title="تغییر تم">{svg_icon('moon')}</button><details class="quick-menu"><summary class="btn" title="ثبت سریع">{svg_icon('plus')}ثبت سریع</summary><div class="quick-items"><a href="/sales">فروش جدید</a><a href="/purchases">خرید جدید</a><a href="/expenses">ثبت هزینه</a><a href="/settings">پشتیبان‌گیری</a></div></details><button type="button" class="secondary" id="command-open" aria-label="جستجوی فرمان‌ها" title="جستجوی فرمان‌ها">{svg_icon('command')}</button></div></header>
+    <main><div class="page-body">{f'<div class="success" role="status">{esc(msg)}</div>' if msg else ''}{body}</div></main><footer class="statusbar"><span>پایگاه داده: {esc(DB.name)}</span><span>همه‌چیز روی همین دستگاه ذخیره می‌شود</span><span>آهن‌مدیریت · نسخه ۳</span></footer></div></div>
+    <div class="command-overlay" id="command-palette" aria-hidden="true"><section class="command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-title"><div class="command-head"><h2 id="command-title">جستجو و اقدامات</h2><button type="button" class="secondary" id="command-close" aria-label="بستن">{svg_icon('close')}</button></div><input id="command-input" type="search" placeholder="نام صفحه یا اقدام را بنویس"><div id="command-list" class="command-list"></div><p class="small">میان‌بر: Ctrl+K · بستن: Esc</p></section></div>
+    <dialog id="confirm-dialog" class="confirm-dialog"><h2 id="confirm-title">تأیید عملیات</h2><p id="confirm-description">این عملیات را تأیید می‌کنی؟</p><label>برای ادامه عبارت تأیید را وارد کن<input id="confirm-phrase" autocomplete="off"></label><div class="actions"><button type="button" class="secondary" id="confirm-cancel">انصراف</button><button type="button" class="danger" id="confirm-accept" disabled>تأیید</button></div></dialog>
+    </body></html>'''
+def design_page(c=None):
+    body='''<section class="section"><p class="muted">این صفحه برای مرور چشمی توکن‌ها، اجزای پایه و حالت‌های رابط ساخته شده است. رنگ‌ها و فاصله‌ها از فایل‌های محلی سیستم طراحی می‌آیند.</p></section>
+    <section class="card section"><h2>پالت رنگ</h2><div class="palette-grid"><div><h3>برند</h3><div class="swatch swatch-brand"><span>Brand</span></div></div><div><h3>خنثی</h3><div class="swatch swatch-neutral"><span>Neutral</span></div></div><div><h3>وضعیت‌های معنایی</h3><div class="state-row"><span class="badge success">موفق · بستانکار</span><span class="badge warning">هشدار · نزدیک سررسید</span><span class="badge danger">خطر · بدهکار</span><span class="badge info">اطلاع · پیش‌نویس</span></div></div></div></section>
+    <section class="card section"><h2>حالت دکمه‌ها</h2><div class="state-row"><button>اصلی</button><button class="secondary">ثانویه</button><button class="neutral">خنثی</button><button class="ghost">متنی</button><button class="danger">خطرناک</button><button disabled>غیرفعال</button><button><span class="spinner" aria-hidden="true"></span>در حال ذخیره</button></div><div class="actions"><button class="sm secondary">کوچک</button><button class="secondary">معمولی</button><button class="lg secondary">بزرگ</button></div></section>
+    <section class="card section"><h2>فیلدها و خطا</h2><div class="formgrid"><div class="field"><label for="demo-name">نام کالا</label><input id="demo-name" value="پروفیل ۲ میلی‌متر"><span class="help">برچسب بالای ورودی و راهنما زیر آن</span></div><div class="field"><label for="demo-amount">مبلغ (تومان)</label><input id="demo-amount" value="۲٬۵۰۰٬۰۰۰" inputmode="numeric"><span class="help">قالب‌بندی نمونه مبلغ</span></div><div class="field error"><label for="demo-error">حالت خطا</label><input id="demo-error" aria-invalid="true" value="تاریخ نامعتبر"><span class="error">تاریخ معتبر نیست؛ مقدار را اصلاح کن.</span></div></div></section>
+    <section class="card section"><h2>جدول و شمارنده</h2><div class="tablewrap"><table><thead><tr><th>کالا</th><th>موجودی</th><th>وضعیت</th><th>مانده</th></tr></thead><tbody><tr><td>پروفیل ۲ میلی‌متر</td><td>۱۲۰ شاخه</td><td><span class="badge success">موجود</span></td><td>− ۳٬۰۰۰٬۰۰۰ · بدهکار</td></tr><tr><td>ورق روغنی</td><td>۵ برگ</td><td><span class="badge warning">کم‌موجودی</span></td><td>+ ۸۵۰٬۰۰۰ · بستانکار</td></tr></tbody></table></div><div class="table-count">نمایش ۱ تا ۲ از ۱٬۲۴۰ مورد · صفحه ۱ از ۶۲۰</div></section>
+    <section class="twocol section"><div class="card"><h2>حالت خالی</h2><div class="empty"><strong>هنوز فروشی ثبت نشده است.</strong><span class="small">اولین فروش را ثبت کن.</span><a class="btn" href="/sales">ثبت فروش</a></div></div><div class="card"><h2>در حال بارگذاری</h2><span class="loading-skeleton"></span><span class="loading-skeleton"></span><span class="loading-skeleton"></span></div></section>
+    <section class="card section"><h2>وضعیت پیام‌ها</h2><div class="success" role="status">ذخیره شد؛ اطلاعات ثبت شدند.</div><div class="notice err" role="alert">ذخیره انجام نشد؛ پایگاه داده قفل است. کمی بعد دوباره تلاش کن.</div></section>'''
+    return page('سیستم طراحی',body,'design')
+
 def field(label,name,typ='text',value='',required=False,step=None,placeholder=''):
     req='required' if required else ''; st=f' step="{step}"' if step else ''
     if typ == 'date':
@@ -252,7 +287,7 @@ def dash(c):
 def products(c):
     rows=[]
     for r in c.execute('SELECT * FROM products ORDER BY name'):
-        status='<span class="pill" style="background:#fff0ee;color:#b42318">موجودی کم</span>' if r['stock']<=r['min_stock'] else '<span class="pill">عادی</span>'
+        status='<span class="pill badge danger">موجودی کم</span>' if r['stock']<=r['min_stock'] else '<span class="pill">عادی</span>'
         edit=f'<a class="btn secondary" href="/edit_product?id={r["id"]}">ویرایش</a>'
         rows.append([esc(r['name']),esc(r['category']),esc(r['code']),f"{r['stock']:g} {esc(r['unit'])}",money(r['avg_cost']),money(r['market_price']),money(r['stock']*r['avg_cost']),status,edit])
     units=[('کیلوگرم','کیلوگرم'),('تن','تن'),('شاخه','شاخه'),('متر','متر'),('مترمربع','مترمربع'),('عدد','عدد'),('ورق','ورق')]
@@ -351,6 +386,16 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(303); self.send_header('Location',path+('&' if '?' in path else '?')+'msg='+quote(msg)); self.end_headers()
     def do_GET(self):
         u=urlparse(self.path); path=u.path.strip('/'); q=parse_qs(u.query); msg=q.get('msg',[''])[0]
+        if path.startswith('static/'):
+            try:
+                target=(STATIC_DIR / path.removeprefix('static/')).resolve()
+                target.relative_to(STATIC_DIR.resolve())
+                if not target.is_file(): raise FileNotFoundError
+                mime=mimetypes.guess_type(str(target))[0] or 'application/octet-stream'
+                if mime.startswith('text/') or mime in ('application/javascript','application/json','image/svg+xml'): mime += '; charset=utf-8'
+                self.send(target.read_bytes(),mime); return
+            except (ValueError, OSError):
+                self.send('Not Found','text/plain; charset=utf-8',404); return
         with LOCK, conn() as c:
             if path=='backup':
                 try: data=DB.read_bytes(); self.send_response(200); self.send_header('Content-Type','application/octet-stream'); self.send_header('Content-Disposition','attachment; filename="business-backup.db"'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
@@ -374,7 +419,7 @@ class Handler(BaseHTTPRequestHandler):
                 try: self.send(product_editor(c,int(parse_qs(urlparse(self.path).query).get('id',['0'])[0])))
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             self.send(fn(c) if path=='' else fn(c))
