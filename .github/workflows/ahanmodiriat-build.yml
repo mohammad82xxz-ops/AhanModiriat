@@ -20,6 +20,7 @@ jobs:
         run: |
           python test_smoke.py
           python test_design_system.py
+          node --check static/app.js
   windows-onedir:
     runs-on: windows-latest
     needs: smoke-test
