@@ -158,6 +158,36 @@ def init():
         );
         CREATE TABLE IF NOT EXISTS opening_capital(id INTEGER PRIMARY KEY CHECK(id=1), amount REAL NOT NULL DEFAULT 0, date TEXT NOT NULL);
         INSERT OR IGNORE INTO opening_capital(id,amount,date) VALUES(1,0,date('now'));
+        CREATE TABLE IF NOT EXISTS people(
+            id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'both',
+            phone TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS cash_accounts(
+            id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, account_type TEXT NOT NULL DEFAULT 'cash',
+            opening_balance INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS cash_movements(
+            id INTEGER PRIMARY KEY, date TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('deposit','withdraw','transfer')),
+            from_account_id INTEGER REFERENCES cash_accounts(id),
+            to_account_id INTEGER REFERENCES cash_accounts(id),
+            amount INTEGER NOT NULL CHECK(amount>0),
+            party TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+            source_table TEXT NOT NULL DEFAULT '', source_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            CHECK((kind='deposit' AND from_account_id IS NULL AND to_account_id IS NOT NULL)
+               OR (kind='withdraw' AND from_account_id IS NOT NULL AND to_account_id IS NULL)
+               OR (kind='transfer' AND from_account_id IS NOT NULL AND to_account_id IS NOT NULL AND from_account_id<>to_account_id))
+        );
+        CREATE INDEX IF NOT EXISTS ix_cash_movements_date ON cash_movements(date,id);
+        CREATE INDEX IF NOT EXISTS ix_cash_movements_source ON cash_movements(source_table,source_id);
+        INSERT OR IGNORE INTO cash_accounts(id,name,account_type,opening_balance) VALUES
+            (1,'صندوق نقدی','cash',0),(2,'حساب بانکی','bank',0);
         ''')
     # Safe additive migration; existing transactions and history are preserved.
     with conn() as c:
@@ -175,6 +205,28 @@ def init():
                 c.execute(f"ALTER TABLE products ADD COLUMN {name} {decl}")
         c.execute("UPDATE products SET purchase_unit=unit WHERE purchase_unit=''")
         c.execute("UPDATE products SET sale_unit=unit WHERE sale_unit=''")
+        # Seed the party directory from historical free-text names without rewriting source documents.
+        for query, kind in (
+            ("SELECT supplier FROM purchases", "supplier"),
+            ("SELECT customer FROM sales", "customer"),
+            ("SELECT customer FROM services", "customer"),
+            ("SELECT source FROM expenses", "supplier"),
+            ("SELECT source FROM loan_payments", "both"),
+        ):
+            for row in c.execute(query).fetchall():
+                person_name = normalize_person(row[0])
+                if person_name:
+                    c.execute("INSERT OR IGNORE INTO people(name,kind) VALUES(?,?)", (person_name, kind))
+        # A legacy opening-capital setting is an opening balance, not a transaction.
+        if scalar(c, "SELECT COUNT(*) FROM cash_movements") == 0:
+            opening = int(round(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)))
+            current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
+            if opening and not current:
+                c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1", (opening,))
+        migrated = backfill_legacy_cash_postings(c)
+        if migrated:
+            c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",
+                      ("بازسازی گردش صندوق از اسناد قدیمی", json.dumps({"rows": migrated}, ensure_ascii=False)))
 
 DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 def num(v, default=0):
@@ -191,6 +243,101 @@ def fval(row,key,default=''):
 
 def scalar(c, sql, args=()):
     r=c.execute(sql,args).fetchone(); return (r[0] or 0) if r else 0
+
+def normalize_person(value):
+    """Normalize legacy free-text names for the directory, without changing transaction text."""
+    return " ".join(str(value or "").split())
+
+def account_balance(c, account_id):
+    account = c.execute("SELECT opening_balance FROM cash_accounts WHERE id=?", (account_id,)).fetchone()
+    if account is None:
+        return 0
+    incoming = scalar(c, "SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE to_account_id=?", (account_id,))
+    outgoing = scalar(c, "SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE from_account_id=?", (account_id,))
+    return int(account["opening_balance"] or 0) + int(incoming or 0) - int(outgoing or 0)
+
+def sync_cash_posting(c, source_table, source_id, date, amount, direction, party="", note=""):
+    """Idempotently mirror explicit paid/received cash amounts into the cash ledger."""
+    c.execute("DELETE FROM cash_movements WHERE source_table=? AND source_id=?", (source_table, source_id))
+    amount = int(round(float(amount or 0)))
+    if amount <= 0:
+        return
+    if direction == "in":
+        c.execute("""INSERT INTO cash_movements(date,kind,to_account_id,amount,party,note,source_table,source_id)
+                     VALUES(?,'deposit',1,?,?,?,?,?)""",
+                  (date, amount, normalize_person(party), str(note or ""), source_table, source_id))
+    elif direction == "out":
+        c.execute("""INSERT INTO cash_movements(date,kind,from_account_id,amount,party,note,source_table,source_id)
+                     VALUES(?,'withdraw',1,?,?,?,?,?)""",
+                  (date, amount, normalize_person(party), str(note or ""), source_table, source_id))
+    else:
+        raise ValueError("جهت گردش نقدی نامعتبر است.")
+
+def backfill_legacy_cash_postings(c):
+    """Backfill only explicit historical receipts/payments; never infer return refunds."""
+    specs = (
+        ("purchases", "paid", "out", "supplier", "پرداخت خرید"),
+        ("sales", "received", "in", "customer", "دریافت فروش"),
+        ("services", "received", "in", "customer", "دریافت خدمات"),
+        ("expenses", "amount", "out", "source", "پرداخت هزینه"),
+        ("loan_payments", "amount", "out", "source", "پرداخت قسط وام"),
+    )
+    inserted = 0
+    for table, amount_col, direction, party_col, fallback in specs:
+        rows = c.execute(
+            f"""SELECT t.id,t.date,COALESCE(t.{amount_col},0) AS amount,
+                       COALESCE(t.{party_col},'') AS party,COALESCE(t.notes,'') AS notes
+                FROM {table} t
+                WHERE COALESCE(t.{amount_col},0)>0
+                  AND NOT EXISTS(SELECT 1 FROM cash_movements m
+                                 WHERE m.source_table=? AND m.source_id=t.id)""",
+            (table,),
+        ).fetchall()
+        for row in rows:
+            sync_cash_posting(c, table, row["id"], row["date"], row["amount"], direction, row["party"], row["notes"] or fallback)
+            inserted += 1
+    for row in c.execute("""SELECT e.id,e.date,e.kind,e.amount,e.source,e.notes
+            FROM cash_events e
+            WHERE e.kind IN ('in','out') AND COALESCE(e.amount,0)>0
+              AND NOT EXISTS(SELECT 1 FROM cash_movements m
+                             WHERE m.source_table='cash_events' AND m.source_id=e.id)""").fetchall():
+        sync_cash_posting(c, "cash_events", row["id"], row["date"], row["amount"], row["kind"], row["source"], row["notes"] or "رویداد نقدی")
+        inserted += 1
+    return inserted
+
+def cash_page(c):
+    accounts = c.execute("SELECT * FROM cash_accounts ORDER BY id").fetchall()
+    opts = "".join(f'<option value="{r["id"]}">{esc(r["name"])}</option>' for r in accounts)
+    metrics = "".join(
+        f'<div class="card metric"><div class="label">{esc(r["name"])}</div><div class="value">{money(account_balance(c,r["id"]))} تومان</div><div class="muted">مانده افتتاحیه: {money(r["opening_balance"])} تومان</div></div>'
+        for r in accounts
+    )
+    rows = []
+    for r in c.execute("""SELECT m.*,fa.name AS from_name,ta.name AS to_name
+                          FROM cash_movements m
+                          LEFT JOIN cash_accounts fa ON fa.id=m.from_account_id
+                          LEFT JOIN cash_accounts ta ON ta.id=m.to_account_id
+                          ORDER BY m.date DESC,m.id DESC LIMIT 100"""):
+        label = {"deposit":"واریز/دریافت","withdraw":"برداشت/پرداخت","transfer":"انتقال بین حساب‌ها"}.get(r["kind"],r["kind"])
+        rows.append([show_date(r["date"]),label,esc(r["from_name"] or "—"),esc(r["to_name"] or "—"),
+                     money(r["amount"]),esc(r["party"]),esc(r["note"]),
+                     "ثبت خودکار" if r["source_table"] else "ثبت دستی"])
+    body = f'''<h1>صندوق و حساب‌های بانکی</h1>
+    <div class="grid section">{metrics}</div>
+    <div class="card section"><h2>ثبت گردش دستی</h2>
+      <form method="post" action="/add_cash_movement">
+        <div class="formgrid">{field("تاریخ","date","date",TODAY,True)}
+          {selectfield("نوع گردش","kind",[("deposit","واریز به حساب"),("withdraw","برداشت از حساب"),("transfer","انتقال بین حساب‌ها")])}
+          <label>حساب مبدأ<select name="from_account_id"><option value="">— انتخاب حساب —</option>{opts}</select></label>
+          <label>حساب مقصد<select name="to_account_id"><option value="">— انتخاب حساب —</option>{opts}</select></label>
+          {field("مبلغ (تومان)","amount","number","0",True,"1")}
+          {field("طرف حساب","party")}{field("شرح","note")}
+        </div><div class="actions"><button>ثبت گردش</button></div>
+      </form>
+      <p class="small">مبالغ گردش صندوق به تومانِ صحیح ثبت می‌شوند. مبالغ پرداخت/دریافت ثبت‌شده در سندهای خرید، فروش، خدمات، هزینه و اقساط به‌طور خودکار وارد دفتر می‌شوند.</p>
+    </div>
+    <div class="card section"><h2>آخرین ۱۰۰ گردش</h2>{table(["تاریخ","نوع","از حساب","به حساب","مبلغ","طرف حساب","شرح","منبع"],rows)}</div>'''
+    return page("صندوق و بانک",body,"cash")
 
 def calc(c, start=None, end=None):
     where=''; args=[]
@@ -218,6 +365,7 @@ NAV_GROUPS=[
     ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
     ('انبار',[('products','کالاها و موجودی','box'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
+    ('مالی',[('cash','صندوق و بانک','wallet')]),
     ('مدیریت',[('loans','وام‌ها','calendar'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
 ]
 def svg_icon(name, cls='icon'):
@@ -436,7 +584,7 @@ class Handler(BaseHTTPRequestHandler):
                 try: self.send(product_editor(c,int(parse_qs(urlparse(self.path).query).get('id',['0'])[0])))
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             self.send(fn(c) if path=='' else fn(c))
@@ -466,6 +614,7 @@ class Handler(BaseHTTPRequestHandler):
                     base_qty=qty*factor
                     newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
                     c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
+                    sync_cash_posting(c,"purchases",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
                     pid=int(v('product_id')); qty=num(v('qty')); price=num(v('unit_price')); extra=num(v('extra_cost')); received=num(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
@@ -474,11 +623,16 @@ class Handler(BaseHTTPRequestHandler):
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
                     base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    sync_cash_posting(c,"sales",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
-                    c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')));dest='/services';msg='درآمد خدمات ثبت شد.'
+                    c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')))
+                    sync_cash_posting(c,"services",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
+                    dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
-                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')));dest='/expenses';msg='پرداخت ثبت شد.'
+                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
+                    sync_cash_posting(c,"expenses",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('amount')),"out",v('source'),v('notes') or "پرداخت هزینه")
+                    dest='/expenses';msg='پرداخت ثبت شد.'
                 elif path=='add_loan':
                     c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes) VALUES(?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes')));dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
@@ -487,20 +641,40 @@ class Handler(BaseHTTPRequestHandler):
                     if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
                     if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
                     c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
+                    sync_cash_posting(c,"loan_payments",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),amount,"out",v('source'),v('notes') or "پرداخت قسط وام")
                     nextdate=v('next_date')
                     c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=CASE WHEN next_date<>"" THEN date(next_date,"+1 month") ELSE next_date END WHERE id=?',(principal,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل وام کاهش یافت.'
                 elif path=='add_price':
                     pid=int(v('product_id')); price=num(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
                     c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')));c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
+                elif path=='add_cash_movement':
+                    kind=v('kind'); amount=int(round(num(v('amount'))))
+                    if amount<=0: raise ValueError('مبلغ گردش باید عدد صحیح بزرگ‌تر از صفر باشد.')
+                    date=to_iso_date(v('date',jalali_today())); src=v('from_account_id'); dst=v('to_account_id')
+                    src_id=int(src) if src else None; dst_id=int(dst) if dst else None
+                    if kind=='deposit':
+                        if not dst_id: raise ValueError('حساب مقصد برای واریز را انتخاب کن.')
+                        c.execute("INSERT INTO cash_movements(date,kind,to_account_id,amount,party,note) VALUES(?,'deposit',?,?,?,?)",(date,dst_id,amount,normalize_person(v('party')),v('note')))
+                    elif kind=='withdraw':
+                        if not src_id: raise ValueError('حساب مبدأ برای برداشت را انتخاب کن.')
+                        c.execute("INSERT INTO cash_movements(date,kind,from_account_id,amount,party,note) VALUES(?,'withdraw',?,?,?,?)",(date,src_id,amount,normalize_person(v('party')),v('note')))
+                    elif kind=='transfer':
+                        if not src_id or not dst_id or src_id==dst_id: raise ValueError('برای انتقال، دو حساب متفاوت انتخاب کن.')
+                        c.execute("INSERT INTO cash_movements(date,kind,from_account_id,to_account_id,amount,party,note) VALUES(?,'transfer',?,?,?,?,?)",(date,src_id,dst_id,amount,normalize_person(v('party')),v('note')))
+                    else: raise ValueError('نوع گردش نقدی نامعتبر است.')
+                    dest='/cash';msg='گردش حساب ثبت شد.'
                 elif path=='save_capital':
-                    c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(num(v('amount')),to_iso_date(v('date',jalali_today()))));dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
+                    amount=int(round(num(v('amount')))); capital_date=to_iso_date(v('date',jalali_today()))
+                    c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(amount,capital_date))
+                    c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1",(amount,))
+                    dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
                 else:raise ValueError('درخواست نامعتبر است.')
                 audit_details = json.dumps({"fields": sorted(str(key) for key in d.keys())}, ensure_ascii=False)
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))
