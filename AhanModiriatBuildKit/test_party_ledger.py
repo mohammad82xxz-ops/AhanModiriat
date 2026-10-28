@@ -30,6 +30,8 @@ def main():
         cur = c.execute("INSERT INTO settlements(date,party,kind,amount,notes) VALUES('2026-02-05','Supplier B','pay',40,'supplier settlement')")
         app.sync_cash_posting(c, "settlements", cur.lastrowid, "2026-02-05", 40, "out", "Supplier B", "supplier settlement")
 
+        # Simulate upgrading a database where legacy transactions predate the ledger.
+        app.backfill_legacy_cash_postings(c)
         balances = app.party_balances(c)
         assert balances["Customer A"]["receivable"] == 350, balances
         assert balances["Supplier B"]["payable"] == 110, balances
