@@ -26,7 +26,31 @@
  const confirmDialog=$('#confirm-dialog'),phraseInput=$('#confirm-phrase'),confirmAccept=$('#confirm-accept');let confirmWord='';
  $('#confirm-cancel')?.addEventListener('click',()=>confirmDialog?.close());phraseInput?.addEventListener('input',()=>{if(confirmAccept)confirmAccept.disabled=toLatin(phraseInput.value).trim()!==toLatin(confirmWord).trim();});
  document.addEventListener('click',e=>{const trigger=e.target.closest('[data-confirm]');if(!trigger)return;e.preventDefault();if(!confirmDialog)return;confirmWord=trigger.dataset.confirmPhrase||'تأیید';$('#confirm-title').textContent='تأیید عملیات';$('#confirm-description').textContent=trigger.dataset.confirm||'این عملیات را تأیید می‌کنی؟';phraseInput.value='';confirmAccept.disabled=Boolean(trigger.dataset.confirmPhrase);confirmDialog.showModal();confirmAccept.onclick=()=>{if(trigger.dataset.confirmPhrase&&toLatin(phraseInput.value).trim()!==toLatin(confirmWord).trim())return;confirmDialog.close();if(trigger.tagName==='FORM')trigger.submit();else if(trigger.href)location.href=trigger.href;};});
- document.addEventListener('keydown',e=>{if(e.defaultPrevented)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();return;}if(e.key==='Escape'){closePalette();if(confirmDialog?.open)confirmDialog.close();sidebar?.classList.remove('open');return;}if(e.key==='F2'){e.preventDefault();location.href='/sales';}if(e.key==='F3'){e.preventDefault();location.href='/purchases';}if(e.key==='F4'){e.preventDefault();location.href='/expenses';}if(e.key==='?'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'')){openPalette('میان‌بر');}if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'')){e.preventDefault();globalSearch?.focus();}});
+ document.addEventListener('keydown',e=>{
+  if(e.defaultPrevented)return;
+  const active=document.activeElement,tag=active?.tagName||'';
+  const inField=/INPUT|TEXTAREA|SELECT/.test(tag)||Boolean(active?.isContentEditable);
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();return;}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+   const form=active?.closest?.('form');
+   if(form){e.preventDefault();const submit=form.querySelector('button[type="submit"],button:not([type]),input[type="submit"]');if(form.requestSubmit)form.requestSubmit(submit||undefined);else submit?.click();}
+   return;
+  }
+  if(e.altKey&&e.key.toLowerCase()==='n'&&!inField){
+   const forms=$('main form');let first=null;
+   for(const form of forms){first=form.querySelector('input:not([type="hidden"]):not([type="file"]):not([disabled]),select:not([disabled]),textarea:not([disabled])');if(first)break;}
+   if(first){e.preventDefault();first.focus();if(typeof first.select==='function'&&/INPUT|TEXTAREA/.test(first.tagName))first.select();}
+   return;
+  }
+  if(e.key==='Escape'){closePalette();if(confirmDialog?.open)confirmDialog.close();sidebar?.classList.remove('open');return;}
+  if(!inField&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey){
+   if(e.key==='F2'){e.preventDefault();location.href='/sales';return;}
+   if(e.key==='F3'){e.preventDefault();location.href='/purchases';return;}
+   if(e.key==='F4'){e.preventDefault();location.href='/expenses';return;}
+  }
+  if(e.key==='?'&&!inField){openPalette('میان‌بر');}
+  if(e.key==='/'&&!inField){e.preventDefault();globalSearch?.focus();}
+ });
  const small=['','یک','دو','سه','چهار','پنج','شش','هفت','هشت','نه','ده','یازده','دوازده','سیزده','چهارده','پانزده','شانزده','هفده','هجده','نوزده'];
  const tens=['','','بیست','سی','چهل','پنجاه','شصت','هفتاد','هشتاد','نود'],hundreds=['','یکصد','دویست','سیصد','چهارصد','پانصد','ششصد','هفتصد','هشتصد','نهصد'];
  function less1000(n){const a=[];if(n>=100){a.push(hundreds[Math.floor(n/100)]);n%=100;}if(n>=20){a.push(tens[Math.floor(n/10)]);n%=10;}if(n>0)a.push(small[n]);return a.join(' و ');}
