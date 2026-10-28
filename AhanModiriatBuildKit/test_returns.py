@@ -42,6 +42,8 @@ def main():
         sale_id = sc.lastrowid
         app.ensure_person(c, "Seller A", "supplier")
         app.ensure_person(c, "Customer A", "customer")
+        app.sync_cash_posting(c,"purchases",purchase_id,"2026-01-01",30,"out","Seller A","source purchase")
+        app.sync_cash_posting(c,"sales",sale_id,"2026-01-02",40,"in","Customer A","source sale")
 
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     port = server.server_address[1]
