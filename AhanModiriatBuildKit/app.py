@@ -598,7 +598,7 @@ def init():
                     UPDATE {table_name} SET updated_at=datetime('now','localtime') WHERE id=NEW.id;
                 END""")
         # A legacy opening-capital setting is an opening balance, not a transaction.
-        opening = int(round(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)))
+        opening = money_int(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0))
         current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
         # A manual transfer must not prevent migration of the legacy opening cash balance.
         if opening and not current:
@@ -622,7 +622,10 @@ def num(v, default=0):
         return float(cleaned or default)
     except (ValueError, TypeError):
         return float(default)
-def money_int(v, default=0): return int(round(num(v, default)))
+def money_int(v, default=0):
+    amount=num(v,default)
+    # Round half away from zero consistently with SQLite ROUND() in the schema migration.
+    return int(amount+0.5) if amount>=0 else int(amount-0.5)
 def money(v): return f'{v:,.0f}'
 def esc(v): return html.escape(str(v if v is not None else ''))
 def fval(row,key,default=''):
@@ -647,7 +650,7 @@ def account_balance(c, account_id):
 def sync_cash_posting(c, source_table, source_id, date, amount, direction, party="", note=""):
     """Idempotently mirror explicit paid/received cash amounts into the cash ledger."""
     c.execute("DELETE FROM cash_movements WHERE source_table=? AND source_id=?", (source_table, source_id))
-    amount = int(round(float(amount or 0)))
+    amount = money_int(float(amount or 0))
     if amount <= 0:
         return
     if direction == "in":
@@ -2087,7 +2090,7 @@ class Handler(BaseHTTPRequestHandler):
                     person_id=ensure_person(c,name,kind,v('phone'),v('notes'))
                     dest='/parties';msg='طرف حساب ثبت شد.'
                 elif path=='add_settlement':
-                    party=normalize_person(v('party')); kind=v('kind'); amount=int(round(num(v('amount'))))
+                    party=normalize_person(v('party')); kind=v('kind'); amount=money_int(v('amount'))
                     if not party: raise ValueError('طرف حساب را انتخاب کن.')
                     if kind not in ('receive','pay') or amount<=0: raise ValueError('نوع یا مبلغ تسویه نامعتبر است.')
                     person_id=ensure_person(c,party,'both')
@@ -2182,7 +2185,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("DELETE FROM expenses WHERE id=?",(rid,))
                     dest='/expenses';msg='هزینه/برداشت حذف شد.'
                 elif path=='add_sales_return':
-                    sale_id=int(v("sale_id")); qty=num(v("qty"),-1); refund=int(round(num(v("refund_amount"),-1)))
+                    sale_id=int(v("sale_id")); qty=num(v("qty"),-1); refund=money_int(v("refund_amount"),-1)
                     reason=normalize_person(v("reason"))
                     sale=c.execute("SELECT s.*,p.name,p.unit,p.stock,p.avg_cost FROM sales s JOIN products p ON p.id=s.product_id WHERE s.id=?",(sale_id,)).fetchone()
                     if sale is None: raise ValueError("سند فروش اصلی پیدا نشد.")
@@ -2190,7 +2193,7 @@ class Handler(BaseHTTPRequestHandler):
                     already=float(scalar(c,"SELECT COALESCE(SUM(qty),0) FROM sales_returns WHERE sale_id=?",(sale_id,)) or 0)
                     remaining=float(sale["qty"])-already
                     if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از ماندهٔ قابل برگشت بیشتر است؛ مانده {remaining:g} {sale['unit']} است.")
-                    return_value=int(round(qty*float(sale["unit_price"])))
+                    return_value=money_int(qty*float(sale["unit_price"]))
                     if refund>return_value:
                         raise ValueError("وجه برگشتی از ارزش فروش مرجوع‌شده بیشتر است؛ مبلغ اضافه را جداگانه به‌عنوان هزینه ثبت کن.")
                     cost_value=qty*float(sale["cost_basis"])
@@ -2207,7 +2210,7 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"sales_returns",return_id,to_iso_date(v("date",jalali_today())),refund,"out",sale["customer"],reason)
                     dest='/returns';msg='مرجوعی فروش ثبت شد؛ موجودی، سود و صندوق به‌روزرسانی شد.'
                 elif path=='add_purchase_return':
-                    purchase_id=int(v("purchase_id")); qty=num(v("qty"),-1); cash_refund=int(round(num(v("cash_refund"),-1)))
+                    purchase_id=int(v("purchase_id")); qty=num(v("qty"),-1); cash_refund=money_int(v("cash_refund"),-1)
                     reason=normalize_person(v("reason"))
                     purchase=c.execute("""SELECT p.*,pr.name,pr.unit,pr.stock,pr.avg_cost,pr.purchase_factor
                                            FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE p.id=?""",(purchase_id,)).fetchone()
@@ -2222,7 +2225,7 @@ class Handler(BaseHTTPRequestHandler):
                     if qty>float(purchase["stock"] or 0)+0.000001: raise ValueError("موجودی فعلی برای این مرجوعی کافی نیست.")
                     unit_base_cost=float(purchase["unit_cost"] or 0)/factor
                     extra_per_base=float(purchase["extra_cost"] or 0)/bought_base if bought_base else 0
-                    return_value=int(round(qty*(unit_base_cost+extra_per_base)))
+                    return_value=money_int(qty*(unit_base_cost+extra_per_base))
                     if cash_refund>return_value+0.99: raise ValueError("وجه دریافتی از فروشنده نمی‌تواند از ارزش مرجوعی بیشتر باشد.")
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(purchase["product_id"],)).fetchone()
                     old_stock=float(product["stock"] or 0); new_stock=old_stock-qty
@@ -2252,7 +2255,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("UPDATE products SET stock=? WHERE id=?",(counted,pid))
                     dest='/inventory';msg=f'انبارگردانی ثبت شد؛ اختلاف {delta:+g} {product["unit"]} اعمال شد.'
                 elif path=='add_cash_movement':
-                    kind=v('kind'); amount=int(round(num(v('amount'))))
+                    kind=v('kind'); amount=money_int(v('amount'))
                     if amount<=0: raise ValueError('مبلغ گردش باید عدد صحیح بزرگ‌تر از صفر باشد.')
                     date=to_iso_date(v('date',jalali_today())); src=v('from_account_id'); dst=v('to_account_id')
                     src_id=int(src) if src else None; dst_id=int(dst) if dst else None
@@ -2269,7 +2272,7 @@ class Handler(BaseHTTPRequestHandler):
                     cash_movement_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
                     dest='/cash';msg='گردش حساب ثبت شد.'
                 elif path=='save_capital':
-                    amount=int(round(num(v('amount')))); capital_date=to_iso_date(v('date',jalali_today()))
+                    amount=money_int(v('amount')); capital_date=to_iso_date(v('date',jalali_today()))
                     c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(amount,capital_date))
                     c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1",(amount,))
                     dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
