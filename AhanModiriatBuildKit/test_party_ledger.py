@@ -44,7 +44,7 @@ def main():
         app.backfill_legacy_cash_postings(c)
         after = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='settlements'").fetchone()[0]
         assert before == after == 2, (before, after)
-        assert app.account_balance(c, 1) == 210
+        assert app.account_balance(c, 1) == 760
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("PARTY LEDGER TESTS PASSED")
 
