@@ -5,7 +5,9 @@ Python standard library only. Data stays in ./data/business.db.
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
-import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes
+import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile
+from email.parser import BytesParser
+from email.policy import default as email_policy
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 STATIC_DIR = Path(getattr(sys, '_MEIPASS', ROOT)) / 'static'
@@ -137,6 +139,37 @@ def conn():
     c.execute('PRAGMA journal_mode=WAL')
     c.execute('PRAGMA synchronous=NORMAL')
     return c
+
+def restore_database_from_file(source_path):
+    """Validate an uploaded database, snapshot current data, then restore through SQLite backup API."""
+    source_path = Path(source_path)
+    if not source_path.is_file() or source_path.stat().st_size <= 0:
+        raise ValueError("فایل پشتیبان خالی یا نامعتبر است.")
+    if source_path.stat().st_size > 100 * 1024 * 1024:
+        raise ValueError("حجم فایل پشتیبان از سقف ۱۰۰ مگابایت بیشتر است.")
+    uri = "file:" + source_path.resolve().as_posix() + "?mode=ro"
+    with sqlite3.connect(uri, uri=True, timeout=20) as check:
+        if check.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise ValueError("ساختار پایگاه دادهٔ پشتیبان سالم نیست.")
+        tables = {r[0] for r in check.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        required = {
+            "products": {"id","name","stock","avg_cost"},
+            "purchases": {"id","date","product_id","qty","unit_cost"},
+            "sales": {"id","date","product_id","qty","unit_price"},
+        }
+        for table, columns in required.items():
+            if table not in tables:
+                raise ValueError("این فایل، پشتیبان معتبر آهن‌مدیریت نیست.")
+            actual = {r[1] for r in check.execute(f"PRAGMA table_info({table})")}
+            if not columns.issubset(actual):
+                raise ValueError("ساختار جدول‌های اصلی پشتیبان با آهن‌مدیریت سازگار نیست.")
+    # Retain a separate snapshot of the current database before replacing anything.
+    create_startup_backup()
+    with sqlite3.connect(uri, uri=True, timeout=20) as source, sqlite3.connect(DB, timeout=20) as target:
+        source.backup(target)
+        target.commit()
+    # Apply additive migrations and rebuild only missing cash-ledger links after restore.
+    init()
 
 def init():
     create_startup_backup()
@@ -625,7 +658,11 @@ def reports(c):
     return page('گزارش‌ها',body,'reports')
 def settings(c):
     capital=c.execute('SELECT * FROM opening_capital WHERE id=1').fetchone()
-    body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',str(capital['amount']),True,'0.01')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>پشتیبان خودکار پیش از شروع برنامه ساخته می‌شود و ۷ نسخه آخر در پوشه <code>data/backups</code> می‌ماند. برای نگهداری خارج از دستگاه، فایل پشتیبان را نیز جداگانه کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div><p class="small">دیتابیس با حالت WAL اجرا می‌شود. بازیابی از فایل هنوز در این مرحله اضافه نشده است.</p></div>'''
+    body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',str(capital['amount']),True,'0.01')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>پشتیبان خودکار پیش از شروع برنامه ساخته می‌شود و ۷ نسخه آخر در پوشه <code>data/backups</code> می‌ماند. برای نگهداری خارج از دستگاه، فایل پشتیبان را نیز جداگانه کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div><p class="small">دیتابیس با حالت WAL اجرا می‌شود. هنگام بازیابی، ابتدا از دیتابیس فعلی یک پشتیبان جداگانه ساخته می‌شود.</p>
+    <form method="post" action="/restore_backup" enctype="multipart/form-data" data-confirm-submit="1" data-confirm-message="با بازیابی، داده‌های فعلی جایگزین می‌شوند. ادامه می‌دهی؟">
+      <div class="formgrid"><label>انتخاب فایل پشتیبان (.db)<input type="file" name="backup_file" accept=".db,application/octet-stream" required></label></div>
+      <div class="actions"><button class="danger" type="submit">اعتبارسنجی و بازیابی پشتیبان</button></div>
+    </form></div>'''
     return page('تنظیمات',body,'settings')
 
 class Handler(BaseHTTPRequestHandler):
@@ -679,7 +716,47 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send(fn(c))
     def do_POST(self):
-        path=urlparse(self.path).path.strip('/'); n=int(self.headers.get('Content-Length','0')); raw=self.rfile.read(n).decode('utf-8'); d={k:v[-1] for k,v in parse_qs(raw,keep_blank_values=True).items()}
+        path=urlparse(self.path).path.strip('/')
+        n=int(self.headers.get('Content-Length','0'))
+        if n < 0 or n > 105 * 1024 * 1024:
+            self.redirect('/settings','اندازه درخواست معتبر نیست.')
+            return
+        raw_bytes=self.rfile.read(n)
+        if path=='restore_backup':
+            candidate_path=None
+            try:
+                content_type=self.headers.get('Content-Type','')
+                header=(f"Content-Type: {content_type}\\r\\nMIME-Version: 1.0\\r\\n\\r\\n").encode('ascii','strict')
+                message=BytesParser(policy=email_policy).parsebytes(header+raw_bytes)
+                if not message.is_multipart():
+                    raise ValueError('فرم بارگذاری فایل معتبر نیست.')
+                payload=None
+                for part in message.iter_parts():
+                    if part.get_param('name',header='content-disposition')=='backup_file':
+                        payload=part.get_payload(decode=True)
+                        break
+                if not payload:
+                    raise ValueError('فایل پشتیبان انتخاب نشده یا خالی است.')
+                if len(payload)>100*1024*1024:
+                    raise ValueError('حجم فایل پشتیبان از سقف ۱۰۰ مگابایت بیشتر است.')
+                with tempfile.NamedTemporaryFile(prefix='.restore_candidate_',suffix='.db',dir=DATA,delete=False) as tmp:
+                    tmp.write(payload)
+                    candidate_path=Path(tmp.name)
+                with LOCK:
+                    restore_database_from_file(candidate_path)
+                    with conn() as c:
+                        details=json.dumps({"fields":["backup_file"],"bytes":len(payload)},ensure_ascii=False)
+                        c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",("restore_backup",details))
+                self.redirect('/settings','پشتیبان با موفقیت اعتبارسنجی و بازیابی شد؛ از اطلاعات قبلی نیز پشتیبان نگه داشته شد.')
+            except Exception as e:
+                self.redirect('/settings',str(e))
+            finally:
+                if candidate_path:
+                    try: candidate_path.unlink(missing_ok=True)
+                    except OSError: pass
+            return
+        raw=raw_bytes.decode('utf-8')
+        d={k:v[-1] for k,v in parse_qs(raw,keep_blank_values=True).items()}
         def v(k,default=''):return d.get(k,default).strip()
         try:
             with LOCK, conn() as c:
