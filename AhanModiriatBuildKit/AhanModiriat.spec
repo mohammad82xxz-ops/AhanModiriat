@@ -1,6 +1,6 @@
 # Windows onedir build: keep the entire dist/AhanModiriat folder together.
 a = Analysis(
-    ['app.py'], pathex=[], binaries=[], datas=[], hiddenimports=[],
+    ['app.py'], pathex=[], binaries=[], datas=[('static', 'static')], hiddenimports=[],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[], noarchive=False
 )
 pyz = PYZ(a.pure)

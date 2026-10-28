@@ -1,0 +1,12 @@
+@media print{
+ :root{color-scheme:light}
+ body{background:var(--neutral-0);color:var(--neutral-950);font-size:var(--text-14)}
+ .sidebar,.topbar,.statusbar,.actions,button,.no-print{display:none!important}
+ .app-shell{display:block;min-height:0}.app-main{display:block}main{max-width:none;padding:0}
+ .card{box-shadow:none;break-inside:avoid;border-color:var(--neutral-400)}
+ table{font-size:var(--text-12)}th,td{white-space:normal;border-color:var(--neutral-400)}
+ .invoice-page{width:var(--width-invoice);margin:0 auto}
+ @page{size:A4;margin:1.25rem}
+ @page receipt{size:80mm auto;margin:3mm}
+ .receipt-page{page:receipt;width:74mm}
+}

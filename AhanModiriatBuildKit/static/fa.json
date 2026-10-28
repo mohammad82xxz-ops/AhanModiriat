@@ -1,0 +1,12 @@
+{
+  "brand_name":"آهن‌مدیریت",
+  "search_global":"جستجوی سراسری",
+  "command_title":"جستجو و اقدامات",
+  "shortcut_open_command":"Ctrl+K",
+  "shortcut_close":"Esc",
+  "quick_create":"ثبت سریع",
+  "backup_not_created":"پشتیبان ثبت نشده",
+  "status_saved":"همه‌چیز روی همین دستگاه ذخیره می‌شود",
+  "empty_title":"هنوز اطلاعاتی ثبت نشده است.",
+  "error_database_locked":"ذخیره انجام نشد؛ پایگاه داده قفل است. کمی بعد دوباره تلاش کن."
+}

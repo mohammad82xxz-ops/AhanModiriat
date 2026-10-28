@@ -14,10 +14,13 @@ jobs:
           python-version: "3.12"
       - name: Compile
         working-directory: AhanModiriatBuildKit
-        run: python -m py_compile app.py test_smoke.py
+        run: python -m py_compile app.py test_smoke.py test_design_system.py
       - name: Isolated smoke tests
         working-directory: AhanModiriatBuildKit
-        run: python test_smoke.py
+        run: |
+          python test_smoke.py
+          python test_design_system.py
+          node --check static/app.js
   windows-onedir:
     runs-on: windows-latest
     needs: smoke-test
