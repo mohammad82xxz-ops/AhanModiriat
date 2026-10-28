@@ -4,6 +4,8 @@ import os
 import sqlite3
 import sys
 import tempfile
+import threading
+import urllib.request
 from pathlib import Path
 
 TMP = tempfile.TemporaryDirectory(prefix="ahan_restore_test_")
@@ -41,6 +43,26 @@ def main():
     app.init()
     with app.conn() as c:
         c.execute("INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock) VALUES('current only','kg',1,5,7,0)")
+    # The HTTP backup endpoint must use SQLite's backup API so uncheckpointed WAL data is included.
+    server = app.ThreadingHTTPServer(("127.0.0.1",0),app.Handler)
+    port=server.server_address[1]
+    thread=threading.Thread(target=server.serve_forever,daemon=True)
+    thread.start()
+    try:
+        request=urllib.request.Request(f"http://127.0.0.1:{port}/backup",headers={"Host":f"127.0.0.1:{port}"})
+        with urllib.request.urlopen(request,timeout=10) as response:
+            assert response.status==200
+            assert "application/octet-stream" in response.headers.get("Content-Type","")
+            downloaded=response.read()
+        download_path=Path(TMP.name)/"downloaded-backup.db"
+        download_path.write_bytes(downloaded)
+        with sqlite3.connect(download_path) as backup_db:
+            assert backup_db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
+            names={row[0] for row in backup_db.execute("SELECT name FROM products")}
+            assert "current only" in names,names
+    finally:
+        server.shutdown()
+        server.server_close()
     base = Path(TMP.name)
     candidate = base / "valid-backup.db"
     make_backup(candidate, "restored product")
