@@ -1838,7 +1838,9 @@ class Handler(BaseHTTPRequestHandler):
                 if path=='add_product':
                     pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
                     if not v('name') or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
-                    c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(v('name'),v('code'),v('unit','کیلوگرم'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area')))); dest='/products'; msg='کالا ثبت شد.'
+                    product_cur=c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(v('name'),v('code'),v('unit','کیلوگرم'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area'))))
+                    new_product_id=product_cur.lastrowid
+                    dest='/products'; msg='کالا ثبت شد.'
                 elif path=='update_product':
                     pid=int(v('product_id')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p: raise ValueError('کالا پیدا نشد.')
@@ -1894,35 +1896,41 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
-                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),money_int(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
-                    sync_cash_posting(c,"expenses",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('amount')),"out",v('source'),v('notes') or "پرداخت هزینه")
+                    expense_cur=c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),money_int(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
+                    expense_id=expense_cur.lastrowid
+                    sync_cash_posting(c,"expenses",expense_id,to_iso_date(v('date',jalali_today())),num(v('amount')),"out",v('source'),v('notes') or "پرداخت هزینه")
                     dest='/expenses';msg='پرداخت ثبت شد.'
                 elif path=='add_loan':
                     interval_value=int(num(v('interval_value',1)))
                     interval_unit=v('interval_unit','month')
                     if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
                         raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
-                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(v('title'),money_int(v('principal')),money_int(v('remaining')),money_int(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit));dest='/loans';msg='وام ثبت شد.'
+                    loan_cur=c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(v('title'),money_int(v('principal')),money_int(v('remaining')),money_int(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit))
+                    new_loan_id=loan_cur.lastrowid
+                    dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
                     lid=int(v('loan_id')); amount=money_int(v('amount')); principal=money_int(v('principal_part')); interest=money_int(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
                     if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
                     if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
-                    c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
-                    sync_cash_posting(c,"loan_payments",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),amount,"out",v('source'),v('notes') or "پرداخت قسط وام")
+                    payment_cur=c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
+                    payment_id=payment_cur.lastrowid
+                    sync_cash_posting(c,"loan_payments",payment_id,to_iso_date(v('date',jalali_today())),amount,"out",v('source'),v('notes') or "پرداخت قسط وام")
                     nextdate=add_interval_date(loan['next_date'],loan['interval_value'],loan['interval_unit'])
                     c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=? WHERE id=?',(principal,nextdate,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل و سررسید بعدی به‌روزرسانی شد.'
                 elif path=='add_price':
                     pid=int(v('product_id')); price=money_int(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
-                    c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')));c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
+                    price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')))
+                    price_id=price_cur.lastrowid
+                    c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
                 elif path=='add_person':
                     name=normalize_person(v('name')); kind=v('kind','both')
                     if not name: raise ValueError('نام طرف حساب الزامی است.')
                     if kind not in ('customer','supplier','both'): raise ValueError('نوع طرف حساب معتبر نیست.')
                     existing=c.execute('SELECT id FROM people WHERE name=?',(name,)).fetchone()
                     if existing: raise ValueError('این طرف حساب قبلاً ثبت شده است.')
-                    ensure_person(c,name,kind,v('phone'),v('notes'))
+                    person_id=ensure_person(c,name,kind,v('phone'),v('notes'))
                     dest='/parties';msg='طرف حساب ثبت شد.'
                 elif path=='add_settlement':
                     party=normalize_person(v('party')); kind=v('kind'); amount=int(round(num(v('amount'))))
@@ -1931,8 +1939,9 @@ class Handler(BaseHTTPRequestHandler):
                     person_id=ensure_person(c,party,'both')
                     date=to_iso_date(v('date',jalali_today()))
                     cur=c.execute('INSERT INTO settlements(date,party,kind,amount,notes) VALUES(?,?,?,?,?)',(date,party,kind,amount,v('notes')))
-                    c.execute("UPDATE settlements SET person_id=? WHERE id=?",(person_id,cur.lastrowid))
-                    sync_cash_posting(c,'settlements',cur.lastrowid,date,amount,'in' if kind=='receive' else 'out',party,v('notes') or 'تسویه حساب')
+                    settlement_id=cur.lastrowid
+                    c.execute("UPDATE settlements SET person_id=? WHERE id=?",(person_id,settlement_id))
+                    sync_cash_posting(c,'settlements',settlement_id,date,amount,'in' if kind=='receive' else 'out',party,v('notes') or 'تسویه حساب')
                     dest='/parties';msg='تسویه ثبت شد و دفتر صندوق به‌روز شد.'
                 elif path=='update_purchase':
                     rid=int(v('record_id'))
@@ -2083,8 +2092,9 @@ class Handler(BaseHTTPRequestHandler):
                     expected=float(product['stock'] or 0); delta=counted-expected
                     if abs(delta)<0.000001: raise ValueError('موجودی شمارش‌شده با موجودی دفتری برابر است؛ تعدیلی برای ثبت وجود ندارد.')
                     date=to_iso_date(v('date',jalali_today()))
-                    c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
+                    adjustment_cur=c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
                                  VALUES(?,?,?,?,?,?,?)""",(date,pid,expected,counted,delta,reason,v('notes')))
+                    adjustment_id=adjustment_cur.lastrowid
                     c.execute("UPDATE products SET stock=? WHERE id=?",(counted,pid))
                     dest='/inventory';msg=f'انبارگردانی ثبت شد؛ اختلاف {delta:+g} {product["unit"]} اعمال شد.'
                 elif path=='add_cash_movement':
@@ -2109,9 +2119,17 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1",(amount,))
                     dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
                 else:raise ValueError('درخواست نامعتبر است.')
+                audit_record_id = (
+                    d.get("record_id") or locals().get("return_id") or locals().get("purchase_id")
+                    or locals().get("sale_id") or locals().get("service_id") or locals().get("expense_id")
+                    or locals().get("payment_id") or locals().get("new_loan_id") or locals().get("price_id")
+                    or locals().get("settlement_id") or locals().get("person_id")
+                    or locals().get("cash_movement_id") or locals().get("adjustment_id")
+                    or locals().get("new_product_id") or d.get("product_id") or d.get("loan_id") or ""
+                )
                 audit_details = json.dumps({
                     "actor": "local_user",
-                    "record_id": d.get("record_id") or d.get("product_id") or d.get("loan_id") or "",
+                    "record_id": audit_record_id,
                     "fields": sorted(str(key) for key in d.keys()),
                     "values_stored": False,
                 }, ensure_ascii=False)
