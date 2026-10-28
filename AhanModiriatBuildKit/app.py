@@ -190,6 +190,60 @@ def compute_purchase_advice(c, window_days=30):
     rows.sort(key=lambda r:(r["priority"],-r["recommend"],r["name"].casefold()))
     return rows
 
+def returns_page(c):
+    sales_opts=[]
+    for r in c.execute("""SELECT s.id,s.date,s.qty,s.unit_price,s.customer,p.name,p.unit,
+                               COALESCE((SELECT SUM(sr.qty) FROM sales_returns sr WHERE sr.sale_id=s.id),0) AS returned
+                          FROM sales s JOIN products p ON p.id=s.product_id ORDER BY s.date DESC,s.id DESC LIMIT 500"""):
+        remaining=float(r["qty"])-float(r["returned"])
+        if remaining>0.000001:
+            sales_opts.append((r["id"],f'#{r["id"]} · {r["name"]} · {show_date(r["date"])} · {r["customer"] or "بدون مشتری"} · مانده مرجوعی {remaining:g} {r["unit"]}'))
+    purchase_opts=[]
+    for r in c.execute("""SELECT p.id,p.date,p.qty,p.supplier,p.product_id,pr.name,pr.unit,
+                                 pr.purchase_factor,
+                                 COALESCE((SELECT SUM(prr.qty) FROM purchase_returns prr WHERE prr.purchase_id=p.id),0) AS returned
+                          FROM purchases p JOIN products pr ON pr.id=p.product_id ORDER BY p.date DESC,p.id DESC LIMIT 500"""):
+        remaining=float(r["qty"])*float(r["purchase_factor"] or 1)-float(r["returned"])
+        if remaining>0.000001:
+            purchase_opts.append((r["id"],f'#{r["id"]} · {r["name"]} · {show_date(r["date"])} · {r["supplier"] or "بدون فروشنده"} · مانده مرجوعی {remaining:g} {r["unit"]}'))
+    rows=[]
+    for r in c.execute("""SELECT sr.*,p.name,p.unit FROM sales_returns sr JOIN products p ON p.id=sr.product_id
+                          ORDER BY sr.date DESC,sr.id DESC LIMIT 100""".replace("sr.id DESC","sr.id DESC")):
+        rows.append([show_date(r["date"]),"مرجوعی فروش",esc(r["name"]),f'{r["qty"]:g} {esc(r["unit"])}',
+                     money(r["return_value"]),money(r["refund_amount"]),esc(r["customer"]),esc(r["reason"])])
+    for r in c.execute("""SELECT pr.*,p.name,p.unit FROM purchase_returns pr JOIN products p ON p.id=pr.product_id
+                          ORDER BY pr.date DESC,pr.id DESC LIMIT 100"""):
+        rows.append([show_date(r["date"]),"مرجوعی خرید",esc(r["name"]),f'{r["qty"]:g} {esc(r["unit"])}',
+                     money(r["return_value"]),money(r["cash_refund"]),esc(r["supplier"]),esc(r["reason"])])
+    rows.sort(key=lambda x:(x[0] or "",x[1]),reverse=True)
+    body=f'''<h1>مرجوعی خرید و فروش</h1>
+    <div class="twocol section">
+      <div class="card"><h2>ثبت مرجوعی فروش از مشتری</h2>
+        <form method="post" action="/add_sales_return"><div class="formgrid">
+          {selectfield("سند فروش اصلی","sale_id",sales_opts)}
+          {field("تاریخ مرجوعی","date","date",TODAY,True)}
+          {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001")}
+          {field("وجهی که واقعاً به مشتری برمی‌گردد (تومان)","refund_amount","number","0",True,"1")}
+          {field("علت مرجوعی","reason","text","",True)}
+          {field("یادداشت","notes")}
+        </div><div class="actions"><button>ثبت مرجوعی فروش</button></div></form>
+        <p class="small">کالا با بهای تمام‌شده ذخیره‌شده در فروش اصلی به موجودی برمی‌گردد؛ مبلغ برگشتی از فروش و سود همان تاریخ مرجوعی کم می‌شود.</p>
+      </div>
+      <div class="card"><h2>ثبت مرجوعی خرید به فروشنده</h2>
+        <form method="post" action="/add_purchase_return"><div class="formgrid">
+          {selectfield("سند خرید اصلی","purchase_id",purchase_opts)}
+          {field("تاریخ مرجوعی","date","date",TODAY,True)}
+          {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001")}
+          {field("وجهی که واقعاً از فروشنده دریافت می‌شود (تومان)","cash_refund","number","0",True,"1")}
+          {field("علت مرجوعی","reason","text","",True)}
+          {field("یادداشت","notes")}
+        </div><div class="actions"><button>ثبت مرجوعی خرید</button></div></form>
+        <p class="small">مقدار مرجوعی به واحد پایه وارد می‌شود. مانده حساب فروشنده بر اساس ارزش برگشتی کاهش می‌یابد؛ فقط مبلغی که واقعاً دریافت شده در صندوق ثبت می‌شود.</p>
+      </div>
+    </div>
+    <div class="card section"><h2>آخرین مرجوعی‌ها</h2>{table(["تاریخ","نوع","کالا","مقدار","ارزش سند","وجه واقعی","طرف حساب","علت"],rows)}</div>'''
+    return page("مرجوعی‌ها",body,"returns")
+
 def purchase_advice(c):
     data = compute_purchase_advice(c,30)
     rows = []
@@ -291,6 +345,32 @@ def init():
         );
         CREATE INDEX IF NOT EXISTS ix_inventory_adjustments_product_date
             ON inventory_adjustments(product_id,date,id);
+        CREATE TABLE IF NOT EXISTS purchase_returns(
+            id INTEGER PRIMARY KEY, date TEXT NOT NULL,
+            purchase_id INTEGER NOT NULL REFERENCES purchases(id),
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            supplier TEXT NOT NULL DEFAULT '', qty REAL NOT NULL CHECK(qty>0),
+            return_value REAL NOT NULL CHECK(return_value>0),
+            cash_refund INTEGER NOT NULL DEFAULT 0 CHECK(cash_refund>=0),
+            reason TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS ix_purchase_returns_purchase ON purchase_returns(purchase_id);
+        CREATE TABLE IF NOT EXISTS sales_returns(
+            id INTEGER PRIMARY KEY, date TEXT NOT NULL,
+            sale_id INTEGER NOT NULL REFERENCES sales(id),
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            customer TEXT NOT NULL DEFAULT '', qty REAL NOT NULL CHECK(qty>0),
+            return_value REAL NOT NULL CHECK(return_value>0),
+            cost_basis REAL NOT NULL DEFAULT 0,
+            extra_reversed REAL NOT NULL DEFAULT 0,
+            refund_amount INTEGER NOT NULL DEFAULT 0 CHECK(refund_amount>=0),
+            reason TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS ix_sales_returns_sale ON sales_returns(sale_id);
         CREATE TABLE IF NOT EXISTS cash_accounts(
             id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, account_type TEXT NOT NULL DEFAULT 'cash',
             opening_balance INTEGER NOT NULL DEFAULT 0,
@@ -416,6 +496,8 @@ def backfill_legacy_cash_postings(c):
         ("services", "received", "in", "customer", "دریافت خدمات"),
         ("expenses", "amount", "out", "source", "پرداخت هزینه"),
         ("loan_payments", "amount", "out", "source", "پرداخت قسط وام"),
+        ("purchase_returns", "cash_refund", "in", "supplier", "دریافت وجه مرجوعی خرید"),
+        ("sales_returns", "refund_amount", "out", "customer", "پرداخت وجه مرجوعی فروش"),
     )
     inserted = 0
     for table, amount_col, direction, party_col, fallback in specs:
@@ -485,6 +567,14 @@ def product_ledger_page(c, product_id):
     for r in c.execute("SELECT id,date,qty,unit_price,customer,notes FROM sales WHERE product_id=?",(product_id,)):
         events.append({"date":r["date"],"key":("sale",r["id"]),"kind":"فروش",
                        "delta":-float(r["qty"]),"detail":f'فروش #{r["id"]} · {r["customer"] or ""}',
+                       "notes":r["notes"] or ""})
+    for r in c.execute("SELECT id,date,qty,return_value,reason,notes FROM purchase_returns WHERE product_id=?",(product_id,)):
+        events.append({"date":r["date"],"key":("purchase_return",r["id"]),"kind":"مرجوعی خرید",
+                       "delta":-float(r["qty"]),"detail":f'مرجوعی خرید #{r["id"]} · {r["reason"]}',
+                       "notes":r["notes"] or ""})
+    for r in c.execute("SELECT id,date,qty,return_value,reason,notes FROM sales_returns WHERE product_id=?",(product_id,)):
+        events.append({"date":r["date"],"key":("sales_return",r["id"]),"kind":"مرجوعی فروش",
+                       "delta":float(r["qty"]),"detail":f'مرجوعی فروش #{r["id"]} · {r["reason"]}',
                        "notes":r["notes"] or ""})
     for r in c.execute("SELECT id,date,expected_qty,counted_qty,delta_qty,reason,notes FROM inventory_adjustments WHERE product_id=?",(product_id,)):
         events.append({"date":r["date"],"key":("adjustment",r["id"]),"kind":"تعدیل انبار",
@@ -573,10 +663,14 @@ def party_balances(c):
         add(row["name"],"receivable",row["amount"])
     for row in c.execute("SELECT TRIM(party) name,SUM(amount) amount FROM settlements WHERE kind='receive' GROUP BY TRIM(party)"):
         add(row["name"],"receivable",-row["amount"])
+    for row in c.execute("SELECT TRIM(customer) name,SUM(-return_value+refund_amount) amount FROM sales_returns GROUP BY TRIM(customer)"):
+        add(row["name"],"receivable",row["amount"])
     for row in c.execute("SELECT TRIM(supplier) name,SUM(qty*unit_cost+extra_cost-paid) amount FROM purchases GROUP BY TRIM(supplier)"):
         add(row["name"],"payable",row["amount"])
     for row in c.execute("SELECT TRIM(party) name,SUM(amount) amount FROM settlements WHERE kind='pay' GROUP BY TRIM(party)"):
         add(row["name"],"payable",-row["amount"])
+    for row in c.execute("SELECT TRIM(supplier) name,SUM(-return_value+cash_refund) amount FROM purchase_returns GROUP BY TRIM(supplier)"):
+        add(row["name"],"payable",row["amount"])
     return balances
 
 def parties_page(c, selected=""):
@@ -626,6 +720,10 @@ def calc(c, start=None, end=None):
     sales_rev=scalar(c,'SELECT COALESCE(SUM(qty*unit_price),0) FROM sales'+where,args)
     sales_cost=scalar(c,'SELECT COALESCE(SUM(qty*cost_basis),0) FROM sales'+where,args)
     sales_extra=scalar(c,'SELECT COALESCE(SUM(extra_cost),0) FROM sales'+where,args)
+    sales_return_where=where.replace("date","date")
+    sales_rev-=scalar(c,'SELECT COALESCE(SUM(return_value),0) FROM sales_returns'+sales_return_where,args)
+    sales_cost-=scalar(c,'SELECT COALESCE(SUM(qty*cost_basis),0) FROM sales_returns'+sales_return_where,args)
+    sales_extra-=scalar(c,'SELECT COALESCE(SUM(extra_reversed),0) FROM sales_returns'+sales_return_where,args)
     service_rev=scalar(c,'SELECT COALESCE(SUM(revenue),0) FROM services'+where,args)
     service_cost=scalar(c,'SELECT COALESCE(SUM(cost),0) FROM services'+where,args)
     exp=scalar(c,'SELECT COALESCE(SUM(amount),0) FROM expenses'+where+' AND business=1' if where else 'SELECT COALESCE(SUM(amount),0) FROM expenses WHERE business=1',args)
@@ -641,7 +739,7 @@ def calc(c, start=None, end=None):
     return dict(sales_rev=sales_rev,sales_cost=sales_cost,sales_extra=sales_extra,service_rev=service_rev,service_cost=service_cost,exp=exp,interest=interest,gross=gross,net=net,paid_exp=paid_exp,loan_paid=loan_paid,sales_received=sales_received,services_received=services_received,purchases_paid=purchases_paid)
 
 NAV_GROUPS=[
-    ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
+    ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('returns','مرجوعی‌ها','refresh-cw'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
     ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('buy-advice','پیشنهاد خرید','cart'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
     ('مالی',[('cash','صندوق و بانک','wallet'),('parties','طرف حساب‌ها','users')]),
@@ -955,7 +1053,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     self.send(page('خطا','<div class="notice">شناسه سند نامعتبر است.</div>'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page,'buy-advice':purchase_advice}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page,'buy-advice':purchase_advice,'returns':returns_page}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
@@ -1173,6 +1271,59 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("DELETE FROM cash_movements WHERE source_table='expenses' AND source_id=?",(rid,))
                     c.execute("DELETE FROM expenses WHERE id=?",(rid,))
                     dest='/expenses';msg='هزینه/برداشت حذف شد.'
+                elif path=='add_sales_return':
+                    sale_id=int(v("sale_id")); qty=num(v("qty"),-1); refund=int(round(num(v("refund_amount"),-1)))
+                    reason=normalize_person(v("reason"))
+                    sale=c.execute("SELECT s.*,p.name,p.unit,p.stock,p.avg_cost FROM sales s JOIN products p ON p.id=s.product_id WHERE s.id=?",(sale_id,)).fetchone()
+                    if sale is None: raise ValueError("سند فروش اصلی پیدا نشد.")
+                    if qty<=0 or refund<0 or not reason: raise ValueError("مقدار، وجه برگشتی یا علت مرجوعی معتبر نیست.")
+                    already=float(scalar(c,"SELECT COALESCE(SUM(qty),0) FROM sales_returns WHERE sale_id=?",(sale_id,)) or 0)
+                    remaining=float(sale["qty"])-already
+                    if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از ماندهٔ قابل برگشت بیشتر است؛ مانده {remaining:g} {sale['unit']} است.")
+                    return_value=qty*float(sale["unit_price"])
+                    cost_value=qty*float(sale["cost_basis"])
+                    extra_reversed=float(sale["extra_cost"] or 0)*qty/float(sale["qty"])
+                    c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
+                                 VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                              (to_iso_date(v("date",jalali_today())),sale_id,sale["product_id"],sale["customer"] or "",qty,return_value,float(sale["cost_basis"] or 0),extra_reversed,refund,reason,v("notes")))
+                    return_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(sale["product_id"],)).fetchone()
+                    old_stock=float(product["stock"] or 0); old_value=old_stock*float(product["avg_cost"] or 0)
+                    new_stock=old_stock+qty; new_avg=(old_value+cost_value)/new_stock if new_stock>0 else 0
+                    c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,sale["product_id"]))
+                    ensure_person(c,sale["customer"],"customer")
+                    sync_cash_posting(c,"sales_returns",return_id,to_iso_date(v("date",jalali_today())),refund,"out",sale["customer"],reason)
+                    dest='/returns';msg='مرجوعی فروش ثبت شد؛ موجودی، سود و صندوق به‌روزرسانی شد.'
+                elif path=='add_purchase_return':
+                    purchase_id=int(v("purchase_id")); qty=num(v("qty"),-1); cash_refund=int(round(num(v("cash_refund"),-1)))
+                    reason=normalize_person(v("reason"))
+                    purchase=c.execute("""SELECT p.*,pr.name,pr.unit,pr.stock,pr.avg_cost,pr.purchase_factor
+                                           FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE p.id=?""",(purchase_id,)).fetchone()
+                    if purchase is None: raise ValueError("سند خرید اصلی پیدا نشد.")
+                    if qty<=0 or cash_refund<0 or not reason: raise ValueError("مقدار، وجه برگشتی یا علت مرجوعی معتبر نیست.")
+                    factor=float(purchase["purchase_factor"] or 1)
+                    if factor<=0: raise ValueError("ضریب تبدیل واحد خرید معتبر نیست.")
+                    bought_base=float(purchase["qty"])*factor
+                    already=float(scalar(c,"SELECT COALESCE(SUM(qty),0) FROM purchase_returns WHERE purchase_id=?",(purchase_id,)) or 0)
+                    remaining=max(0.0,bought_base-already)
+                    if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از خرید اصلی بیشتر است؛ مانده {remaining:g} {purchase['unit']} است.")
+                    if qty>float(purchase["stock"] or 0)+0.000001: raise ValueError("موجودی فعلی برای این مرجوعی کافی نیست.")
+                    unit_base_cost=float(purchase["unit_cost"] or 0)/factor
+                    extra_per_base=float(purchase["extra_cost"] or 0)/bought_base if bought_base else 0
+                    return_value=qty*(unit_base_cost+extra_per_base)
+                    if cash_refund>return_value+0.99: raise ValueError("وجه دریافتی از فروشنده نمی‌تواند از ارزش مرجوعی بیشتر باشد.")
+                    product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(purchase["product_id"],)).fetchone()
+                    old_stock=float(product["stock"] or 0); new_stock=old_stock-qty
+                    if new_stock < -0.000001: raise ValueError("موجودی فعلی از مقدار مرجوعی کمتر است.")
+                    new_stock=max(0.0,new_stock); new_avg=float(product["avg_cost"] or 0) if new_stock>0 else 0
+                    cur=c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
+                                     VALUES(?,?,?,?,?,?,?,?,?)""",
+                                  (to_iso_date(v("date",jalali_today())),purchase_id,purchase["product_id"],purchase["supplier"] or "",qty,return_value,cash_refund,reason,v("notes")))
+                    return_id=cur.lastrowid
+                    c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,purchase["product_id"]))
+                    ensure_person(c,purchase["supplier"],"supplier")
+                    sync_cash_posting(c,"purchase_returns",return_id,to_iso_date(v("date",jalali_today())),cash_refund,"in",purchase["supplier"],reason)
+                    dest='/returns';msg='مرجوعی خرید ثبت شد؛ موجودی، حساب فروشنده و صندوق به‌روزرسانی شد.'
                 elif path=='inventory_adjust':
                     pid=int(v('product_id')); counted=num(v('counted_qty'),-1)
                     product=c.execute("SELECT * FROM products WHERE id=?",(pid,)).fetchone()
@@ -1213,7 +1364,7 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','update_purchase':'purchases','delete_purchase':'purchases','add_sale':'sales','update_sale':'sales','delete_sale':'sales','add_service':'services','add_expense':'expenses','update_expense':'expenses','delete_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties','inventory_adjust':'inventory'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','update_purchase':'purchases','delete_purchase':'purchases','add_sale':'sales','update_sale':'sales','delete_sale':'sales','add_service':'services','add_expense':'expenses','update_expense':'expenses','delete_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties','add_sales_return':'returns','add_purchase_return':'returns','inventory_adjust':'inventory'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))
