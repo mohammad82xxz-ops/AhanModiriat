@@ -14,7 +14,7 @@ jobs:
           python-version: "3.12"
       - name: Compile
         working-directory: AhanModiriatBuildKit
-        run: python -m py_compile app.py test_smoke.py test_design_system.py test_cash_ledger.py test_party_ledger.py
+        run: python -m py_compile app.py test_smoke.py test_design_system.py test_cash_ledger.py test_party_ledger.py test_backup_restore.py
       - name: Isolated smoke tests
         working-directory: AhanModiriatBuildKit
         run: |
@@ -22,6 +22,7 @@ jobs:
           python test_design_system.py
           python test_cash_ledger.py
           python test_party_ledger.py
+          python test_backup_restore.py
           node --check static/app.js
   windows-onedir:
     runs-on: windows-latest
