@@ -14,11 +14,13 @@ def main():
     with app.conn() as c:
         assert c.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
         tables = {r["name"] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for name in ("products", "purchases", "sales", "expenses", "audit_log"):
+        for name in ("products", "purchases", "sales", "expenses", "audit_log",
+                     "people", "settlements", "cash_accounts", "cash_movements"):
             assert name in tables, name
         for html in (app.dash(c), app.products(c), app.purchases(c), app.sales(c),
                      app.services(c), app.expenses(c), app.loans(c), app.prices(c),
-                     app.reports(c), app.settings(c), app.design_page(c)):
+                     app.reports(c), app.settings(c), app.design_page(c),
+                     app.cash_page(c), app.parties_page(c)):
             assert "<html" in html and "</html>" in html
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("GitHub branch smoke tests passed.")
