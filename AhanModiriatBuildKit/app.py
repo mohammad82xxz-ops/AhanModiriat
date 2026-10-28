@@ -1006,6 +1006,90 @@ class Handler(BaseHTTPRequestHandler):
                     cur=c.execute('INSERT INTO settlements(date,party,kind,amount,notes) VALUES(?,?,?,?,?)',(date,party,kind,amount,v('notes')))
                     sync_cash_posting(c,'settlements',cur.lastrowid,date,amount,'in' if kind=='receive' else 'out',party,v('notes') or 'تسویه حساب')
                     dest='/parties';msg='تسویه ثبت شد و دفتر صندوق به‌روز شد.'
+                elif path=='update_purchase':
+                    rid=int(v('record_id'))
+                    row=c.execute("SELECT * FROM purchases WHERE id=?",(rid,)).fetchone()
+                    if row is None: raise ValueError('سند خرید پیدا نشد.')
+                    assert_purchase_reversible(c,row)
+                    product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
+                    qty=num(v("qty"),-1); cost=num(v("unit_cost"),-1); extra=num(v("extra_cost")); paid=num(v("paid"),-1)
+                    if qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('مقدار و مبالغ خرید باید معتبر و غیرمنفی باشند.')
+                    factor=num(product["purchase_factor"] or 1,1) or 1
+                    stock_before=float(product["stock"] or 0)-float(row["qty"])*factor
+                    if stock_before < -0.000001: raise ValueError('برگشت این خرید موجودی منفی ایجاد می‌کند؛ بررسی دستی لازم است.')
+                    value_before=float(product["stock"] or 0)*float(product["avg_cost"] or 0)-(float(row["qty"])*float(row["unit_cost"])+float(row["extra_cost"]))
+                    if value_before < -0.05: raise ValueError('بهای خرید قبلی با ارزش موجودی فعلی سازگار نیست؛ اصلاح خودکار ایمن نیست.')
+                    value_before=max(value_before,0.0)
+                    new_stock=stock_before+qty*factor
+                    new_value=value_before+qty*cost+extra
+                    new_avg=new_value/new_stock if new_stock>0.000001 else 0
+                    c.execute("UPDATE purchases SET qty=?,unit_cost=?,extra_cost=?,paid=?,supplier=?,notes=? WHERE id=?",
+                              (qty,cost,extra,paid,v("supplier"),v("notes"),rid))
+                    c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,row["product_id"]))
+                    ensure_person(c,v("supplier"),"supplier")
+                    sync_cash_posting(c,"purchases",rid,row["date"],paid,"out",v("supplier"),v("notes") or "اصلاح پرداخت خرید")
+                    dest='/purchases';msg='خرید اصلاح شد و موجودی/میانگین موزون بازسازی شد.'
+                elif path=='delete_purchase':
+                    rid=int(v('record_id'))
+                    row=c.execute("SELECT * FROM purchases WHERE id=?",(rid,)).fetchone()
+                    if row is None: raise ValueError('سند خرید پیدا نشد.')
+                    assert_purchase_reversible(c,row)
+                    product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
+                    factor=num(product["purchase_factor"] or 1,1) or 1
+                    new_stock=float(product["stock"] or 0)-float(row["qty"])*factor
+                    if new_stock < -0.000001: raise ValueError('حذف این خرید موجودی منفی ایجاد می‌کند.')
+                    new_value=float(product["stock"] or 0)*float(product["avg_cost"] or 0)-(float(row["qty"])*float(row["unit_cost"])+float(row["extra_cost"]))
+                    if new_value < -0.05: raise ValueError('بهای خرید با ارزش موجودی فعلی سازگار نیست؛ حذف خودکار ایمن نیست.')
+                    new_avg=max(new_value,0.0)/new_stock if new_stock>0.000001 else 0
+                    c.execute("DELETE FROM cash_movements WHERE source_table='purchases' AND source_id=?",(rid,))
+                    c.execute("DELETE FROM purchases WHERE id=?",(rid,))
+                    c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(max(new_stock,0.0),new_avg,row["product_id"]))
+                    dest='/purchases';msg='خرید حذف شد و موجودی/میانگین موزون برگشت داده شد.'
+                elif path=='update_sale':
+                    rid=int(v('record_id'))
+                    row=c.execute("SELECT * FROM sales WHERE id=?",(rid,)).fetchone()
+                    if row is None: raise ValueError('سند فروش پیدا نشد.')
+                    assert_sale_reversible(c,row)
+                    product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
+                    qty=num(v("qty"),-1); price=num(v("unit_price"),-1); extra=num(v("extra_cost")); received=num(v("received"),-1)
+                    if qty<=0 or price<0 or extra<0 or received<0: raise ValueError('مقدار و مبالغ فروش باید معتبر و غیرمنفی باشند.')
+                    new_stock=float(product["stock"] or 0)+float(row["qty"])-qty
+                    if new_stock < -0.000001: raise ValueError('اصلاح مقدار فروش موجودی منفی ایجاد می‌کند.')
+                    c.execute("UPDATE sales SET qty=?,unit_price=?,extra_cost=?,received=?,customer=?,notes=? WHERE id=?",
+                              (qty,price,extra,received,v("customer"),v("notes"),rid))
+                    c.execute("UPDATE products SET stock=? WHERE id=?",(max(new_stock,0.0),row["product_id"]))
+                    ensure_person(c,v("customer"),"customer")
+                    sync_cash_posting(c,"sales",rid,row["date"],received,"in",v("customer"),v("notes") or "اصلاح دریافت فروش")
+                    dest='/sales';msg='فروش اصلاح شد و اختلاف موجودی برگشت داده شد.'
+                elif path=='delete_sale':
+                    rid=int(v('record_id'))
+                    row=c.execute("SELECT * FROM sales WHERE id=?",(rid,)).fetchone()
+                    if row is None: raise ValueError('سند فروش پیدا نشد.')
+                    assert_sale_reversible(c,row)
+                    product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
+                    new_stock=float(product["stock"] or 0)+float(row["qty"])
+                    c.execute("DELETE FROM cash_movements WHERE source_table='sales' AND source_id=?",(rid,))
+                    c.execute("DELETE FROM sales WHERE id=?",(rid,))
+                    c.execute("UPDATE products SET stock=? WHERE id=?",(new_stock,row["product_id"]))
+                    dest='/sales';msg='فروش حذف شد و موجودی برگشت داده شد.'
+                elif path=='update_expense':
+                    rid=int(v('record_id'))
+                    row=c.execute("SELECT * FROM expenses WHERE id=?",(rid,)).fetchone()
+                    if row is None: raise ValueError('سند هزینه پیدا نشد.')
+                    date=to_iso_date(v('date',jalali_today())); category=v('category'); amount=num(v('amount'),-1)
+                    business=v('business','1'); source=v('source','نامشخص')
+                    if not category or amount<0 or business not in ('0','1'): raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست.')
+                    c.execute("UPDATE expenses SET date=?,category=?,amount=?,source=?,business=?,notes=? WHERE id=?",
+                              (date,category,amount,source,int(business),v('notes'),rid))
+                    sync_cash_posting(c,"expenses",rid,date,amount,"out",source,v('notes') or "اصلاح هزینه")
+                    dest='/expenses';msg='هزینه/برداشت اصلاح شد.'
+                elif path=='delete_expense':
+                    rid=int(v('record_id'))
+                    row=c.execute("SELECT id FROM expenses WHERE id=?",(rid,)).fetchone()
+                    if row is None: raise ValueError('سند هزینه پیدا نشد.')
+                    c.execute("DELETE FROM cash_movements WHERE source_table='expenses' AND source_id=?",(rid,))
+                    c.execute("DELETE FROM expenses WHERE id=?",(rid,))
+                    dest='/expenses';msg='هزینه/برداشت حذف شد.'
                 elif path=='inventory_adjust':
                     pid=int(v('product_id')); counted=num(v('counted_qty'),-1)
                     product=c.execute("SELECT * FROM products WHERE id=?",(pid,)).fetchone()
@@ -1046,7 +1130,7 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties','inventory_adjust':'inventory'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','update_purchase':'purchases','delete_purchase':'purchases','add_sale':'sales','update_sale':'sales','delete_sale':'sales','add_service':'services','add_expense':'expenses','update_expense':'expenses','delete_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties','inventory_adjust':'inventory'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))
