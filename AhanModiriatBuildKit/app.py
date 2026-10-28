@@ -804,9 +804,32 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
 def selectfield(label,name,opts,required=True,value=None):
     opt=''.join(f'<option value="{esc(v)}" {"selected" if value is not None and str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
     return f'<div class="field"><label>{label}</label><select name="{name}" {"required" if required else ""}>{opt}</select></div>'
-def table(headers, rows):
-    if not rows:return '<div class="empty">هنوز اطلاعاتی ثبت نشده است.</div>'
-    return '<div class="tablewrap"><table><thead><tr>'+''.join(f'<th>{h}</th>' for h in headers)+'</tr></thead><tbody>'+''.join('<tr>'+''.join(f'<td>{v}</td>' for v in row)+'</tr>' for row in rows)+'</tbody></table></div>'
+def table(headers, rows, total=None):
+    shown = len(rows)
+    if total is None:
+        count_html = f'<div class="table-count" role="status">تعداد ردیف‌های نمایش‌داده‌شده: {shown:,}</div>'
+    else:
+        count_html = f'<div class="table-count" role="status">نمایش {shown:,} رکورد از مجموع {int(total):,} رکورد</div>'
+    if not rows:
+        return count_html + '<div class="empty">هنوز اطلاعاتی برای نمایش وجود ندارد.</div>'
+    return count_html + '<div class="tablewrap"><table><thead><tr>'+''.join(f'<th>{h}</th>' for h in headers)+'</tr></thead><tbody>'+''.join('<tr>'+''.join(f'<td>{v}</td>' for v in row)+'</tr>' for row in rows)+'</tbody></div>'
+
+def page_window(page_num=1, per_page=50):
+    try: page_num=max(1,int(page_num))
+    except (TypeError,ValueError): page_num=1
+    per_page=max(1,min(100,int(per_page)))
+    return per_page,(page_num-1)*per_page,page_num
+
+def page_nav(path, query, page_num, total, per_page=50):
+    pages=max(1,(int(total)+per_page-1)//per_page)
+    if pages<=1:return ''
+    from urllib.parse import quote
+    q=quote(str(query or ''),safe='')
+    links=[]
+    if page_num>1: links.append(f'<a class="btn secondary sm" href="/{path}?q={q}&amp;page={page_num-1}">صفحه قبلی</a>')
+    links.append(f'<span class="small">صفحه {page_num} از {pages}</span>')
+    if page_num<pages: links.append(f'<a class="btn secondary sm" href="/{path}?q={q}&amp;page={page_num+1}">صفحه بعدی</a>')
+    return '<nav class="pagination" aria-label="صفحه‌بندی">'+' '.join(links)+'</nav>'
 def options_products(c): return [(r['id'],f"{r['name']} (موجودی: {r['stock']:g} {r['unit']})") for r in c.execute('SELECT * FROM products ORDER BY name')]
 def options_loans(c): return [(r['id'],r['title']) for r in c.execute('SELECT * FROM loans ORDER BY title')]
 def dash(c):
