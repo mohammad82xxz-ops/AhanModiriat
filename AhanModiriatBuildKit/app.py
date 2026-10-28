@@ -698,16 +698,89 @@ def product_editor(c, pid):
     {inp('قیمت روز هر واحد پایه','market_price',p['market_price'],'number','0.01')}{inp('حداقل موجودی هشدار','min_stock',p['min_stock'],'number','0.001')}{inp('یادداشت','notes',p['notes'])}
     </div><div class="actions"><button>ذخیره تغییرات</button><a class="btn secondary" href="/products">بازگشت</a></div></form></div>'''
     return page('ویرایش کالا',body,'products')
+def record_actions(record_id, edit_path, delete_path, label):
+    confirm = esc(f"حذف {label}؟ اگر این سند روی موجودی یا صندوق اثر دارد، اثر آن نیز برمی‌گردد.")
+    return (f'<div class="row-actions"><a class="btn secondary sm" href="/{edit_path}?id={int(record_id)}">ویرایش</a>'
+            f'<form method="post" action="/{delete_path}" data-confirm-submit="1" data-confirm-message="{confirm}">'
+            f'<input type="hidden" name="record_id" value="{int(record_id)}"><button class="danger sm" type="submit">حذف</button></form></div>')
+
+def purchase_editor(c, record_id):
+    r = c.execute("SELECT p.*,pr.name,pr.unit,pr.purchase_unit,pr.purchase_factor FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE p.id=?",(record_id,)).fetchone()
+    if r is None:
+        return page("خرید پیدا نشد",'<div class="notice">سند خرید وجود ندارد.</div>',"purchases")
+    body = f'''<h1>ویرایش خرید: {esc(r["name"])}</h1><div class="card section">
+    <div class="notice">برای جلوگیری از بازنویسی گردش‌های بعدی، ویرایش فقط زمانی مجاز است که سند خرید آخرین گردش موجودی آن کالا باشد و گردش دیگری در همان تاریخ ثبت نشده باشد.</div>
+    <p class="small">تاریخ و کالا ثابت نگه داشته می‌شوند. واحد خرید: {esc(r["purchase_unit"])}؛ واحد پایه: {esc(r["unit"])}.</p>
+    <form method="post" action="/update_purchase"><input type="hidden" name="record_id" value="{r["id"]}">
+    <div class="formgrid">{field("مقدار خرید","qty","number",str(r["qty"]),True,"0.001")}
+    {field("قیمت خرید هر واحد خرید","unit_cost","number",str(r["unit_cost"]),True,"0.01")}
+    {field("هزینه جانبی کل","extra_cost","number",str(r["extra_cost"]),False,"0.01")}
+    {field("مبلغ پرداخت‌شده","paid","number",str(r["paid"]),True,"0.01")}
+    {field("فروشنده","supplier",value=str(r["supplier"] or ""))}
+    {field("یادداشت","notes",value=str(r["notes"] or ""))}</div>
+    <div class="actions"><button>ذخیره اصلاح خرید</button><a class="btn secondary" href="/purchases">انصراف</a></div></form></div>'''
+    return page("ویرایش خرید",body,"purchases")
+
+def sale_editor(c, record_id):
+    r = c.execute("SELECT s.*,p.name,p.unit FROM sales s JOIN products p ON p.id=s.product_id WHERE s.id=?",(record_id,)).fetchone()
+    if r is None:
+        return page("فروش پیدا نشد",'<div class="notice">سند فروش وجود ندارد.</div>',"sales")
+    body = f'''<h1>ویرایش فروش: {esc(r["name"])}</h1><div class="card section">
+    <div class="notice">مقدار و قیمت در واحد پایهٔ کالا ثبت شده‌اند. ویرایش فقط وقتی مجاز است که بعد از این تاریخ، خرید یا تعدیل موجودی برای این کالا ثبت نشده باشد.</div>
+    <form method="post" action="/update_sale"><input type="hidden" name="record_id" value="{r["id"]}">
+    <div class="formgrid">{field("مقدار فروش در واحد پایه","qty","number",str(r["qty"]),True,"0.001")}
+    {field("قیمت فروش هر واحد پایه","unit_price","number",str(r["unit_price"]),True,"0.01")}
+    {field("هزینه مستقیم فروش","extra_cost","number",str(r["extra_cost"]),False,"0.01")}
+    {field("وجه دریافت‌شده","received","number",str(r["received"]),True,"0.01")}
+    {field("مشتری","customer",value=str(r["customer"] or ""))}
+    {field("یادداشت","notes",value=str(r["notes"] or ""))}</div>
+    <div class="actions"><button>ذخیره اصلاح فروش</button><a class="btn secondary" href="/sales">انصراف</a></div></form></div>'''
+    return page("ویرایش فروش",body,"sales")
+
+def expense_editor(c, record_id):
+    r = c.execute("SELECT * FROM expenses WHERE id=?",(record_id,)).fetchone()
+    if r is None:
+        return page("هزینه پیدا نشد",'<div class="notice">سند هزینه وجود ندارد.</div>',"expenses")
+    body = f'''<h1>ویرایش هزینه/برداشت</h1><div class="card section"><form method="post" action="/update_expense">
+    <input type="hidden" name="record_id" value="{r["id"]}"><div class="formgrid">
+    {field("تاریخ","date","date",show_date(r["date"]),True)}
+    {field("شرح/دسته هزینه","category",value=str(r["category"] or ""),required=True)}
+    {field("مبلغ (تومان)","amount","number",str(r["amount"]),True,"0.01")}
+    {selectfield("نوع","business",[("1","هزینه کسب‌وکار"),("0","برداشت شخصی/خانوادگی")])}
+    {field("منبع پرداخت","source",value=str(r["source"] or ""))}
+    {field("توضیحات","notes",value=str(r["notes"] or ""))}</div>
+    <div class="actions"><button>ذخیره اصلاح هزینه</button><a class="btn secondary" href="/expenses">انصراف</a></div></form></div>'''
+    return page("ویرایش هزینه",body,"expenses")
+
+def assert_purchase_reversible(c, row):
+    pid, date, rid = row["product_id"], row["date"], row["id"]
+    later = (
+        scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=? AND id<>?",(pid,date,rid)) +
+        scalar(c,"SELECT COUNT(*) FROM sales WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
+    )
+    if later:
+        raise ValueError("این خرید گردش دیگری در همان تاریخ یا پس از آن دارد؛ ابتدا سندهای وابسته را اصلاح کن.")
+
+def assert_sale_reversible(c, row):
+    pid, date = row["product_id"], row["date"]
+    later = (
+        scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
+    )
+    if later:
+        raise ValueError("پس از این فروش خرید یا تعدیل موجودی ثبت شده؛ برای حفظ میانگین موزون، اصلاح/حذف خودکار ایمن نیست.")
+
 def purchases(c):
     prods=options_products(c); opt=[(v,t) for v,t in prods]
     body=f'''<h1>ثبت خرید</h1><div class="card section"><form method="post" action="/add_purchase"><div class="formgrid">{field('تاریخ خرید','date','date',TODAY,True)}{selectfield('کالا','product_id',opt)}{field('مقدار خرید','qty','number','1',True,'0.001')}{field('قیمت خرید هر واحد (تومان)','unit_cost','number','0',True,'0.01')}{field('هزینه جانبی کل (حمل/تخلیه)','extra_cost','number','0',False,'0.01')}{field('مبلغ پرداخت‌شده','paid','number','0',True,'0.01')}{field('فروشنده','supplier')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خرید و افزایش موجودی</button></div></form><p class="small">پس از ثبت خرید، موجودی و میانگین موزون بهای خرید به‌روزرسانی می‌شود. هزینه جانبی به بهای تمام‌شده خرید اضافه می‌شود.</p></div>'''
-    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(r['qty']*r['unit_cost']+r['extra_cost']),esc(r['supplier']),money(r['paid'])] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id ORDER BY p.date DESC,p.id DESC LIMIT 100')]
-    body+=f'<div class="card section"><h2>آخرین خریدها</h2>{table(["تاریخ","کالا","مقدار","قیمت واحد","هزینه جانبی","جمع بهای خرید","فروشنده","پرداخت‌شده"],rows)}</div>'
+    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(r['qty']*r['unit_cost']+r['extra_cost']),esc(r['supplier']),money(r['paid']),record_actions(r['id'],'edit_purchase','delete_purchase','خرید')] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id ORDER BY p.date DESC,p.id DESC LIMIT 100')]
+    body+=f'<div class="card section"><h2>آخرین خریدها</h2>{table(["تاریخ","کالا","مقدار","قیمت واحد","هزینه جانبی","جمع بهای خرید","فروشنده","پرداخت‌شده","عملیات"],rows)}</div>'
     return page('خرید',body,'purchases')
 def sales(c):
     body=f'''<h1>ثبت فروش کالا</h1><div class="card section"><form method="post" action="/add_sale"><div class="formgrid">{field('تاریخ فروش','date','date',TODAY,True)}{selectfield('کالا','product_id',options_products(c))}{field('مقدار فروش','qty','number','1',True,'0.001')}{field('قیمت فروش هر واحد (تومان)','unit_price','number','0',True,'0.01')}{field('هزینه مستقیم فروش','extra_cost','number','0',False,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت فروش و کسر موجودی</button></div></form><p class="small">بهای تمام‌شده از میانگین بهای خرید ثبت‌شده در همان لحظه ذخیره می‌شود تا گزارش سود فروش تاریخی با خریدهای بعدی تغییر نکند.</p></div>'''
-    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_price']),money(r['cost_basis']),money(r['qty']*(r['unit_price']-r['cost_basis'])-r['extra_cost']),esc(r['customer']),money(r['received'])] for r in c.execute('SELECT s.*,p.name FROM sales s JOIN products p ON p.id=s.product_id ORDER BY s.date DESC,s.id DESC LIMIT 100')]
-    body+=f'<div class="card section"><h2>آخرین فروش‌ها</h2>{table(["تاریخ","کالا","مقدار","قیمت فروش","بهای تمام‌شده","سود معامله پس از هزینه مستقیم","مشتری","دریافت‌شده"],rows)}</div>'
+    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_price']),money(r['cost_basis']),money(r['qty']*(r['unit_price']-r['cost_basis'])-r['extra_cost']),esc(r['customer']),money(r['received']),record_actions(r['id'],'edit_sale','delete_sale','فروش')] for r in c.execute('SELECT s.*,p.name FROM sales s JOIN products p ON p.id=s.product_id ORDER BY s.date DESC,s.id DESC LIMIT 100')]
+    body+=f'<div class="card section"><h2>آخرین فروش‌ها</h2>{table(["تاریخ","کالا","مقدار","قیمت فروش","بهای تمام‌شده","سود معامله پس از هزینه مستقیم","مشتری","دریافت‌شده","عملیات"],rows)}</div>'
     return page('فروش',body,'sales')
 def services(c):
     body=f'''<h1>درآمد خدماتی</h1><div class="card section"><form method="post" action="/add_service"><div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح خدمت','title',required=True)}{field('درآمد خدمت (تومان)','revenue','number','0',True,'0.01')}{field('هزینه اجرای خدمت','cost','number','0',True,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خدمت</button></div></form></div>'''
@@ -716,8 +789,8 @@ def services(c):
     return page('خدمات',body,'services')
 def expenses(c):
     body=f'''<h1>هزینه‌ها و برداشت‌های شخصی</h1><div class="card section"><form method="post" action="/add_expense"><div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح/دسته هزینه','category',required=True)}{field('مبلغ (تومان)','amount','number','0',True,'0.01')}{selectfield('نوع','business',[('1','هزینه کسب‌وکار'),('0','برداشت شخصی/خانوادگی')])}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('توضیحات','notes')}</div><div class="actions"><button>ثبت پرداخت</button></div></form><p class="small">هزینه کسب‌وکار در سودوزیان کسر می‌شود؛ برداشت شخصی سود عملیاتی را کم نمی‌کند، اما از نقدینگی و سرمایه قابل‌استفاده کم می‌کند. منبع پرداخت یک تخصیص مدیریتی است و باید با موجودی نقد تطبیق داده شود.</p></div>'''
-    rows=[[show_date(r['date']),esc(r['category']),money(r['amount']), 'هزینه کسب‌وکار' if r['business'] else 'برداشت شخصی',esc(r['source']),esc(r['notes'])] for r in c.execute('SELECT * FROM expenses ORDER BY date DESC,id DESC LIMIT 150')]
-    body+=f'<div class="card section"><h2>آخرین پرداخت‌ها</h2>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات"],rows)}</div>'
+    rows=[[show_date(r['date']),esc(r['category']),money(r['amount']), 'هزینه کسب‌وکار' if r['business'] else 'برداشت شخصی',esc(r['source']),esc(r['notes']),record_actions(r['id'],'edit_expense','delete_expense','هزینه')] for r in c.execute('SELECT * FROM expenses ORDER BY date DESC,id DESC LIMIT 150')]
+    body+=f'<div class="card section"><h2>آخرین پرداخت‌ها</h2>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows)}</div>'
     return page('هزینه‌ها',body,'expenses')
 def loans(c):
     body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
