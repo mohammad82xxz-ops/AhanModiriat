@@ -2112,6 +2112,7 @@ class Handler(BaseHTTPRequestHandler):
                         if not src_id or not dst_id or src_id==dst_id: raise ValueError('برای انتقال، دو حساب متفاوت انتخاب کن.')
                         c.execute("INSERT INTO cash_movements(date,kind,from_account_id,to_account_id,amount,party,note) VALUES(?,'transfer',?,?,?,?,?)",(date,src_id,dst_id,amount,normalize_person(v('party')),v('note')))
                     else: raise ValueError('نوع گردش نقدی نامعتبر است.')
+                    cash_movement_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
                     dest='/cash';msg='گردش حساب ثبت شد.'
                 elif path=='save_capital':
                     amount=int(round(num(v('amount')))); capital_date=to_iso_date(v('date',jalali_today()))
