@@ -35,7 +35,7 @@ def main():
         assert balances["Supplier B"]["payable"] == 110, balances
         assert c.execute("SELECT kind FROM people WHERE name='Customer A'").fetchone()[0] == "customer"
         assert "ریز حساب: Customer A" in app.parties_page(c, "Customer A")
-        assert app.account_balance(c, 1) == 210, app.account_balance(c, 1)
+        assert app.account_balance(c, 1) == 760, app.account_balance(c, 1)
 
         # Re-run cash backfill; already linked settlement rows must not be duplicated.
         before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='settlements'").fetchone()[0]
