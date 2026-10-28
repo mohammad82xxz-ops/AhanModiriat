@@ -17,7 +17,6 @@ def main():
     with app.conn() as c:
         c.execute("INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock) VALUES('pagination seed','kg',100,5,10,0)")
         pid = c.execute("SELECT id FROM products WHERE name='pagination seed'").fetchone()[0]
-        c.execute("INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category) VALUES('pagination seed','PS','kg',100,5,10,0,'pagination')")
         purchase_id=c.execute("SELECT id FROM purchases ORDER BY id LIMIT 1").fetchone()[0] if c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0] else None
         for i in range(55):
             c.execute("""INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category)
