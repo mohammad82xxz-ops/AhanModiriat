@@ -378,7 +378,7 @@ def backfill_legacy_cash_postings(c):
 
 def inventory_page(c):
     products = options_products(c)
-    body = f\'''<h1>انبارگردانی و تعدیل موجودی</h1>
+    body = f'''<h1>انبارگردانی و تعدیل موجودی</h1>
     <div class="card section"><h2>ثبت شمارش فیزیکی</h2>
       <form method="post" action="/inventory_adjust">
         <div class="formgrid">{field("تاریخ شمارش","date","date",TODAY,True)}
@@ -389,7 +389,7 @@ def inventory_page(c):
         </div><div class="actions"><button>ثبت شمارش و اعمال تعدیل</button></div>
       </form>
       <p class="small">مقدار شمارش‌شده با موجودی دفتری مقایسه می‌شود. فقط اختلاف به‌عنوان گردش تعدیل ثبت می‌شود و بهای میانگین کالا دست‌کاری نمی‌شود. علت ثبت‌شده در سابقه باقی می‌ماند.</p>
-    </div>\'''
+    </div>'''
     rows = []
     for r in c.execute("""SELECT a.*,p.name,p.unit FROM inventory_adjustments a
                           JOIN products p ON p.id=a.product_id ORDER BY a.date DESC,a.id DESC LIMIT 100"""):
@@ -431,7 +431,7 @@ def product_ledger_page(c, product_id):
                      f'{max(-delta,0):g} {esc(p["unit"])}',f'{e["balance"]:g} {esc(p["unit"])}',
                      esc(e["detail"]),esc(e["notes"])])
     baseline = current - movement_total
-    body = f\'''<h1>کارت گردش کالا: {esc(p["name"])}</h1>
+    body = f'''<h1>کارت گردش کالا: {esc(p["name"])}</h1>
     <div class="grid section">
       <div class="card metric"><div class="label">موجودی فعلی</div><div class="value">{current:g} {esc(p["unit"])}</div></div>
       <div class="card metric"><div class="label">تعداد گردش‌های ثبت‌شده</div><div class="value">{len(events)}</div></div>
@@ -439,7 +439,7 @@ def product_ledger_page(c, product_id):
     </div>
     <div class="card section"><p class="small">حداکثر ۵۰۰ گردش آخر نمایش داده می‌شود. مانده‌های قبلی از موجودی فعلی و گردش‌های ثبت‌شده بازسازی می‌شوند؛ اگر موجودی دستی ویرایش شده باشد، تفاوت در مانده پایه دیده می‌شود.</p>
     {table(["تاریخ","نوع گردش","ورودی","خروجی","مانده پس از گردش","مرجع/طرف حساب","یادداشت"],rows)}
-    <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>\'''
+    <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>'''
     return page("کارت گردش کالا",body,"products")
 
 def cash_page(c):
