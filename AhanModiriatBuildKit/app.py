@@ -613,9 +613,9 @@ def inventory_page(c, search='', page_num=1):
         rows.append([show_date(r["date"]),esc(r["name"]),f'{r["expected_qty"]:g} {esc(r["unit"])}',
                      f'{r["counted_qty"]:g} {esc(r["unit"])}',
                      f'{r["delta_qty"]:+g} {esc(r["unit"])}',esc(r["reason"]),esc(r["notes"])])
-    body += f'<div class="card section"><h2>تاریخچه انبارگردانی</h2>
+    body += f'''<div class="card section"><h2>تاریخچه انبارگردانی</h2>
     <form method="get" action="/inventory" class="search-form"><label>جستجوی تعدیل</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، علت یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
-    {table(["تاریخ","کالا","موجودی دفتری","شمارش واقعی","اختلاف","علت","یادداشت"],rows,total)}{page_nav("inventory",query,page_num,total,limit)}</div>'
+    {table(["تاریخ","کالا","موجودی دفتری","شمارش واقعی","اختلاف","علت","یادداشت"],rows,total)}{page_nav("inventory",query,page_num,total,limit)}</div>'''
     return page("انبارگردانی","".join([body]),"inventory")
 
 def product_ledger_page(c, product_id):
