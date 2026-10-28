@@ -191,7 +191,7 @@ def compute_purchase_advice(c, window_days=30):
     rows.sort(key=lambda r:(r["priority"],-r["recommend"],r["name"].casefold()))
     return rows
 
-def returns_page(c):
+def returns_page(c, search='', page_num=1):
     sales_opts=[]
     for r in c.execute("""SELECT s.id,s.date,s.qty,s.unit_price,s.customer,p.name,p.unit,
                                COALESCE((SELECT SUM(sr.qty) FROM sales_returns sr WHERE sr.sale_id=s.id),0) AS returned
@@ -207,16 +207,24 @@ def returns_page(c):
         remaining=float(r["qty"])*float(r["purchase_factor"] or 1)-float(r["returned"])
         if remaining>0.000001:
             purchase_opts.append((r["id"],f'#{r["id"]} · {r["name"]} · {show_date(r["date"])} · {r["supplier"] or "بدون فروشنده"} · مانده مرجوعی {remaining:g} {r["unit"]}'))
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total=int(scalar(c,"SELECT COUNT(*) FROM sales_returns")+scalar(c,"SELECT COUNT(*) FROM purchase_returns"))
+    union_sql="""SELECT sr.id AS id,sr.date AS date,'مرجوعی فروش' AS kind,p.name AS name,p.unit AS unit,
+                        sr.qty AS qty,sr.return_value AS return_value,sr.refund_amount AS cash_amount,
+                        sr.customer AS party,sr.reason AS reason
+                 FROM sales_returns sr JOIN products p ON p.id=sr.product_id
+                 UNION ALL
+                 SELECT pr.id AS id,pr.date AS date,'مرجوعی خرید' AS kind,p.name AS name,p.unit AS unit,
+                        pr.qty AS qty,pr.return_value AS return_value,pr.cash_refund AS cash_amount,
+                        pr.supplier AS party,pr.reason AS reason
+                 FROM purchase_returns pr JOIN products p ON p.id=pr.product_id"""
+    total=scalar(c,"SELECT COUNT(*) FROM ("+union_sql+") ret WHERE name LIKE ? OR party LIKE ? OR reason LIKE ?",(pattern,pattern,pattern))
     rows=[]
-    for r in c.execute("""SELECT sr.*,p.name,p.unit FROM sales_returns sr JOIN products p ON p.id=sr.product_id
-                          ORDER BY sr.date DESC,sr.id DESC LIMIT 100""".replace("sr.id DESC","sr.id DESC")):
-        rows.append([show_date(r["date"]),"مرجوعی فروش",esc(r["name"]),f'{r["qty"]:g} {esc(r["unit"])}',
-                     money(r["return_value"]),money(r["refund_amount"]),esc(r["customer"]),esc(r["reason"])])
-    for r in c.execute("""SELECT pr.*,p.name,p.unit FROM purchase_returns pr JOIN products p ON p.id=pr.product_id
-                          ORDER BY pr.date DESC,pr.id DESC LIMIT 100"""):
-        rows.append([show_date(r["date"]),"مرجوعی خرید",esc(r["name"]),f'{r["qty"]:g} {esc(r["unit"])}',
-                     money(r["return_value"]),money(r["cash_refund"]),esc(r["supplier"]),esc(r["reason"])])
-    rows.sort(key=lambda x:(x[0] or "",x[1]),reverse=True)
+    for r in c.execute("SELECT * FROM ("+union_sql+") ret WHERE name LIKE ? OR party LIKE ? OR reason LIKE ? ORDER BY date DESC,id DESC LIMIT ? OFFSET ?",
+                        (pattern,pattern,pattern,limit,offset)):
+        rows.append([show_date(r["date"]),esc(r["kind"]),esc(r["name"]),f'{r["qty"]:g} {esc(r["unit"])}',
+                     money(r["return_value"]),money(r["cash_amount"]),esc(r["party"]),esc(r["reason"])])
     body=f'''<h1>مرجوعی خرید و فروش</h1>
     <div class="twocol section">
       <div class="card"><h2>ثبت مرجوعی فروش از مشتری</h2>
@@ -242,7 +250,10 @@ def returns_page(c):
         <p class="small">مقدار مرجوعی به واحد پایه وارد می‌شود. مانده حساب فروشنده بر اساس ارزش برگشتی کاهش می‌یابد؛ فقط مبلغی که واقعاً دریافت شده در صندوق ثبت می‌شود.</p>
       </div>
     </div>
-    <div class="card section"><h2>آخرین مرجوعی‌ها</h2>{table(["تاریخ","نوع","کالا","مقدار","ارزش سند","وجه واقعی","طرف حساب","علت"],rows)}</div>'''
+    <div class="card section"><h2>مرجوعی‌های ثبت‌شده</h2>
+    <form method="get" action="/returns" class="search-form"><label>جستجوی مرجوعی</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، طرف حساب یا علت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+    {table(["تاریخ","نوع","کالا","مقدار","ارزش سند","وجه واقعی","طرف حساب","علت"],rows,total)}
+    {page_nav("returns",query,page_num,total,limit)}</div>'''
     return page("مرجوعی‌ها",body,"returns")
 
 def purchase_advice(c):
@@ -1561,7 +1572,7 @@ class Handler(BaseHTTPRequestHandler):
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
                 self.send(parties_page(c,q.get('name',[''])[0]))
-            elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit'):
+            elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit','returns'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
                 self.send(fn(c,q.get('q',[''])[0],page_num))
