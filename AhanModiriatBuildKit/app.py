@@ -1291,17 +1291,21 @@ def expenses(c, search='', page_num=1):
     rows=[[show_date(r['date']),esc(r['category']),money(r['amount']), 'هزینه کسب‌وکار' if r['business'] else 'برداشت شخصی',esc(r['source']),esc(r['notes']),record_actions(r['id'],'edit_expense','delete_expense','هزینه')] for r in c.execute('SELECT * FROM expenses WHERE category LIKE ? OR source LIKE ? OR notes LIKE ? ORDER BY date DESC,id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>پرداخت‌ها و برداشت‌ها</h2><form method="get" action="/expenses" class="search-form"><label>جستجوی هزینه</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، منبع یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows,total)}{page_nav("expenses",query,page_num,total,limit)}</div>'
     return page('هزینه‌ها',body,'expenses')
-def loans(c):
+def loans(c, search='', page_num=1):
     body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total_loans=scalar(c,"SELECT COUNT(*) FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
     rows=[]
-    for r in c.execute('SELECT * FROM loans ORDER BY next_date'):
+    for r in c.execute("SELECT * FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ? ORDER BY next_date LIMIT ? OFFSET ?",(pattern,pattern,pattern,limit,offset)):
         interval_label={"day":"روز","week":"هفته","month":"ماه","year":"سال"}.get(r["interval_unit"],r["interval_unit"])
         rows.append([r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),f'{r["interval_value"]} {interval_label}',esc(r['rate_note'])])
-    body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","دوره پرداخت","شرایط"],rows)}</div>'
-    payments=[[show_date(r['date']),esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute('SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id ORDER BY lp.date DESC LIMIT 100')]
-    body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments)}</div>'
+    body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2><form method="get" action="/loans" class="search-form"><label>جستجوی وام</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام وام یا شرایط"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","دوره پرداخت","شرایط"],rows,total_loans)}{page_nav("loans",query,page_num,total_loans,limit)}</div>'
+    total_payments=scalar(c,"SELECT COUNT(*) FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id WHERE l.title LIKE ? OR lp.source LIKE ? OR lp.notes LIKE ?",(pattern,pattern,pattern))
+    payments=[[show_date(r['date']),esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute("SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id WHERE l.title LIKE ? OR lp.source LIKE ? OR lp.notes LIKE ? ORDER BY lp.date DESC,lp.id DESC LIMIT ? OFFSET ?",(pattern,pattern,pattern,limit,offset))]
+    body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments,total_payments)}{page_nav("loans",query,page_num,total_payments,limit)}</div>'
     return page('وام‌ها',body,'loans')
-def prices(c, selected_product_id=0):
+def prices(c, selected_product_id=0, search='', page_num=1):
     product_options=options_products(c)
     try:
         selected_product_id=int(selected_product_id or 0)
@@ -1346,12 +1350,18 @@ def prices(c, selected_product_id=0):
             {"".join(dots)}{"".join(labels)}
           </svg></div>
         </div>'''
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total_prices=scalar(c,"SELECT COUNT(*) FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ?",(pattern,pattern))
+    history_rows=c.execute("SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ? ORDER BY h.date DESC,h.id DESC LIMIT ? OFFSET ?",(pattern,pattern,limit,offset)).fetchall()
     body=f'''<h1>قیمت روز بازار</h1>
     <div class="card section"><form method="post" action="/add_price"><div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
     <p class="small">ثبت قیمت جدید، قیمت روز فعلی کالا را به‌روزرسانی می‌کند ولی سود تحقق‌یافته معاملات قبلی را تغییر نمی‌دهد.</p></div>
     <div class="card section"><h2>انتخاب کالا برای نمودار قیمت</h2><form method="get" action="/prices"><div class="formgrid">{selectfield('کالا','product_id',product_options,value=selected_product_id)}<button>نمایش روند قیمت</button></div></form></div>
     {chart}
-    <div class="card section"><h2>تاریخچه قیمت‌ها</h2>{table(["تاریخ","کالا","قیمت روز","یادداشت"],[[show_date(r['date']),esc(r['name']),money(r['market_price']),esc(r['notes'])] for r in c.execute('SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id ORDER BY h.date DESC,h.id DESC LIMIT 200')])}</div>'''
+    <div class="card section"><h2>تاریخچه قیمت‌ها</h2><form method="get" action="/prices" class="search-form"><label>جستجوی تاریخچه قیمت</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام کالا یا منبع قیمت"><input type="hidden" name="product_id" value="{selected_product_id}"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+    {table(["تاریخ","کالا","قیمت روز","یادداشت"],[[show_date(r['date']),esc(r['name']),money(r['market_price']),esc(r['notes'])] for r in history_rows],total_prices)}
+    {page_nav("prices",query,page_num,total_prices,limit)}</div>'''
     return page('قیمت روز',body,'prices')
 def report_detail_sections(c):
     # Product profitability, net of sales returns, sorted by true numeric profit.
@@ -1587,9 +1597,16 @@ class Handler(BaseHTTPRequestHandler):
                 except (TypeError,ValueError): page_num=1
                 self.send(fn(c,q.get('q',[''])[0],page_num))
             elif path=='prices':
-                try: selected_product_id=int(q.get('product_id',['0'])[0])
-                except (TypeError,ValueError): selected_product_id=0
-                self.send(prices(c,selected_product_id))
+                try:
+                    selected_product_id=int(q.get('product_id',['0'])[0])
+                    page_num=int(q.get('page',['1'])[0])
+                except (TypeError,ValueError):
+                    selected_product_id=0; page_num=1
+                self.send(prices(c,selected_product_id,q.get('q',[''])[0],page_num))
+            elif path=='loans':
+                try: page_num=int(q.get('page',['1'])[0])
+                except (TypeError,ValueError): page_num=1
+                self.send(loans(c,q.get('q',[''])[0],page_num))
             else:
                 self.send(fn(c))
     def do_POST(self):
