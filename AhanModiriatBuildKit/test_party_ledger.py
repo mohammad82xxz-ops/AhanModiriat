@@ -41,7 +41,12 @@ def main():
         assert balances["Customer A"]["receivable"] == 350, balances
         assert balances["Supplier B"]["payable"] == 110, balances
         assert c.execute("SELECT kind FROM people WHERE name='Customer A'").fetchone()[0] == "customer"
-        assert "ریز حساب: Customer A" in app.parties_page(c, "Customer A")
+        customer_statement=app.parties_page(c, "Customer A")
+        supplier_statement=app.parties_page(c, "Supplier B")
+        assert "ریز حساب: Customer A" in customer_statement
+        assert "مانده تجمعی دریافتنی" in customer_statement and "مانده تجمعی پرداختنی" in customer_statement
+        assert "350" in customer_statement, customer_statement
+        assert "110" in supplier_statement, supplier_statement
         assert app.account_balance(c, 1) == 760, app.account_balance(c, 1)
 
         # Re-run cash backfill; already linked settlement rows must not be duplicated.
