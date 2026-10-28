@@ -164,6 +164,14 @@ def init():
             created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
+        CREATE TABLE IF NOT EXISTS settlements(
+            id INTEGER PRIMARY KEY, date TEXT NOT NULL, party TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('receive','pay')),
+            amount REAL NOT NULL CHECK(amount>0), notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS ix_settlements_date ON settlements(date,id);
         CREATE TABLE IF NOT EXISTS cash_accounts(
             id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, account_type TEXT NOT NULL DEFAULT 'cash',
             opening_balance INTEGER NOT NULL DEFAULT 0,
@@ -212,6 +220,7 @@ def init():
             ("SELECT customer FROM services", "customer"),
             ("SELECT source FROM expenses", "supplier"),
             ("SELECT source FROM loan_payments", "both"),
+            ("SELECT party FROM settlements", "both"),
         ):
             for row in c.execute(query).fetchall():
                 person_name = normalize_person(row[0])
@@ -303,6 +312,15 @@ def backfill_legacy_cash_postings(c):
                              WHERE m.source_table='cash_events' AND m.source_id=e.id)""").fetchall():
         sync_cash_posting(c, "cash_events", row["id"], row["date"], row["amount"], row["kind"], row["source"], row["notes"] or "رویداد نقدی")
         inserted += 1
+    for row in c.execute("""SELECT s.id,s.date,s.kind,s.amount,s.party,s.notes
+            FROM settlements s
+            WHERE s.kind IN ('receive','pay') AND COALESCE(s.amount,0)>0
+              AND NOT EXISTS(SELECT 1 FROM cash_movements m
+                             WHERE m.source_table='settlements' AND m.source_id=s.id)""").fetchall():
+        sync_cash_posting(c, "settlements", row["id"], row["date"], row["amount"],
+                          "in" if row["kind"] == "receive" else "out",
+                          row["party"], row["notes"] or "تسویه حساب")
+        inserted += 1
     return inserted
 
 def cash_page(c):
@@ -339,6 +357,75 @@ def cash_page(c):
     <div class="card section"><h2>آخرین ۱۰۰ گردش</h2>{table(["تاریخ","نوع","از حساب","به حساب","مبلغ","طرف حساب","شرح","منبع"],rows)}</div>'''
     return page("صندوق و بانک",body,"cash")
 
+def ensure_person(c, name, kind="both", phone="", notes=""):
+    name = normalize_person(name)
+    if not name:
+        return None
+    row = c.execute("SELECT id,kind FROM people WHERE name=?", (name,)).fetchone()
+    if row is None:
+        cur = c.execute("INSERT INTO people(name,kind,phone,notes) VALUES(?,?,?,?)", (name,kind,phone,notes))
+        return cur.lastrowid
+    if kind and row["kind"] not in (kind,"both") and kind != "both":
+        c.execute("UPDATE people SET kind='both',updated_at=datetime('now','localtime') WHERE id=?", (row["id"],))
+    return row["id"]
+
+def party_balances(c):
+    balances = {}
+    def add(name, key, amount):
+        name = normalize_person(name) or "(بدون نام)"
+        item = balances.setdefault(name, {"receivable": 0.0, "payable": 0.0})
+        item[key] += float(amount or 0)
+    for row in c.execute("SELECT TRIM(customer) name,SUM(qty*unit_price-received) amount FROM sales GROUP BY TRIM(customer)"):
+        add(row["name"],"receivable",row["amount"])
+    for row in c.execute("SELECT TRIM(customer) name,SUM(revenue-received) amount FROM services GROUP BY TRIM(customer)"):
+        add(row["name"],"receivable",row["amount"])
+    for row in c.execute("SELECT TRIM(party) name,SUM(amount) amount FROM settlements WHERE kind='receive' GROUP BY TRIM(party)"):
+        add(row["name"],"receivable",-row["amount"])
+    for row in c.execute("SELECT TRIM(supplier) name,SUM(qty*unit_cost+extra_cost-paid) amount FROM purchases GROUP BY TRIM(supplier)"):
+        add(row["name"],"payable",row["amount"])
+    for row in c.execute("SELECT TRIM(party) name,SUM(amount) amount FROM settlements WHERE kind='pay' GROUP BY TRIM(party)"):
+        add(row["name"],"payable",-row["amount"])
+    return balances
+
+def parties_page(c, selected=""):
+    balances = party_balances(c)
+    people = c.execute("SELECT * FROM people ORDER BY name").fetchall()
+    rows = []
+    from urllib.parse import quote
+    for person in people:
+        bal = balances.get(person["name"], {"receivable":0,"payable":0})
+        rows.append([esc(person["name"]),esc(person["kind"]),esc(person["phone"]),
+                     money(bal["receivable"]),money(bal["payable"]),
+                     f'<a class="btn secondary" href="/parties?name={quote(person["name"])}">ریز حساب</a>'])
+    person_opts = [(p["name"],p["name"]) for p in people]
+    body = f'''<h1>طرف حساب‌ها و مانده اشخاص</h1>
+    <div class="card section"><h2>ثبت شخص جدید</h2><form method="post" action="/add_person"><div class="formgrid">
+    {field("نام و نام خانوادگی/شرکت","name","text","",True)}
+    {selectfield("نوع طرف حساب","kind",[("customer","مشتری"),("supplier","فروشنده"),("both","هر دو")])}
+    {field("شماره تماس","phone")}{field("یادداشت","notes")}
+    </div><div class="actions"><button>ثبت طرف حساب</button></div></form></div>
+    <div class="card section"><h2>ثبت تسویه با شخص</h2><form method="post" action="/add_settlement"><div class="formgrid">
+    {selectfield("طرف حساب","party",person_opts)}{selectfield("نوع تسویه","kind",[("receive","دریافت از مشتری"),("pay","پرداخت به فروشنده")])}
+    {field("تاریخ","date","date",TODAY,True)}{field("مبلغ تسویه (تومان)","amount","number","0",True,"1")}
+    {field("شرح/یادداشت","notes")}
+    </div><div class="actions"><button>ثبت تسویه و به‌روزرسانی صندوق</button></div></form></div>
+    <div class="card section"><h2>مانده اشخاص</h2>{table(["نام","نوع","تماس","طلب ما از شخص","بدهی ما به شخص","ریز حساب"],rows)}</div>'''
+    selected = normalize_person(selected)
+    if selected:
+        statement = []
+        for r in c.execute("SELECT date,'فروش کالا' kind,qty*unit_price total,received settled,notes FROM sales WHERE TRIM(customer)=?",(selected,)):
+            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
+        for r in c.execute("SELECT date,'خدمات' kind,revenue total,received settled,notes FROM services WHERE TRIM(customer)=?",(selected,)):
+            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
+        for r in c.execute("SELECT date,'خرید' kind,qty*unit_cost+extra_cost total,paid settled,notes FROM purchases WHERE TRIM(supplier)=?",(selected,)):
+            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
+        for r in c.execute("SELECT date,CASE WHEN kind='receive' THEN 'دریافت تسویه' ELSE 'پرداخت تسویه' END kind,amount total,amount settled,notes FROM settlements WHERE TRIM(party)=?",(selected,)):
+            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
+        statement.sort(key=lambda x:(x[0] or "",x[1]),reverse=True)
+        details = [[show_date(r[0]),esc(r[1]),money(r[2]),money(r[3]),money(float(r[2] or 0)-float(r[3] or 0)),esc(r[4] or "")] for r in statement]
+        body += f'<div class="card section"><h2>ریز حساب: {esc(selected)}</h2>{table(["تاریخ","شرح","مبلغ سند","پرداخت/دریافت این سند","مانده همان سند","یادداشت"],details)}<div class="actions"><a class="btn secondary" href="/parties">بستن ریز حساب</a></div></div>'
+    return page("طرف حساب‌ها",body,"parties")
+
 def calc(c, start=None, end=None):
     where=''; args=[]
     if start and end: where=' WHERE date BETWEEN ? AND ?'; args=[start,end]
@@ -365,7 +452,7 @@ NAV_GROUPS=[
     ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
     ('انبار',[('products','کالاها و موجودی','box'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
-    ('مالی',[('cash','صندوق و بانک','wallet')]),
+    ('مالی',[('cash','صندوق و بانک','wallet'),('parties','طرف حساب‌ها','users')]),
     ('مدیریت',[('loans','وام‌ها','calendar'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
 ]
 def svg_icon(name, cls='icon'):
@@ -584,10 +671,13 @@ class Handler(BaseHTTPRequestHandler):
                 try: self.send(product_editor(c,int(parse_qs(urlparse(self.path).query).get('id',['0'])[0])))
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
-            self.send(fn(c) if path=='' else fn(c))
+            if path=='parties':
+                self.send(parties_page(c,q.get('name',[''])[0]))
+            else:
+                self.send(fn(c))
     def do_POST(self):
         path=urlparse(self.path).path.strip('/'); n=int(self.headers.get('Content-Length','0')); raw=self.rfile.read(n).decode('utf-8'); d={k:v[-1] for k,v in parse_qs(raw,keep_blank_values=True).items()}
         def v(k,default=''):return d.get(k,default).strip()
@@ -614,6 +704,7 @@ class Handler(BaseHTTPRequestHandler):
                     base_qty=qty*factor
                     newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
                     c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
+                    ensure_person(c,v('supplier'),'supplier')
                     sync_cash_posting(c,"purchases",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
@@ -623,10 +714,12 @@ class Handler(BaseHTTPRequestHandler):
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
                     base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    ensure_person(c,v('customer'),'customer')
                     sync_cash_posting(c,"sales",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
                     c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')))
+                    ensure_person(c,v('customer'),'customer')
                     sync_cash_posting(c,"services",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
@@ -648,6 +741,23 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id')); price=num(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
                     c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')));c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
+                elif path=='add_person':
+                    name=normalize_person(v('name')); kind=v('kind','both')
+                    if not name: raise ValueError('نام طرف حساب الزامی است.')
+                    if kind not in ('customer','supplier','both'): raise ValueError('نوع طرف حساب معتبر نیست.')
+                    existing=c.execute('SELECT id FROM people WHERE name=?',(name,)).fetchone()
+                    if existing: raise ValueError('این طرف حساب قبلاً ثبت شده است.')
+                    ensure_person(c,name,kind,v('phone'),v('notes'))
+                    dest='/parties';msg='طرف حساب ثبت شد.'
+                elif path=='add_settlement':
+                    party=normalize_person(v('party')); kind=v('kind'); amount=int(round(num(v('amount'))))
+                    if not party: raise ValueError('طرف حساب را انتخاب کن.')
+                    if kind not in ('receive','pay') or amount<=0: raise ValueError('نوع یا مبلغ تسویه نامعتبر است.')
+                    ensure_person(c,party,'both')
+                    date=to_iso_date(v('date',jalali_today()))
+                    cur=c.execute('INSERT INTO settlements(date,party,kind,amount,notes) VALUES(?,?,?,?,?)',(date,party,kind,amount,v('notes')))
+                    sync_cash_posting(c,'settlements',cur.lastrowid,date,amount,'in' if kind=='receive' else 'out',party,v('notes') or 'تسویه حساب')
+                    dest='/parties';msg='تسویه ثبت شد و دفتر صندوق به‌روز شد.'
                 elif path=='add_cash_movement':
                     kind=v('kind'); amount=int(round(num(v('amount'))))
                     if amount<=0: raise ValueError('مبلغ گردش باید عدد صحیح بزرگ‌تر از صفر باشد.')
@@ -674,7 +784,7 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))
