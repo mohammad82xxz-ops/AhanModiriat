@@ -2,6 +2,8 @@
 """XLSX round-trip and HTTP import tests for products and people."""
 import os
 import sys
+import io
+import zipfile
 import tempfile
 import threading
 import urllib.request
@@ -88,6 +90,17 @@ def main():
         server.server_close()
 
     round_trip = app.parse_xlsx_workbook(exported)
+    # A tiny compressed upload must not be allowed to expand a huge XML entry in memory.
+    bomb = io.BytesIO()
+    with zipfile.ZipFile(bomb,"w",zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("xl/workbook.xml","<workbook/>")
+        archive.writestr("xl/worksheets/sheet1.xml","x"*(16*1024*1024+1))
+    rejected=False
+    try:
+        app.parse_xlsx_workbook(bomb.getvalue())
+    except ValueError as exc:
+        rejected="سقف" in str(exc) or "حجم" in str(exc)
+    assert rejected,"oversized expanded XLSX was not rejected"
     # HTTP export contains the full product template (stock is column D).
     assert round_trip["Products"][1][0] == "excel steel", round_trip["Products"][1]
     assert round_trip["Products"][1][3] == "3.0", round_trip["Products"][1]
