@@ -115,7 +115,7 @@ def show_date(value):
 def create_startup_backup():
     """Create a consistent pre-startup backup and keep only the newest seven."""
     if not DB.exists() or DB.stat().st_size == 0:
-        return
+        return None
     backup_dir = DATA / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -127,6 +127,7 @@ def create_startup_backup():
         for old in backups[7:]:
             try: old.unlink()
             except OSError: pass
+        return target
     except Exception:
         try: target.unlink(missing_ok=True)
         except OSError: pass
@@ -1435,7 +1436,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.send('Not Found','text/plain; charset=utf-8',404); return
         with LOCK, conn() as c:
             if path=='backup':
-                try: data=DB.read_bytes(); self.send_response(200); self.send_header('Content-Type','application/octet-stream'); self.send_header('Content-Disposition','attachment; filename="business-backup.db"'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
+                try:
+                    snapshot=create_startup_backup()
+                    if snapshot is None or not snapshot.is_file():
+                        raise FileNotFoundError("هنوز پایگاه داده‌ای برای پشتیبان‌گیری وجود ندارد.")
+                    data=snapshot.read_bytes()
+                    self.send_response(200)
+                    self.send_header('Content-Type','application/octet-stream')
+                    self.send_header('Content-Disposition','attachment; filename="business-backup.db"')
+                    self.send_header('Content-Length',str(len(data)))
+                    self.send_header('X-Content-Type-Options','nosniff')
+                    self.end_headers()
+                    self.wfile.write(data)
                 except Exception as e:self.send(str(e),status=500)
                 return
             if path=='export.xlsx':
