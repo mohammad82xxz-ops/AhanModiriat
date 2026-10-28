@@ -630,8 +630,8 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
     safe_name=esc(name)
     monetary = f'<span class="field-unit">تومان</span><span class="amount-words" data-words-for="{safe_name}" aria-live="polite"></span>' if name in MONEY_FIELDS and 'data-money="true"' in attrs else ''
     return f'<div class="field"><label for="field-{safe_name}">{label}</label><div class="input-wrap"><input id="field-{safe_name}" name="{safe_name}" type="{typ}" value="{esc(value)}" {req}{st}{attrs}{ph}></div>{monetary}</div>'
-def selectfield(label,name,opts,required=True):
-    opt=''.join(f'<option value="{esc(v)}">{esc(t)}</option>' for v,t in opts)
+def selectfield(label,name,opts,required=True,value=None):
+    opt=''.join(f'<option value="{esc(v)}" {"selected" if value is not None and str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
     return f'<div class="field"><label>{label}</label><select name="{name}" {"required" if required else ""}>{opt}</select></div>'
 def table(headers, rows):
     if not rows:return '<div class="empty">هنوز اطلاعاتی ثبت نشده است.</div>'
@@ -746,7 +746,7 @@ def expense_editor(c, record_id):
     {field("تاریخ","date","date",show_date(r["date"]),True)}
     {field("شرح/دسته هزینه","category",value=str(r["category"] or ""),required=True)}
     {field("مبلغ (تومان)","amount","number",str(r["amount"]),True,"0.01")}
-    {selectfield("نوع","business",[("1","هزینه کسب‌وکار"),("0","برداشت شخصی/خانوادگی")])}
+    {selectfield("نوع","business",[("1","هزینه کسب‌وکار"),("0","برداشت شخصی/خانوادگی")],value=str(r["business"]))}
     {field("منبع پرداخت","source",value=str(r["source"] or ""))}
     {field("توضیحات","notes",value=str(r["notes"] or ""))}</div>
     <div class="actions"><button>ذخیره اصلاح هزینه</button><a class="btn secondary" href="/expenses">انصراف</a></div></form></div>'''
@@ -870,6 +870,14 @@ class Handler(BaseHTTPRequestHandler):
             if path=='product_ledger':
                 try: self.send(product_ledger_page(c,int(q.get('id',['0'])[0])))
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
+                return
+            if path in ('edit_purchase','edit_sale','edit_expense'):
+                try:
+                    record_id=int(q.get('id',['0'])[0])
+                    editor={'edit_purchase':purchase_editor,'edit_sale':sale_editor,'edit_expense':expense_editor}[path]
+                    self.send(editor(c,record_id))
+                except Exception:
+                    self.send(page('خطا','<div class="notice">شناسه سند نامعتبر است.</div>'))
                 return
             pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page}
             fn=pages.get(path)
