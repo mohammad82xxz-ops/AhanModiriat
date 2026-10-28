@@ -1608,13 +1608,70 @@ def settings(c):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
+    def _host_is_loopback(self):
+        try:
+            from urllib.parse import urlsplit
+            host=urlsplit("//"+str(self.headers.get("Host",""))).hostname
+            return host is not None and host.lower() in ("127.0.0.1","localhost","::1")
+        except (TypeError,ValueError):
+            return False
+    def _same_origin_url(self,value):
+        if not value:
+            return True
+        try:
+            from urllib.parse import urlsplit
+            source=urlsplit(str(value))
+            host=urlsplit("//"+str(self.headers.get("Host","")))
+            if source.scheme.lower()!="http" or source.hostname is None or host.hostname is None:
+                return False
+            allowed=("127.0.0.1","localhost","::1")
+            if source.hostname.lower() not in allowed or host.hostname.lower() not in allowed:
+                return False
+            source_port=source.port or 80
+            host_port=host.port or 80
+            return source_port==host_port
+        except (TypeError,ValueError):
+            return False
+    def _request_security_error(self,method):
+        if not self._host_is_loopback():
+            return "Host header is not a permitted loopback host"
+        fetch_site=str(self.headers.get("Sec-Fetch-Site","")).lower().strip()
+        if fetch_site=="cross-site":
+            return "Cross-site request blocked"
+        if method=="POST" and fetch_site=="none":
+            return "Untrusted POST navigation blocked"
+        if method=="POST":
+            origin=self.headers.get("Origin")
+            referer=self.headers.get("Referer")
+            if origin and not self._same_origin_url(origin):
+                return "Cross-origin POST blocked"
+            if not origin and referer and not self._same_origin_url(referer):
+                return "Cross-origin POST blocked"
+        elif self.headers.get("Origin") and not self._same_origin_url(self.headers.get("Origin")):
+            return "Cross-origin request blocked"
+        return ""
     def send(self,content,typ='text/html; charset=utf-8',status=200):
         raw=content if isinstance(content,bytes) else content.encode('utf-8')
-        self.send_response(status); self.send_header('Content-Type',typ); self.send_header('Content-Length',str(len(raw))); self.send_header('X-Content-Type-Options','nosniff'); self.end_headers(); self.wfile.write(raw)
+        self.send_response(status)
+        self.send_header('Content-Type',typ)
+        self.send_header('Content-Length',str(len(raw)))
+        self.send_header('X-Content-Type-Options','nosniff')
+        self.send_header('X-Frame-Options','DENY')
+        self.send_header('Referrer-Policy','no-referrer')
+        self.send_header('Permissions-Policy','camera=(), microphone=(), geolocation=()')
+        self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+        if typ.startswith('text/html'):
+            self.send_header('Cache-Control','no-store')
+        self.end_headers()
+        self.wfile.write(raw)
     def redirect(self,path,msg=''):
         from urllib.parse import quote
         self.send_response(303); self.send_header('Location',path+('&' if '?' in path else '?')+'msg='+quote(msg)); self.end_headers()
     def do_GET(self):
+        security_error=self._request_security_error("GET")
+        if security_error:
+            self.send("درخواست رد شد.","text/plain; charset=utf-8",403)
+            return
         u=urlparse(self.path); path=u.path.strip('/'); q=parse_qs(u.query); msg=q.get('msg',[''])[0]
         if path.startswith('static/'):
             try:
@@ -1722,8 +1779,16 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send(fn(c))
     def do_POST(self):
+        security_error=self._request_security_error("POST")
+        if security_error:
+            self.send("درخواست رد شد.","text/plain; charset=utf-8",403)
+            return
         path=urlparse(self.path).path.strip('/')
-        n=int(self.headers.get('Content-Length','0'))
+        try:
+            n=int(self.headers.get('Content-Length','0'))
+        except (TypeError,ValueError):
+            self.send("اندازه درخواست معتبر نیست.","text/plain; charset=utf-8",400)
+            return
         if n < 0 or n > 105 * 1024 * 1024:
             self.redirect('/settings','اندازه درخواست معتبر نیست.')
             return
