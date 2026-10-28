@@ -48,7 +48,7 @@ def main():
         with urllib.request.urlopen(request, timeout=5) as response:
             page = response.read().decode("utf-8")
             assert response.status == 200
-            assert "انبارگردانی ثبت شد" in page
+            assert "انبارگردانی و تعدیل موجودی" in page
     finally:
         server.shutdown()
         server.server_close()
