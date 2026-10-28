@@ -721,14 +721,8 @@ def product_ledger_page(c, product_id, search="", page_num=1):
     <div class="card section"><p class="small">ماندهٔ هر ردیف از تمام گردش‌های قبلی محاسبه می‌شود؛ جستجو فقط ردیف‌های نمایشی را فیلتر می‌کند. در هر صفحه حداکثر ۵۰ گردش نمایش داده می‌شود.</p>
     <form method="get" action="/product_ledger" class="search-form"><input type="hidden" name="id" value="{int(product_id)}"><label>جستجوی گردش</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نوع گردش، طرف حساب یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
     {table(["تاریخ","نوع گردش","ورودی","خروجی","مانده پس از گردش","مرجع/طرف حساب","یادداشت"],rows,filtered_total)}
-    {page_nav("product_ledger",query,page_num,filtered_total,limit)}
+    {page_nav("product_ledger",query,page_num,filtered_total,limit,extra_params={"id":int(product_id)})}
     <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>'''
-    # page_nav must preserve the selected product identifier across page transitions.
-    nav=page_nav("product_ledger",query,page_num,filtered_total,limit)
-    if nav:
-        nav=nav.replace(f'/product_ledger?q=',f'/product_ledger?id={int(product_id)}&amp;q=')
-        marker=f'<div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div>'
-        body=body.replace(page_nav("product_ledger",query,page_num,filtered_total,limit),nav)
     return page("کارت گردش کالا",body,"products")
 
 def cash_page(c, search='', page_num=1):
@@ -1162,15 +1156,23 @@ def page_window(page_num=1, per_page=50):
     per_page=max(1,min(100,int(per_page)))
     return per_page,(page_num-1)*per_page,page_num
 
-def page_nav(path, query, page_num, total, per_page=50):
+def page_nav(path, query, page_num, total, per_page=50, extra_params=None, query_key="q", page_key="page"):
     pages=max(1,(int(total)+per_page-1)//per_page)
     if pages<=1:return ''
     from urllib.parse import quote
-    q=quote(str(query or ''),safe='')
+    base=[]
+    for key,value in (extra_params or {}).items():
+        if value is not None:
+            base.append(f'{quote(str(key),safe="")}={quote(str(value),safe="")}')
+    if query_key is not None:
+        base.append(f'{quote(str(query_key),safe="")}={quote(str(query or ""),safe="")}')
+    def href(target_page):
+        params=base+[f'{quote(str(page_key),safe="")}={int(target_page)}']
+        return f'/{path}?'+'&amp;'.join(params)
     links=[]
-    if page_num>1: links.append(f'<a class="btn secondary sm" href="/{path}?q={q}&amp;page={page_num-1}">صفحه قبلی</a>')
+    if page_num>1: links.append(f'<a class="btn secondary sm" href="{href(page_num-1)}">صفحه قبلی</a>')
     links.append(f'<span class="small">صفحه {page_num} از {pages}</span>')
-    if page_num<pages: links.append(f'<a class="btn secondary sm" href="/{path}?q={q}&amp;page={page_num+1}">صفحه بعدی</a>')
+    if page_num<pages: links.append(f'<a class="btn secondary sm" href="{href(page_num+1)}">صفحه بعدی</a>')
     return '<nav class="pagination" aria-label="صفحه‌بندی">'+' '.join(links)+'</nav>'
 def options_products(c): return [(r['id'],f"{r['name']} (موجودی: {r['stock']:g} {r['unit']})") for r in c.execute('SELECT * FROM products ORDER BY name')]
 def options_loans(c): return [(r['id'],r['title']) for r in c.execute('SELECT * FROM loans ORDER BY title')]
