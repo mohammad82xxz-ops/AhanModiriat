@@ -653,7 +653,15 @@ def product_ledger_page(c, product_id):
     <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>'''
     return page("کارت گردش کالا",body,"products")
 
-def cash_page(c):
+def cash_page(c, search='', page_num=1):
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total=scalar(c,"""SELECT COUNT(*) FROM cash_movements m
+        LEFT JOIN cash_accounts fa ON fa.id=m.from_account_id
+        LEFT JOIN cash_accounts ta ON ta.id=m.to_account_id
+        WHERE COALESCE(fa.name,'') LIKE ? OR COALESCE(ta.name,'') LIKE ?
+           OR COALESCE(m.party,'') LIKE ? OR COALESCE(m.note,'') LIKE ? OR m.kind LIKE ?""",
+        (pattern,pattern,pattern,pattern,pattern))
     accounts = c.execute("SELECT * FROM cash_accounts ORDER BY id").fetchall()
     opts = "".join(f'<option value="{r["id"]}">{esc(r["name"])}</option>' for r in accounts)
     metrics = "".join(
@@ -665,7 +673,10 @@ def cash_page(c):
                           FROM cash_movements m
                           LEFT JOIN cash_accounts fa ON fa.id=m.from_account_id
                           LEFT JOIN cash_accounts ta ON ta.id=m.to_account_id
-                          ORDER BY m.date DESC,m.id DESC LIMIT 100"""):
+                          WHERE COALESCE(fa.name,'') LIKE ? OR COALESCE(ta.name,'') LIKE ?
+                             OR COALESCE(m.party,'') LIKE ? OR COALESCE(m.note,'') LIKE ? OR m.kind LIKE ?
+                          ORDER BY m.date DESC,m.id DESC LIMIT ? OFFSET ?""",
+                       (pattern,pattern,pattern,pattern,pattern,limit,offset)):
         label = {"deposit":"واریز/دریافت","withdraw":"برداشت/پرداخت","transfer":"انتقال بین حساب‌ها"}.get(r["kind"],r["kind"])
         rows.append([show_date(r["date"]),label,esc(r["from_name"] or "—"),esc(r["to_name"] or "—"),
                      money(r["amount"]),esc(r["party"]),esc(r["note"]),
@@ -684,7 +695,12 @@ def cash_page(c):
       </form>
       <p class="small">مبالغ گردش صندوق به تومانِ صحیح ثبت می‌شوند. مبالغ پرداخت/دریافت ثبت‌شده در سندهای خرید، فروش، خدمات، هزینه و اقساط به‌طور خودکار وارد دفتر می‌شوند.</p>
     </div>
-    <div class="card section"><h2>آخرین ۱۰۰ گردش</h2>{table(["تاریخ","نوع","از حساب","به حساب","مبلغ","طرف حساب","شرح","منبع"],rows)}</div>'''
+    <div class="card section"><h2>گردش‌های صندوق و بانک</h2>
+    <form method="get" action="/cash" class="search-form"><label>جستجوی گردش</label><div class="formgrid">
+    <input type="search" name="q" value="{esc(query)}" placeholder="حساب، طرف حساب یا شرح">
+    <input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+    {table(["تاریخ","نوع","از حساب","به حساب","مبلغ","طرف حساب","شرح","منبع"],rows,total)}
+    {page_nav("cash",query,page_num,total,limit)}</div>'''
     return page("صندوق و بانک",body,"cash")
 
 def ensure_person(c, name, kind="both", phone="", notes=""):
@@ -1537,7 +1553,7 @@ class Handler(BaseHTTPRequestHandler):
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
                 self.send(parties_page(c,q.get('name',[''])[0]))
-            elif path in ('products','purchases','sales','services','expenses'):
+            elif path in ('products','purchases','sales','services','expenses','cash'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
                 self.send(fn(c,q.get('q',[''])[0],page_num))
