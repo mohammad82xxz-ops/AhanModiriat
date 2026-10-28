@@ -17,17 +17,27 @@ def main():
     with app.conn() as c:
         c.execute("INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock) VALUES('pagination seed','kg',100,5,10,0)")
         pid = c.execute("SELECT id FROM products WHERE name='pagination seed'").fetchone()[0]
+        c.execute("INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category) VALUES('pagination seed','PS','kg',100,5,10,0,'pagination')")
+        purchase_id=c.execute("SELECT id FROM purchases ORDER BY id LIMIT 1").fetchone()[0] if c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0] else None
         for i in range(55):
             c.execute("""INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category)
                          VALUES(?,?, 'kg', 1, 5, 10, 0, 'pagination')""", (f"needle product {i:03d}", f"N{i:03d}"))
-            c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
-                         VALUES('2026-01-01',?,1,5,0,'needle supplier','0','pagination test')""", (pid,))
-            c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
-                         VALUES('2026-01-02',?,1,10,0,'needle customer','0','pagination test',5)""", (pid,))
+            pc=c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                         VALUES('2026-01-01',?,1,5,0,'needle supplier',0,'pagination test')""", (pid,))
+            purchase_id=pc.lastrowid
+            sale=c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+                         VALUES('2026-01-02',?,1,10,0,'needle customer',0,'pagination test',5)""", (pid,))
             c.execute("""INSERT INTO services(date,title,revenue,cost,received,customer,notes)
                          VALUES('2026-01-03', 'needle service', 10, 1, 0, 'needle customer', 'pagination test')""")
             c.execute("""INSERT INTO expenses(date,category,amount,source,business,notes)
                          VALUES('2026-01-04','needle expense',1,'needle source',1,'pagination test')""")
+            c.execute("""INSERT INTO cash_movements(date,kind,from_account_id,to_account_id,amount,party,note)
+                         VALUES('2026-01-05','deposit',NULL,1,1,'needle cash party','needle cash movement')""")
+            c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
+                         VALUES('2026-01-06',?,2,1,-1,'needle count reason','needle inventory note')""",(pid,))
+            c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
+                         VALUES('2026-01-07',?,?,'needle return supplier',0.01,1,0,'needle return reason','pagination test')""",(purchase_id,pid))
+            c.execute("INSERT INTO audit_log(action,details) VALUES('needle audit','pagination regression row')")
 
         checks = [
             ("products", app.products(c, "needle product", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
@@ -35,6 +45,10 @@ def main():
             ("sales", app.sales(c, "needle customer", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("services", app.services(c, "needle service", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("expenses", app.expenses(c, "needle expense", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("cash", app.cash_page(c, "needle cash", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("inventory", app.inventory_page(c, "needle count", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("returns", app.returns_page(c, "needle return", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("audit", app.audit_page(c, "needle audit", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
         ]
         for name, html, expected in checks:
             assert expected in html, (name, expected)
