@@ -1820,10 +1820,18 @@ class Handler(BaseHTTPRequestHandler):
                     if not p: raise ValueError('کالا پیدا نشد.')
                     if v('unit')!=p['unit'] and (scalar(c,'SELECT COUNT(*) FROM purchases WHERE product_id=?',(pid,)) or scalar(c,'SELECT COUNT(*) FROM sales WHERE product_id=?',(pid,))):
                         raise ValueError('این کالا سابقه تراکنش دارد؛ تغییر واحد پایه برای جلوگیری از خراب‌شدن سوابق مسدود شد.')
-                    pf=num(v('purchase_factor')); sf=num(v('sale_factor'))
+                    pf=num(v('purchase_factor')); sf=num(v('sale_factor')); new_stock=num(v('stock'),-1)
                     if not v('name') or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
-                    c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',(v('name'),v('code'),v('unit'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
-                    dest='/products'; msg='مشخصات کالا به‌روزرسانی شد.'
+                    if new_stock<0: raise ValueError('موجودی کالا نمی‌تواند منفی باشد.')
+                    old_stock=float(p['stock'] or 0); stock_delta=new_stock-old_stock
+                    c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',
+                              (v('name'),v('code'),v('unit'),new_stock,money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
+                    if abs(stock_delta)>0.000001:
+                        c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
+                                     VALUES(?,?,?,?,?,?,?)""",
+                                  (to_iso_date(jalali_today()),pid,old_stock,new_stock,stock_delta,
+                                   'اصلاح موجودی از فرم ویرایش کالا',v('notes') or 'تعدیل خودکار از صفحه ویرایش کالا'))
+                    dest='/products'; msg='مشخصات کالا به‌روزرسانی شد؛ تغییر موجودی نیز در کارت گردش ثبت شد.' if abs(stock_delta)>0.000001 else 'مشخصات کالا به‌روزرسانی شد.'
                 elif path=='add_purchase':
                     pid=int(v('product_id')); qty=num(v('qty')); cost=money_int(v('unit_cost')); extra=money_int(v('extra_cost')); paid=money_int(v('paid')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0: raise ValueError('کالا، مقدار یا قیمت خرید نامعتبر است.')
