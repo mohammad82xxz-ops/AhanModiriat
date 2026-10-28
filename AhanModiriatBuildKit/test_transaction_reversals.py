@@ -133,6 +133,9 @@ def main():
             details = json.loads(audit["details"])
             assert details["actor"] == "local_user" and str(details["record_id"]) == str(purchase_id)
             assert details["values_stored"] is False and "fields" in details
+            audit_html=app.audit_page(c)
+            assert "اصلاح خرید" in audit_html and "local_user" in audit_html
+            assert "Supplier A revised" not in audit_html
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
