@@ -37,6 +37,7 @@ def main():
             c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
                          VALUES('2026-01-07',?,?,'needle return supplier',0.01,1,0,'needle return reason','pagination test')""",(purchase_id,pid))
             c.execute("INSERT INTO audit_log(action,details) VALUES('needle audit','pagination regression row')")
+            c.execute("INSERT INTO people(name,kind,phone,notes) VALUES(?,?,?,?)",(f"needle person {i:03d}","customer",f"09{i:09d}","pagination test"))
 
         checks = [
             ("products", app.products(c, "needle product", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
@@ -48,6 +49,7 @@ def main():
             ("inventory", app.inventory_page(c, "needle count", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("returns", app.returns_page(c, "needle return", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("audit", app.audit_page(c, "needle audit", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("parties", app.parties_page(c, "", "needle person", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
         ]
         for name, html, expected in checks:
             assert expected in html, (name, expected)
