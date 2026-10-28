@@ -57,6 +57,8 @@ def main():
             assert purchase["created_at"] and purchase["updated_at"]
             assert purchase["supplier_person_id"]
             assert c.execute("SELECT name FROM people WHERE id=?", (purchase["supplier_person_id"],)).fetchone()[0] == "Supplier A"
+            add_purchase_audit=json.loads(c.execute("SELECT details FROM audit_log WHERE action='add_purchase' ORDER BY id DESC LIMIT 1").fetchone()[0])
+            assert str(add_purchase_audit["record_id"])==str(purchase_id), add_purchase_audit
 
         # Edit the latest purchase: stock and weighted-average value must reverse old values first.
         page = post(port, "update_purchase", {
@@ -91,6 +93,8 @@ def main():
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 1
             assert sale["created_at"] and sale["customer_person_id"]
             assert c.execute("SELECT name FROM people WHERE id=?", (sale["customer_person_id"],)).fetchone()[0] == "Customer A"
+            add_sale_audit=json.loads(c.execute("SELECT details FROM audit_log WHERE action='add_sale' ORDER BY id DESC LIMIT 1").fetchone()[0])
+            assert str(add_sale_audit["record_id"])==str(sale_id), add_sale_audit
 
         post(port, "update_sale", {
             "record_id":sale_id,"qty":"2","unit_price":"30","extra_cost":"0",
@@ -123,6 +127,8 @@ def main():
         with app.conn() as c:
             expense = c.execute("SELECT * FROM expenses ORDER BY id DESC LIMIT 1").fetchone()
             expense_id = expense["id"]
+            add_expense_audit=json.loads(c.execute("SELECT details FROM audit_log WHERE action='add_expense' ORDER BY id DESC LIMIT 1").fetchone()[0])
+            assert str(add_expense_audit["record_id"])==str(expense_id), add_expense_audit
         post(port, "update_expense", {
             "record_id":expense_id,"date":"2026-01-06","category":"edited expense","amount":"80.6",
             "business":"0","source":"سرمایه/پس‌انداز","notes":"edited expense"
