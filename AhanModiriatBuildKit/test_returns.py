@@ -86,6 +86,22 @@ def main():
             page = app.returns_page(c)
             assert "damaged goods" in page and "customer return" in page
 
+        # A source document with a return must not be edited or deleted out from under it.
+        post(port,"delete_sale",{"record_id":sale_id})
+        post(port,"delete_purchase",{"record_id":purchase_id})
+        with app.conn() as c:
+            assert c.execute("SELECT COUNT(*) FROM sales WHERE id=?",(sale_id,)).fetchone()[0] == 1
+            assert c.execute("SELECT COUNT(*) FROM purchases WHERE id=?",(purchase_id,)).fetchone()[0] == 1
+            assert c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0] == 6
+
+        # The refund cannot exceed the returned sales value.
+        post(port, "add_sales_return", {
+            "sale_id":sale_id,"date":"2026-01-05","qty":"0.5",
+            "refund_amount":"21","reason":"over-refund","notes":"should be rejected"
+        })
+        with app.conn() as c:
+            assert c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0] == 1
+
         # Enforce the original sale's remaining returnable quantity.
         post(port, "add_sales_return", {
             "sale_id":sale_id,"date":"2026-01-05","qty":"4",
