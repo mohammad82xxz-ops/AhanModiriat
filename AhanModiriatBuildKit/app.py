@@ -453,6 +453,33 @@ def init():
                 person_name = normalize_person(row[0])
                 if person_name:
                     c.execute("INSERT OR IGNORE INTO people(name,kind) VALUES(?,?)", (person_name, kind))
+        # Add lifecycle timestamps to legacy tables. Blank timestamps on old rows mean the
+        # original creation time is unknown; new/updated rows are stamped automatically.
+        timestamp_tables = (
+            "products","purchases","sales","services","expenses","loans","loan_payments",
+            "price_history","cash_events","people","cash_accounts","cash_movements",
+            "settlements","inventory_adjustments","purchase_returns","sales_returns",
+        )
+        for table_name in timestamp_tables:
+            columns = {row["name"] for row in c.execute(f"PRAGMA table_info({table_name})")}
+            for column_name in ("created_at","updated_at"):
+                if column_name not in columns:
+                    c.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} TEXT NOT NULL DEFAULT ''")
+            c.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_{table_name}_stamp_insert
+                AFTER INSERT ON {table_name}
+                WHEN COALESCE(NEW.created_at,'')='' OR COALESCE(NEW.updated_at,'')=''
+                BEGIN
+                    UPDATE {table_name}
+                    SET created_at=CASE WHEN COALESCE(NEW.created_at,'')='' THEN datetime('now','localtime') ELSE NEW.created_at END,
+                        updated_at=CASE WHEN COALESCE(NEW.updated_at,'')='' THEN datetime('now','localtime') ELSE NEW.updated_at END
+                    WHERE id=NEW.id;
+                END""")
+            c.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_{table_name}_stamp_update
+                AFTER UPDATE ON {table_name}
+                WHEN NEW.updated_at=OLD.updated_at
+                BEGIN
+                    UPDATE {table_name} SET updated_at=datetime('now','localtime') WHERE id=NEW.id;
+                END""")
         # A legacy opening-capital setting is an opening balance, not a transaction.
         opening = int(round(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)))
         current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
@@ -1844,7 +1871,12 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1",(amount,))
                     dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
                 else:raise ValueError('درخواست نامعتبر است.')
-                audit_details = json.dumps({"fields": sorted(str(key) for key in d.keys())}, ensure_ascii=False)
+                audit_details = json.dumps({
+                    "actor": "local_user",
+                    "record_id": d.get("record_id") or d.get("product_id") or d.get("loan_id") or "",
+                    "fields": sorted(str(key) for key in d.keys()),
+                    "values_stored": False,
+                }, ensure_ascii=False)
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
