@@ -215,6 +215,16 @@ def init():
             updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
         CREATE INDEX IF NOT EXISTS ix_settlements_date ON settlements(date,id);
+        CREATE TABLE IF NOT EXISTS inventory_adjustments(
+            id INTEGER PRIMARY KEY, date TEXT NOT NULL,
+            product_id INTEGER NOT NULL REFERENCES products(id),
+            expected_qty REAL NOT NULL, counted_qty REAL NOT NULL,
+            delta_qty REAL NOT NULL, reason TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS ix_inventory_adjustments_product_date
+            ON inventory_adjustments(product_id,date,id);
         CREATE TABLE IF NOT EXISTS cash_accounts(
             id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, account_type TEXT NOT NULL DEFAULT 'cash',
             opening_balance INTEGER NOT NULL DEFAULT 0,
@@ -366,6 +376,72 @@ def backfill_legacy_cash_postings(c):
         inserted += 1
     return inserted
 
+def inventory_page(c):
+    products = options_products(c)
+    body = f\'''<h1>انبارگردانی و تعدیل موجودی</h1>
+    <div class="card section"><h2>ثبت شمارش فیزیکی</h2>
+      <form method="post" action="/inventory_adjust">
+        <div class="formgrid">{field("تاریخ شمارش","date","date",TODAY,True)}
+          {selectfield("کالا","product_id",products)}
+          {field("موجودی شمارش‌شده به واحد پایه","counted_qty","number","0",True,"0.001")}
+          {field("علت اختلاف/تعدیل","reason","text","",True)}
+          {field("یادداشت","notes")}
+        </div><div class="actions"><button>ثبت شمارش و اعمال تعدیل</button></div>
+      </form>
+      <p class="small">مقدار شمارش‌شده با موجودی دفتری مقایسه می‌شود. فقط اختلاف به‌عنوان گردش تعدیل ثبت می‌شود و بهای میانگین کالا دست‌کاری نمی‌شود. علت ثبت‌شده در سابقه باقی می‌ماند.</p>
+    </div>\'''
+    rows = []
+    for r in c.execute("""SELECT a.*,p.name,p.unit FROM inventory_adjustments a
+                          JOIN products p ON p.id=a.product_id ORDER BY a.date DESC,a.id DESC LIMIT 100"""):
+        rows.append([show_date(r["date"]),esc(r["name"]),f'{r["expected_qty"]:g} {esc(r["unit"])}',
+                     f'{r["counted_qty"]:g} {esc(r["unit"])}',
+                     f'{r["delta_qty"]:+g} {esc(r["unit"])}',esc(r["reason"]),esc(r["notes"])])
+    body += f'<div class="card section"><h2>آخرین تعدیلات</h2>{table(["تاریخ","کالا","موجودی دفتری","شمارش واقعی","اختلاف","علت","یادداشت"],rows)}</div>'
+    return page("انبارگردانی","".join([body]),"inventory")
+
+def product_ledger_page(c, product_id):
+    p = c.execute("SELECT * FROM products WHERE id=?",(product_id,)).fetchone()
+    if p is None:
+        return page("کالا پیدا نشد",'<div class="notice">این کالا وجود ندارد.</div>',"products")
+    events = []
+    for r in c.execute("SELECT id,date,qty,unit_cost,extra_cost,supplier,notes FROM purchases WHERE product_id=?",(product_id,)):
+        factor = num(p["purchase_factor"] or 1,1) or 1
+        events.append({"date":r["date"],"key":("purchase",r["id"]),"kind":"خرید",
+                       "delta":float(r["qty"])*factor,"detail":f'خرید #{r["id"]} · {r["supplier"] or ""}',
+                       "notes":r["notes"] or ""})
+    for r in c.execute("SELECT id,date,qty,unit_price,customer,notes FROM sales WHERE product_id=?",(product_id,)):
+        events.append({"date":r["date"],"key":("sale",r["id"]),"kind":"فروش",
+                       "delta":-float(r["qty"]),"detail":f'فروش #{r["id"]} · {r["customer"] or ""}',
+                       "notes":r["notes"] or ""})
+    for r in c.execute("SELECT id,date,expected_qty,counted_qty,delta_qty,reason,notes FROM inventory_adjustments WHERE product_id=?",(product_id,)):
+        events.append({"date":r["date"],"key":("adjustment",r["id"]),"kind":"تعدیل انبار",
+                       "delta":float(r["delta_qty"]),"detail":r["reason"],
+                       "notes":r["notes"] or f'دفتر: {r["expected_qty"]:g}؛ شمارش: {r["counted_qty"]:g}'})
+    events.sort(key=lambda e:(e["date"] or "",e["key"][1],e["key"][0]))
+    movement_total = sum(e["delta"] for e in events)
+    running = float(p["stock"] or 0) - movement_total
+    for e in events:
+        running += e["delta"]
+        e["balance"] = running
+    current = float(p["stock"] or 0)
+    rows = []
+    for e in reversed(events[-500:]):
+        delta = e["delta"]
+        rows.append([show_date(e["date"]),esc(e["kind"]),f'{max(delta,0):g} {esc(p["unit"])}',
+                     f'{max(-delta,0):g} {esc(p["unit"])}',f'{e["balance"]:g} {esc(p["unit"])}',
+                     esc(e["detail"]),esc(e["notes"])])
+    baseline = current - movement_total
+    body = f\'''<h1>کارت گردش کالا: {esc(p["name"])}</h1>
+    <div class="grid section">
+      <div class="card metric"><div class="label">موجودی فعلی</div><div class="value">{current:g} {esc(p["unit"])}</div></div>
+      <div class="card metric"><div class="label">تعداد گردش‌های ثبت‌شده</div><div class="value">{len(events)}</div></div>
+      <div class="card metric"><div class="label">مانده پایه خارج از گردش ثبت‌شده</div><div class="value">{baseline:g} {esc(p["unit"])}</div><div class="muted">موجودی اولیه/تعدیلاتی که سند جداگانه ندارند</div></div>
+    </div>
+    <div class="card section"><p class="small">حداکثر ۵۰۰ گردش آخر نمایش داده می‌شود. مانده‌های قبلی از موجودی فعلی و گردش‌های ثبت‌شده بازسازی می‌شوند؛ اگر موجودی دستی ویرایش شده باشد، تفاوت در مانده پایه دیده می‌شود.</p>
+    {table(["تاریخ","نوع گردش","ورودی","خروجی","مانده پس از گردش","مرجع/طرف حساب","یادداشت"],rows)}
+    <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>\'''
+    return page("کارت گردش کالا",body,"products")
+
 def cash_page(c):
     accounts = c.execute("SELECT * FROM cash_accounts ORDER BY id").fetchall()
     opts = "".join(f'<option value="{r["id"]}">{esc(r["name"])}</option>' for r in accounts)
@@ -493,7 +569,7 @@ def calc(c, start=None, end=None):
 
 NAV_GROUPS=[
     ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
-    ('انبار',[('products','کالاها و موجودی','box'),('prices','قیمت روز','chart')]),
+    ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
     ('مالی',[('cash','صندوق و بانک','wallet'),('parties','طرف حساب‌ها','users')]),
     ('مدیریت',[('loans','وام‌ها','calendar'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
@@ -583,7 +659,7 @@ def products(c):
     rows=[]
     for r in c.execute('SELECT * FROM products ORDER BY name'):
         status='<span class="pill badge danger">موجودی کم</span>' if r['stock']<=r['min_stock'] else '<span class="pill">عادی</span>'
-        edit=f'<a class="btn secondary" href="/edit_product?id={r["id"]}">ویرایش</a>'
+        edit=f'<a class="btn secondary" href="/edit_product?id={r["id"]}">ویرایش</a> <a class="btn secondary" href="/product_ledger?id={r["id"]}">کارت گردش</a>'
         rows.append([esc(r['name']),esc(r['category']),esc(r['code']),f"{r['stock']:g} {esc(r['unit'])}",money(r['avg_cost']),money(r['market_price']),money(r['stock']*r['avg_cost']),status,edit])
     units=[('کیلوگرم','کیلوگرم'),('تن','تن'),('شاخه','شاخه'),('متر','متر'),('مترمربع','مترمربع'),('عدد','عدد'),('ورق','ورق')]
     cats=[('رابیتس','رابیتس'),('طلق','طلق'),('سیم مفتول','سیم مفتول'),('پروفیل','پروفیل'),('ورق','ورق'),('سایر','سایر')]
@@ -718,7 +794,11 @@ class Handler(BaseHTTPRequestHandler):
                 try: self.send(product_editor(c,int(parse_qs(urlparse(self.path).query).get('id',['0'])[0])))
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page}
+            if path=='product_ledger':
+                try: self.send(product_ledger_page(c,int(q.get('id',['0'])[0])))
+                except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
+                return
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
@@ -845,6 +925,20 @@ class Handler(BaseHTTPRequestHandler):
                     cur=c.execute('INSERT INTO settlements(date,party,kind,amount,notes) VALUES(?,?,?,?,?)',(date,party,kind,amount,v('notes')))
                     sync_cash_posting(c,'settlements',cur.lastrowid,date,amount,'in' if kind=='receive' else 'out',party,v('notes') or 'تسویه حساب')
                     dest='/parties';msg='تسویه ثبت شد و دفتر صندوق به‌روز شد.'
+                elif path=='inventory_adjust':
+                    pid=int(v('product_id')); counted=num(v('counted_qty'),-1)
+                    product=c.execute("SELECT * FROM products WHERE id=?",(pid,)).fetchone()
+                    reason=normalize_person(v('reason'))
+                    if product is None: raise ValueError('کالا پیدا نشد.')
+                    if counted<0: raise ValueError('موجودی شمارش‌شده نمی‌تواند منفی باشد.')
+                    if not reason: raise ValueError('علت انبارگردانی را وارد کن.')
+                    expected=float(product['stock'] or 0); delta=counted-expected
+                    if abs(delta)<0.000001: raise ValueError('موجودی شمارش‌شده با موجودی دفتری برابر است؛ تعدیلی برای ثبت وجود ندارد.')
+                    date=to_iso_date(v('date',jalali_today()))
+                    c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
+                                 VALUES(?,?,?,?,?,?,?)""",(date,pid,expected,counted,delta,reason,v('notes')))
+                    c.execute("UPDATE products SET stock=? WHERE id=?",(counted,pid))
+                    dest='/inventory';msg=f'انبارگردانی ثبت شد؛ اختلاف {delta:+g} {product["unit"]} اعمال شد.'
                 elif path=='add_cash_movement':
                     kind=v('kind'); amount=int(round(num(v('amount'))))
                     if amount<=0: raise ValueError('مبلغ گردش باید عدد صحیح بزرگ‌تر از صفر باشد.')
@@ -871,7 +965,7 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties','inventory_adjust':'inventory'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))
