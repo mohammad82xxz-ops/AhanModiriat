@@ -496,7 +496,8 @@ class Handler(BaseHTTPRequestHandler):
                 elif path=='save_capital':
                     c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(num(v('amount')),to_iso_date(v('date',jalali_today()))));dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
                 else:raise ValueError('درخواست نامعتبر است.')
-                c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, json.dumps(d, ensure_ascii=False)))
+                audit_details = json.dumps({"fields": sorted(str(key) for key in d.keys())}, ensure_ascii=False)
+                c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
             self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','add_sale':'sales','add_service':'services','add_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings'}.get(path,'')),str(e))
