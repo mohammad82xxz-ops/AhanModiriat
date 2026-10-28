@@ -5,7 +5,7 @@ Python standard library only. Data stays in ./data/business.db.
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
-import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile
+import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar
 from email.parser import BytesParser
 from email.policy import default as email_policy
 
@@ -140,6 +140,72 @@ def conn():
     c.execute('PRAGMA synchronous=NORMAL')
     return c
 
+def add_interval_date(date_value, interval_value=1, interval_unit="month"):
+    """Advance a due date by a configurable interval; clamp month/year dates safely."""
+    if not date_value:
+        return ""
+    try:
+        day = datetime.date.fromisoformat(str(date_value)[:10])
+    except (TypeError, ValueError):
+        return ""
+    value = int(interval_value or 1)
+    if value < 1 or value > 365:
+        raise ValueError("فاصلهٔ سررسید باید بین ۱ تا ۳۶۵ باشد.")
+    unit = str(interval_unit or "month").lower()
+    if unit == "day":
+        return (day + datetime.timedelta(days=value)).isoformat()
+    if unit == "week":
+        return (day + datetime.timedelta(days=value*7)).isoformat()
+    if unit == "month":
+        month_index = day.year*12 + (day.month-1) + value
+        year, month0 = divmod(month_index, 12)
+        month = month0 + 1
+        return datetime.date(year, month, min(day.day, calendar.monthrange(year, month)[1])).isoformat()
+    if unit == "year":
+        year = day.year + value
+        return datetime.date(year, day.month, min(day.day, calendar.monthrange(year, day.month)[1])).isoformat()
+    raise ValueError("واحد فاصلهٔ سررسید معتبر نیست.")
+
+def compute_purchase_advice(c, window_days=30):
+    """Heuristic: stock target = min-stock reserve + recent daily sales × coverage window."""
+    window_days = max(1, min(int(window_days), 365))
+    today = datetime.date.today()
+    start = (today - datetime.timedelta(days=window_days-1)).isoformat()
+    rows = []
+    for p in c.execute("""SELECT p.*,COALESCE(SUM(s.qty),0) AS sold_window
+                          FROM products p LEFT JOIN sales s
+                            ON s.product_id=p.id AND s.date>=? AND s.date<=?
+                          GROUP BY p.id ORDER BY p.name""",(start,today.isoformat())):
+        sold = float(p["sold_window"] or 0)
+        daily = sold/window_days
+        target = float(p["min_stock"] or 0) + daily*window_days
+        recommend = max(0.0, target-float(p["stock"] or 0))
+        coverage = (float(p["stock"] or 0)/daily) if daily>0 else None
+        rows.append({
+            "id":p["id"],"name":p["name"],"unit":p["unit"],"stock":float(p["stock"] or 0),
+            "min_stock":float(p["min_stock"] or 0),"sold":sold,"daily":daily,
+            "target":target,"recommend":recommend,"coverage":coverage,
+            "priority":0 if float(p["stock"] or 0)<=float(p["min_stock"] or 0) else 1,
+        })
+    rows.sort(key=lambda r:(r["priority"],-r["recommend"],r["name"].casefold()))
+    return rows
+
+def purchase_advice(c):
+    data = compute_purchase_advice(c,30)
+    rows = []
+    for r in data:
+        cover = f'{r["coverage"]:.1f} روز' if r["coverage"] is not None else "بدون فروش ثبت‌شده"
+        urgency = "کمتر از حداقل" if r["stock"]<=r["min_stock"] else ("نیاز به سفارش" if r["recommend"]>0 else "کافی")
+        rows.append([esc(r["name"]),f'{r["stock"]:g} {esc(r["unit"])}',f'{r["min_stock"]:g}',
+                     f'{r["sold"]:g} {esc(r["unit"])}',f'{r["daily"]:.3f}',cover,
+                     f'{r["target"]:.3f}',f'{r["recommend"]:.3f} {esc(r["unit"])}',urgency])
+    body=f\'''<h1>پیشنهاد خرید کالا</h1>
+    <div class="notice">برآورد ساده بر پایهٔ فروش ثبت‌شدهٔ ۳۰ روز اخیر است: هدف موجودی = حداقل موجودی ایمن + فروش ۳۰ روز اخیر. این محاسبه جایگزین بررسی موجودی فیزیکی، سفارش‌های در راه و زمان واقعی تأمین نیست.</div>
+    <div class="card section"><h2>پیشنهاد سفارش</h2>
+    {table(["کالا","موجودی فعلی","حداقل ایمن","فروش ۳۰ روز","میانگین روزانه","پوشش موجودی","هدف موجودی","مقدار پیشنهادی سفارش","وضعیت"],rows)}
+    </div>'''
+    return page("پیشنهاد خرید",body,"buy-advice")
+
 def restore_database_from_file(source_path):
     """Validate an uploaded database, snapshot current data, then restore through SQLite backup API."""
     source_path = Path(source_path)
@@ -190,7 +256,7 @@ def init():
         CREATE TABLE IF NOT EXISTS sales(id INTEGER PRIMARY KEY, date TEXT NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id), qty REAL NOT NULL, unit_price REAL NOT NULL, extra_cost REAL NOT NULL DEFAULT 0, customer TEXT DEFAULT '', received REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '', cost_basis REAL NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS services(id INTEGER PRIMARY KEY, date TEXT NOT NULL, title TEXT NOT NULL, revenue REAL NOT NULL, cost REAL NOT NULL DEFAULT 0, received REAL NOT NULL DEFAULT 0, customer TEXT DEFAULT '', notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY, date TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, source TEXT NOT NULL DEFAULT 'نامشخص', business INTEGER NOT NULL DEFAULT 1, notes TEXT DEFAULT '');
-        CREATE TABLE IF NOT EXISTS loans(id INTEGER PRIMARY KEY, title TEXT NOT NULL, principal REAL NOT NULL, remaining REAL NOT NULL, installment REAL NOT NULL, next_date TEXT DEFAULT '', rate_note TEXT DEFAULT '', notes TEXT DEFAULT '');
+        CREATE TABLE IF NOT EXISTS loans(id INTEGER PRIMARY KEY, title TEXT NOT NULL, principal REAL NOT NULL, remaining REAL NOT NULL, installment REAL NOT NULL, next_date TEXT DEFAULT '', rate_note TEXT DEFAULT '', notes TEXT DEFAULT '', interval_value INTEGER NOT NULL DEFAULT 1, interval_unit TEXT NOT NULL DEFAULT 'month');
         CREATE TABLE IF NOT EXISTS loan_payments(id INTEGER PRIMARY KEY, loan_id INTEGER NOT NULL REFERENCES loans(id), date TEXT NOT NULL, amount REAL NOT NULL, principal_part REAL NOT NULL, interest_part REAL NOT NULL, source TEXT NOT NULL DEFAULT 'نامشخص', notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS cash_events(id INTEGER PRIMARY KEY, date TEXT NOT NULL, kind TEXT NOT NULL, amount REAL NOT NULL, source TEXT NOT NULL DEFAULT '', notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS price_history(id INTEGER PRIMARY KEY, date TEXT NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id), market_price REAL NOT NULL, notes TEXT DEFAULT '');
@@ -266,6 +332,13 @@ def init():
                 c.execute(f"ALTER TABLE products ADD COLUMN {name} {decl}")
         c.execute("UPDATE products SET purchase_unit=unit WHERE purchase_unit=''")
         c.execute("UPDATE products SET sale_unit=unit WHERE sale_unit=''")
+        loan_cols = {row["name"] for row in c.execute("PRAGMA table_info(loans)")}
+        for name, decl in {
+            "interval_value": "INTEGER NOT NULL DEFAULT 1",
+            "interval_unit": "TEXT NOT NULL DEFAULT 'month'",
+        }.items():
+            if name not in loan_cols:
+                c.execute(f"ALTER TABLE loans ADD COLUMN {name} {decl}")
         # Seed the party directory from historical free-text names without rewriting source documents.
         for query, kind in (
             ("SELECT supplier FROM purchases", "supplier"),
@@ -569,7 +642,7 @@ def calc(c, start=None, end=None):
 
 NAV_GROUPS=[
     ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
-    ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('prices','قیمت روز','chart')]),
+    ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('buy-advice','پیشنهاد خرید','cart'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
     ('مالی',[('cash','صندوق و بانک','wallet'),('parties','طرف حساب‌ها','users')]),
     ('مدیریت',[('loans','وام‌ها','calendar'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
@@ -793,9 +866,9 @@ def expenses(c):
     body+=f'<div class="card section"><h2>آخرین پرداخت‌ها</h2>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows)}</div>'
     return page('هزینه‌ها',body,'expenses')
 def loans(c):
-    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
-    rows=[[r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),esc(r['rate_note'])] for r in c.execute('SELECT * FROM loans ORDER BY next_date')]
-    body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","شرایط"],rows)}</div>'
+    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
+    rows=[[r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),f'{r["interval_value"]} {{"day":"روز","week":"هفته","month":"ماه","year":"سال"}.get(r["interval_unit"],r["interval_unit"])}',esc(r['rate_note'])] for r in c.execute('SELECT * FROM loans ORDER BY next_date')]
+    body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","دوره پرداخت","شرایط"],rows)}</div>'
     payments=[[show_date(r['date']),esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute('SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id ORDER BY lp.date DESC LIMIT 100')]
     body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments)}</div>'
     return page('وام‌ها',body,'loans')
@@ -879,7 +952,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     self.send(page('خطا','<div class="notice">شناسه سند نامعتبر است.</div>'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page,'buy-advice':purchase_advice}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
@@ -978,7 +1051,11 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"expenses",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('amount')),"out",v('source'),v('notes') or "پرداخت هزینه")
                     dest='/expenses';msg='پرداخت ثبت شد.'
                 elif path=='add_loan':
-                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes) VALUES(?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes')));dest='/loans';msg='وام ثبت شد.'
+                    interval_value=int(num(v('interval_value',1)))
+                    interval_unit=v('interval_unit','month')
+                    if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
+                        raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
+                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit));dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
                     lid=int(v('loan_id')); amount=num(v('amount')); principal=num(v('principal_part')); interest=num(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
@@ -986,8 +1063,8 @@ class Handler(BaseHTTPRequestHandler):
                     if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
                     c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
                     sync_cash_posting(c,"loan_payments",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),amount,"out",v('source'),v('notes') or "پرداخت قسط وام")
-                    nextdate=v('next_date')
-                    c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=CASE WHEN next_date<>"" THEN date(next_date,"+1 month") ELSE next_date END WHERE id=?',(principal,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل وام کاهش یافت.'
+                    nextdate=add_interval_date(loan['next_date'],loan['interval_value'],loan['interval_unit'])
+                    c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=? WHERE id=?',(principal,nextdate,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل و سررسید بعدی به‌روزرسانی شد.'
                 elif path=='add_price':
                     pid=int(v('product_id')); price=num(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
