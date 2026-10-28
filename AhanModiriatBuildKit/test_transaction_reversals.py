@@ -139,9 +139,16 @@ def main():
             assert expense["created_at"] and expense["updated_at"]
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 81
         post(port, "delete_expense", {"record_id":expense_id})
+        post(port,"add_cash_movement",{
+            "date":"2026-01-07","kind":"deposit","to_account_id":"1",
+            "party":"Counter sale","note":"audit id test","amount":"200"
+        })
         with app.conn() as c:
             assert c.execute("SELECT COUNT(*) FROM expenses WHERE id=?", (expense_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 0
+            cash_row=c.execute("SELECT id FROM cash_movements WHERE kind='deposit' AND party='Counter sale' ORDER BY id DESC LIMIT 1").fetchone()
+            cash_audit=json.loads(c.execute("SELECT details FROM audit_log WHERE action='add_cash_movement' ORDER BY id DESC LIMIT 1").fetchone()[0])
+            assert cash_row and str(cash_audit["record_id"])==str(cash_row["id"]), (cash_row,cash_audit)
             audit = c.execute("SELECT * FROM audit_log WHERE action='update_purchase' ORDER BY id DESC LIMIT 1").fetchone()
             assert audit and audit["created_at"]
             details = json.loads(audit["details"])
