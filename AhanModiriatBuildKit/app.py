@@ -849,9 +849,13 @@ def dash(c):
     <div class="notice section"><b>تفسیر درست:</b> سود خالص با تغییر ارزش انبار یکی نیست. خرید کالا به‌خودی‌خود هزینه کامل سودوزیان محسوب نمی‌شود؛ بهای کالا هنگام فروش در سود معامله منظور می‌شود. پرداخت اصل وام نیز هزینه سودوزیان نیست، اما از نقدینگی کم می‌کند. این نسخه «بودجه خرج امن» را به‌صورت قطعی تعیین نمی‌کند مگر اینکه موجودی نقد آغاز دوره، مطالبات، بدهی‌های سررسیدشده و ذخیره خرید مجدد را هم دقیق ثبت کنی.</div>'''
     return page('داشبورد',body,'')
 
-def products(c):
+def products(c, search='', page_num=1):
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip()
+    pattern='%'+query+'%'
+    total=scalar(c,"SELECT COUNT(*) FROM products WHERE name LIKE ? OR code LIKE ? OR category LIKE ?",(pattern,pattern,pattern))
     rows=[]
-    for r in c.execute('SELECT * FROM products ORDER BY name'):
+    for r in c.execute('SELECT * FROM products WHERE name LIKE ? OR code LIKE ? OR category LIKE ? ORDER BY name LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset)):
         status='<span class="pill badge danger">موجودی کم</span>' if r['stock']<=r['min_stock'] else '<span class="pill">عادی</span>'
         edit=f'<a class="btn secondary" href="/edit_product?id={r["id"]}">ویرایش</a> <a class="btn secondary" href="/product_ledger?id={r["id"]}">کارت گردش</a>'
         rows.append([esc(r['name']),esc(r['category']),esc(r['code']),f"{r['stock']:g} {esc(r['unit'])}",money(r['avg_cost']),money(r['market_price']),money(r['stock']*r['avg_cost']),status,edit])
@@ -868,9 +872,10 @@ def products(c):
     {field('بهای خرید متوسط هر واحد پایه (تومان)','avg_cost','number','0',True,'0.01')}{field('قیمت روز هر واحد پایه (تومان)','market_price','number','0',True,'0.01')}
     {field('حداقل موجودی هشدار','min_stock','number','0',False,'0.001')}{field('یادداشت','notes')}
     </div><p class="small">نمونه: رابیتس بسته ۱۰ عددی = ضریب ۱۰؛ طلق برگ ۶×۲٫۱۰ متر = ضریب ۱۲٫۶؛ سیم مفتول رول = ضریب برابر وزن رول.</p><div class="actions"><button>ثبت کالا</button></div></form></div>
-    <div class="card section"><h2>فهرست کالاها</h2><div class="field"><label>جست‌وجو</label><input id="productSearch" placeholder="نام، کد یا دسته‌بندی" oninput="filterProducts()"></div>
-    {table(['کالا','دسته‌بندی','کد','موجودی','بهای پایه','قیمت روز پایه','ارزش موجودی','وضعیت','عملیات'],rows)}</div>
-    <script>function filterProducts(){{const q=document.getElementById('productSearch').value.toLowerCase();document.querySelectorAll('table tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none')}}</script>'''
+    <div class="card section"><h2>فهرست کالاها</h2>
+      <form method="get" action="/products" class="search-form"><label for="product-q">جستجوی کالا</label><div class="formgrid"><input id="product-q" type="search" name="q" value="{esc(query)}" placeholder="نام، کد یا دسته‌بندی"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+      {table(['کالا','دسته‌بندی','کد','موجودی','بهای پایه','قیمت روز پایه','ارزش موجودی','وضعیت','عملیات'],rows,total)}
+      {page_nav('products',query,page_num,total,limit)}</div>'''
     return page('کالاها',body,'products')
 
 def product_editor(c, pid):
@@ -1081,6 +1086,10 @@ class Handler(BaseHTTPRequestHandler):
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
                 self.send(parties_page(c,q.get('name',[''])[0]))
+            elif path=='products':
+                try: page_num=int(q.get('page',['1'])[0])
+                except (TypeError,ValueError): page_num=1
+                self.send(products(c,q.get('q',[''])[0],page_num))
             else:
                 self.send(fn(c))
     def do_POST(self):
