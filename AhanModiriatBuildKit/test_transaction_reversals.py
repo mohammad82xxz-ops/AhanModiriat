@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """HTTP-level tests for editing/deleting purchases, sales and expenses."""
 import os
+import json
 import sys
 import tempfile
 import threading
@@ -53,6 +54,9 @@ def main():
             assert abs(p["avg_cost"] - (100/15)) < 0.000001
             linked = c.execute("SELECT * FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchall()
             assert len(linked) == 1 and linked[0]["amount"] == 25, [dict(x) for x in linked]
+            assert purchase["created_at"] and purchase["updated_at"]
+            assert purchase["supplier_person_id"]
+            assert c.execute("SELECT name FROM people WHERE id=?", (purchase["supplier_person_id"],)).fetchone()[0] == "Supplier A"
 
         # Edit the latest purchase: stock and weighted-average value must reverse old values first.
         page = post(port, "update_purchase", {
@@ -65,6 +69,7 @@ def main():
             purchase = c.execute("SELECT * FROM purchases WHERE id=?", (purchase_id,)).fetchone()
             assert p["stock"] == 14 and abs(p["avg_cost"] - (82/14)) < 0.000001
             assert purchase["qty"] == 4 and purchase["unit_cost"] == 8
+            assert purchase["updated_at"]
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchone()[0] == 20
 
         post(port, "delete_purchase", {"record_id":purchase_id})
@@ -84,6 +89,8 @@ def main():
             assert c.execute("SELECT qty FROM sales WHERE id=?", (sale_id,)).fetchone()[0] == 3
             assert c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0] == 7
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 1
+            assert sale["created_at"] and sale["customer_person_id"]
+            assert c.execute("SELECT name FROM people WHERE id=?", (sale["customer_person_id"],)).fetchone()[0] == "Customer A"
 
         post(port, "update_sale", {
             "record_id":sale_id,"qty":"2","unit_price":"30","extra_cost":"0",
@@ -102,24 +109,31 @@ def main():
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 0
 
         post(port, "add_expense", {
-            "date":"2026-01-05","category":"test expense","amount":"100",
+            "date":"2026-01-05","category":"test expense","amount":"100.6",
             "business":"1","source":"نامشخص","notes":"initial expense"
         })
         with app.conn() as c:
             expense = c.execute("SELECT * FROM expenses ORDER BY id DESC LIMIT 1").fetchone()
             expense_id = expense["id"]
         post(port, "update_expense", {
-            "record_id":expense_id,"date":"2026-01-06","category":"edited expense","amount":"80",
+            "record_id":expense_id,"date":"2026-01-06","category":"edited expense","amount":"80.6",
             "business":"0","source":"سرمایه/پس‌انداز","notes":"edited expense"
         })
         with app.conn() as c:
             expense = c.execute("SELECT * FROM expenses WHERE id=?", (expense_id,)).fetchone()
-            assert expense["amount"] == 80 and expense["business"] == 0 and expense["date"] == "2026-01-06"
-            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 80
+            assert expense["amount"] == 81 and expense["business"] == 0 and expense["date"] == "2026-01-06"
+            assert expense["created_at"] and expense["updated_at"]
+            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 81
         post(port, "delete_expense", {"record_id":expense_id})
         with app.conn() as c:
             assert c.execute("SELECT COUNT(*) FROM expenses WHERE id=?", (expense_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 0
+            audit = c.execute("SELECT * FROM audit_log WHERE action='update_purchase' ORDER BY id DESC LIMIT 1").fetchone()
+            assert audit and audit["created_at"]
+            details = json.loads(audit["details"])
+            assert details["actor"] == "local_user" and str(details["record_id"]) == str(purchase_id)
+            assert details["values_stored"] is False and "fields" in details
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         server.shutdown()
