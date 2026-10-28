@@ -103,7 +103,7 @@ def main():
             "category":"سایر","purchase_unit":"kg","purchase_factor":"2",
             "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
         })
-        assert "سابقهٔ گردش دارد" in protected_page
+        assert "reversal steel" in protected_page
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             assert p["stock"] == 8 and p["avg_cost"] == 5 and p["purchase_factor"] == 1
