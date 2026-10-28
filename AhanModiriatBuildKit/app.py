@@ -419,6 +419,27 @@ def init():
         }.items():
             if name not in loan_cols:
                 c.execute(f"ALTER TABLE loans ADD COLUMN {name} {decl}")
+        # Add nullable foreign-key references so legacy text is preserved while records link to people.
+        party_ref_specs = (
+            ("purchases","supplier_person_id","supplier","supplier"),
+            ("sales","customer_person_id","customer","customer"),
+            ("services","customer_person_id","customer","customer"),
+            ("settlements","person_id","party","both"),
+            ("purchase_returns","supplier_person_id","supplier","supplier"),
+            ("sales_returns","customer_person_id","customer","customer"),
+        )
+        for table_name, ref_column, text_column, party_kind in party_ref_specs:
+            columns = {row["name"] for row in c.execute(f"PRAGMA table_info({table_name})")}
+            if ref_column not in columns:
+                c.execute(f"ALTER TABLE {table_name} ADD COLUMN {ref_column} INTEGER REFERENCES people(id)")
+            for source_row in c.execute(
+                f"SELECT id,{text_column} AS party_name FROM {table_name} WHERE {ref_column} IS NULL"
+            ).fetchall():
+                person_name = normalize_person(source_row["party_name"])
+                if person_name:
+                    person_id = ensure_person(c, person_name, party_kind)
+                    c.execute(f"UPDATE {table_name} SET {ref_column}=? WHERE id=?", (person_id,source_row["id"]))
+            c.execute(f"CREATE INDEX IF NOT EXISTS ix_{table_name}_{ref_column} ON {table_name}({ref_column})")
         # Seed the party directory from historical free-text names without rewriting source documents.
         for query, kind in (
             ("SELECT supplier FROM purchases", "supplier"),
@@ -650,6 +671,20 @@ def ensure_person(c, name, kind="both", phone="", notes=""):
     if kind and row["kind"] not in (kind,"both") and kind != "both":
         c.execute("UPDATE people SET kind='both',updated_at=datetime('now','localtime') WHERE id=?", (row["id"],))
     return row["id"]
+
+def link_party(c, table_name, ref_column, record_id, name, kind="both"):
+    """Create/reuse a party and persist its nullable foreign-key reference on a known ledger table."""
+    allowed = {
+        ("purchases","supplier_person_id"),("sales","customer_person_id"),
+        ("services","customer_person_id"),("settlements","person_id"),
+        ("purchase_returns","supplier_person_id"),("sales_returns","customer_person_id"),
+    }
+    if (table_name,ref_column) not in allowed:
+        raise ValueError("ارتباط طرف حساب معتبر نیست.")
+    person_id = ensure_person(c,name,kind)
+    if record_id and person_id:
+        c.execute(f"UPDATE {table_name} SET {ref_column}=? WHERE id=?", (person_id,int(record_id)))
+    return person_id
 
 def party_balances(c):
     balances = {}
@@ -1488,7 +1523,7 @@ class Handler(BaseHTTPRequestHandler):
                     newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
                     purchase_cur=c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
                     purchase_id=purchase_cur.lastrowid
-                    ensure_person(c,v('supplier'),'supplier')
+                    link_party(c,"purchases","supplier_person_id",purchase_id,v('supplier'),'supplier')
                     sync_cash_posting(c,"purchases",purchase_id,to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
@@ -1499,13 +1534,13 @@ class Handler(BaseHTTPRequestHandler):
                     base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     sale_cur=c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
                     sale_id=sale_cur.lastrowid
-                    ensure_person(c,v('customer'),'customer')
+                    link_party(c,"sales","customer_person_id",sale_id,v('customer'),'customer')
                     sync_cash_posting(c,"sales",sale_id,to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
                     service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')))
                     service_id=service_cur.lastrowid
-                    ensure_person(c,v('customer'),'customer')
+                    link_party(c,"services","customer_person_id",service_id,v('customer'),'customer')
                     sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
@@ -1543,9 +1578,10 @@ class Handler(BaseHTTPRequestHandler):
                     party=normalize_person(v('party')); kind=v('kind'); amount=int(round(num(v('amount'))))
                     if not party: raise ValueError('طرف حساب را انتخاب کن.')
                     if kind not in ('receive','pay') or amount<=0: raise ValueError('نوع یا مبلغ تسویه نامعتبر است.')
-                    ensure_person(c,party,'both')
+                    person_id=ensure_person(c,party,'both')
                     date=to_iso_date(v('date',jalali_today()))
                     cur=c.execute('INSERT INTO settlements(date,party,kind,amount,notes) VALUES(?,?,?,?,?)',(date,party,kind,amount,v('notes')))
+                    c.execute("UPDATE settlements SET person_id=? WHERE id=?",(person_id,cur.lastrowid))
                     sync_cash_posting(c,'settlements',cur.lastrowid,date,amount,'in' if kind=='receive' else 'out',party,v('notes') or 'تسویه حساب')
                     dest='/parties';msg='تسویه ثبت شد و دفتر صندوق به‌روز شد.'
                 elif path=='update_purchase':
@@ -1568,7 +1604,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("UPDATE purchases SET qty=?,unit_cost=?,extra_cost=?,paid=?,supplier=?,notes=? WHERE id=?",
                               (qty,cost,extra,paid,v("supplier"),v("notes"),rid))
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,row["product_id"]))
-                    ensure_person(c,v("supplier"),"supplier")
+                    link_party(c,"purchases","supplier_person_id",rid,v("supplier"),"supplier")
                     sync_cash_posting(c,"purchases",rid,row["date"],paid,"out",v("supplier"),v("notes") or "اصلاح پرداخت خرید")
                     dest='/purchases';msg='خرید اصلاح شد و موجودی/میانگین موزون بازسازی شد.'
                 elif path=='delete_purchase':
@@ -1600,7 +1636,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("UPDATE sales SET qty=?,unit_price=?,extra_cost=?,received=?,customer=?,notes=? WHERE id=?",
                               (qty,price,extra,received,v("customer"),v("notes"),rid))
                     c.execute("UPDATE products SET stock=? WHERE id=?",(max(new_stock,0.0),row["product_id"]))
-                    ensure_person(c,v("customer"),"customer")
+                    link_party(c,"sales","customer_person_id",rid,v("customer"),"customer")
                     sync_cash_posting(c,"sales",rid,row["date"],received,"in",v("customer"),v("notes") or "اصلاح دریافت فروش")
                     dest='/sales';msg='فروش اصلاح شد و اختلاف موجودی برگشت داده شد.'
                 elif path=='delete_sale':
@@ -1652,7 +1688,7 @@ class Handler(BaseHTTPRequestHandler):
                     old_stock=float(product["stock"] or 0); old_value=old_stock*float(product["avg_cost"] or 0)
                     new_stock=old_stock+qty; new_avg=(old_value+cost_value)/new_stock if new_stock>0 else 0
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,sale["product_id"]))
-                    ensure_person(c,sale["customer"],"customer")
+                    link_party(c,"sales_returns","customer_person_id",return_id,sale["customer"],"customer")
                     sync_cash_posting(c,"sales_returns",return_id,to_iso_date(v("date",jalali_today())),refund,"out",sale["customer"],reason)
                     dest='/returns';msg='مرجوعی فروش ثبت شد؛ موجودی، سود و صندوق به‌روزرسانی شد.'
                 elif path=='add_purchase_return':
@@ -1682,7 +1718,7 @@ class Handler(BaseHTTPRequestHandler):
                                   (to_iso_date(v("date",jalali_today())),purchase_id,purchase["product_id"],purchase["supplier"] or "",qty,return_value,cash_refund,reason,v("notes")))
                     return_id=cur.lastrowid
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,purchase["product_id"]))
-                    ensure_person(c,purchase["supplier"],"supplier")
+                    link_party(c,"purchase_returns","supplier_person_id",return_id,purchase["supplier"],"supplier")
                     sync_cash_posting(c,"purchase_returns",return_id,to_iso_date(v("date",jalali_today())),cash_refund,"in",purchase["supplier"],reason)
                     dest='/returns';msg='مرجوعی خرید ثبت شد؛ موجودی، حساب فروشنده و صندوق به‌روزرسانی شد.'
                 elif path=='inventory_adjust':
