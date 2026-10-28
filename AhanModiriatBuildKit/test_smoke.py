@@ -15,12 +15,17 @@ def main():
         assert c.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
         tables = {r["name"] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for name in ("products", "purchases", "sales", "expenses", "audit_log",
-                     "people", "settlements", "cash_accounts", "cash_movements"):
+                     "people", "settlements", "cash_accounts", "cash_movements",
+                     "inventory_adjustments"):
             assert name in tables, name
-        for html in (app.dash(c), app.products(c), app.purchases(c), app.sales(c),
-                     app.services(c), app.expenses(c), app.loans(c), app.prices(c),
-                     app.reports(c), app.settings(c), app.design_page(c),
-                     app.cash_page(c), app.parties_page(c)):
+        product_id = c.execute("SELECT id FROM products ORDER BY id LIMIT 1").fetchone()
+        pages = [app.dash(c), app.products(c), app.purchases(c), app.sales(c),
+                 app.services(c), app.expenses(c), app.loans(c), app.prices(c),
+                 app.reports(c), app.settings(c), app.design_page(c),
+                 app.cash_page(c), app.parties_page(c), app.inventory_page(c)]
+        if product_id:
+            pages.append(app.product_ledger_page(c, product_id["id"]))
+        for html in pages:
             assert "<html" in html and "</html>" in html
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("GitHub branch smoke tests passed.")
