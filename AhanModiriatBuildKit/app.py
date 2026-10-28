@@ -5,7 +5,7 @@ Python standard library only. Data stays in ./data/business.db.
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
-import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar
+import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar, io, zipfile, re, xml.etree.ElementTree as ET
 from email.parser import BytesParser
 from email.policy import default as email_policy
 
@@ -804,6 +804,148 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
 def selectfield(label,name,opts,required=True,value=None):
     opt=''.join(f'<option value="{esc(v)}" {"selected" if value is not None and str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
     return f'<div class="field"><label>{label}</label><select name="{name}" {"required" if required else ""}>{opt}</select></div>'
+XLSX_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+XLSX_OFFICE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+XLSX_PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
+XLSX_CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
+ET.register_namespace("", XLSX_MAIN)
+ET.register_namespace("r", XLSX_OFFICE_REL)
+
+def _xlsx_column_name(number):
+    name = ""
+    while number:
+        number, rem = divmod(number-1, 26)
+        name = chr(65+rem) + name
+    return name
+
+def _xlsx_sheet_xml(rows):
+    root = ET.Element(f"{{{XLSX_MAIN}}}worksheet")
+    data = ET.SubElement(root, f"{{{XLSX_MAIN}}}sheetData")
+    for row_num, values in enumerate(rows, 1):
+        row = ET.SubElement(data, f"{{{XLSX_MAIN}}}row", {"r": str(row_num)})
+        for col_num, value in enumerate(values, 1):
+            if value is None:
+                value = ""
+            cell = ET.SubElement(row, f"{{{XLSX_MAIN}}}c", {"r": f"{_xlsx_column_name(col_num)}{row_num}"})
+            if isinstance(value, bool):
+                value = int(value)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                node = ET.SubElement(cell, f"{{{XLSX_MAIN}}}v")
+                node.text = str(value)
+            else:
+                cell.set("t", "inlineStr")
+                inline = ET.SubElement(cell, f"{{{XLSX_MAIN}}}is")
+                node = ET.SubElement(inline, f"{{{XLSX_MAIN}}}t")
+                node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                node.text = str(value)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+def build_xlsx_workbook(sheets):
+    """Build a standards-based XLSX file using only the Python standard library."""
+    if not sheets:
+        raise ValueError("برای ساخت فایل اکسل، حداقل یک برگه لازم است.")
+    out = io.BytesIO()
+    content_types = ET.Element(f"{{{XLSX_CONTENT_TYPES}}}Types")
+    ET.SubElement(content_types, f"{{{XLSX_CONTENT_TYPES}}}Default", {"Extension":"rels","ContentType":"application/vnd.openxmlformats-package.relationships+xml"})
+    ET.SubElement(content_types, f"{{{XLSX_CONTENT_TYPES}}}Default", {"Extension":"xml","ContentType":"application/xml"})
+    ET.SubElement(content_types, f"{{{XLSX_CONTENT_TYPES}}}Override", {"PartName":"/xl/workbook.xml","ContentType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"})
+    rels_root = ET.Element(f"{{{XLSX_PACKAGE_REL}}}Relationships")
+    ET.SubElement(rels_root, f"{{{XLSX_PACKAGE_REL}}}Relationship", {
+        "Id":"rId1","Type":"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument","Target":"xl/workbook.xml"
+    })
+    workbook = ET.Element(f"{{{XLSX_MAIN}}}workbook")
+    sheet_nodes = ET.SubElement(workbook, f"{{{XLSX_MAIN}}}sheets")
+    workbook_rels = ET.Element(f"{{{XLSX_PACKAGE_REL}}}Relationships")
+    prepared=[]
+    for idx, (name, rows) in enumerate(sheets, 1):
+        safe_name = str(name or f"Sheet{idx}")[:31]
+        ET.SubElement(sheet_nodes, f"{{{XLSX_MAIN}}}sheet", {
+            "name":safe_name,"sheetId":str(idx),f"{{{XLSX_OFFICE_REL}}}id":f"rId{idx}"
+        })
+        ET.SubElement(workbook_rels, f"{{{XLSX_PACKAGE_REL}}}Relationship", {
+            "Id":f"rId{idx}","Type":"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet","Target":f"worksheets/sheet{idx}.xml"
+        })
+        ET.SubElement(content_types, f"{{{XLSX_CONTENT_TYPES}}}Override", {
+            "PartName":f"/xl/worksheets/sheet{idx}.xml","ContentType":"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
+        })
+        prepared.append((idx, rows))
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", ET.tostring(content_types, encoding="utf-8", xml_declaration=True))
+        archive.writestr("_rels/.rels", ET.tostring(rels_root, encoding="utf-8", xml_declaration=True))
+        archive.writestr("xl/workbook.xml", ET.tostring(workbook, encoding="utf-8", xml_declaration=True))
+        archive.writestr("xl/_rels/workbook.xml.rels", ET.tostring(workbook_rels, encoding="utf-8", xml_declaration=True))
+        for idx, rows in prepared:
+            archive.writestr(f"xl/worksheets/sheet{idx}.xml", _xlsx_sheet_xml(rows))
+    return out.getvalue()
+
+def parse_xlsx_workbook(payload):
+    """Read common Excel XLSX files (shared strings, inline strings and numeric cells)."""
+    if not payload or len(payload) > 10*1024*1024:
+        raise ValueError("فایل اکسل خالی است یا از سقف ۱۰ مگابایت بیشتر است.")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload))
+    except (zipfile.BadZipFile, OSError) as exc:
+        raise ValueError("فایل انتخاب‌شده یک فایل XLSX معتبر نیست.") from exc
+    with archive:
+        names = set(archive.namelist())
+        if "xl/workbook.xml" not in names:
+            raise ValueError("ساختار فایل XLSX شناسایی نشد.")
+        shared=[]
+        if "xl/sharedStrings.xml" in names:
+            shared_root=ET.fromstring(archive.read("xl/sharedStrings.xml"))
+            shared=["".join(t.text or "" for t in item.iter(f"{{{XLSX_MAIN}}}t")) for item in shared_root.findall(f"{{{XLSX_MAIN}}}si")]
+        book=ET.fromstring(archive.read("xl/workbook.xml"))
+        rel_root=ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        targets={rel.attrib.get("Id"):rel.attrib.get("Target","") for rel in rel_root.findall(f"{{{XLSX_PACKAGE_REL}}}Relationship")}
+        result={}
+        sheet_nodes=book.find(f"{{{XLSX_MAIN}}}sheets")
+        if sheet_nodes is None:
+            raise ValueError("هیچ برگه‌ای در فایل اکسل وجود ندارد.")
+        for sheet in sheet_nodes:
+            name=sheet.attrib.get("name","")
+            rid=sheet.attrib.get(f"{{{XLSX_OFFICE_REL}}}id","")
+            target=targets.get(rid,"")
+            if not target:
+                continue
+            target=target.lstrip("/")
+            if not target.startswith("xl/"):
+                target="xl/"+target
+            target=re.sub(r"/\./","/",target)
+            if target not in names:
+                continue
+            root=ET.fromstring(archive.read(target))
+            rows=[]
+            for row_node in root.iter(f"{{{XLSX_MAIN}}}row"):
+                cells={}
+                highest=-1
+                for cell in row_node.findall(f"{{{XLSX_MAIN}}}c"):
+                    ref=cell.attrib.get("r","A1")
+                    col_letters=re.match(r"[A-Z]+",ref.upper())
+                    col_idx=0
+                    if col_letters:
+                        for ch in col_letters.group(0):
+                            col_idx=col_idx*26+(ord(ch)-64)
+                        col_idx-=1
+                    cell_type=cell.attrib.get("t","")
+                    val_node=cell.find(f"{{{XLSX_MAIN}}}v")
+                    if cell_type=="inlineStr":
+                        value="".join(t.text or "" for t in cell.iter(f"{{{XLSX_MAIN}}}t"))
+                    elif val_node is None:
+                        value=""
+                    else:
+                        value=val_node.text or ""
+                        if cell_type=="s":
+                            try: value=shared[int(value)]
+                            except (ValueError,IndexError): value=""
+                    cells[col_idx]=value
+                    highest=max(highest,col_idx)
+                values=[""]*(highest+1)
+                for idx,value in cells.items():
+                    values[idx]=value
+                rows.append(values)
+            result[name]=rows
+        return result
+
 def table(headers, rows, total=None):
     shown = len(rows)
     if total is None:
