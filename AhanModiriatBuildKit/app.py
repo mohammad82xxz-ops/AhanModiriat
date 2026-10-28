@@ -658,55 +658,77 @@ def inventory_page(c, search='', page_num=1):
     {table(["تاریخ","کالا","موجودی دفتری","شمارش واقعی","اختلاف","علت","یادداشت"],rows,total)}{page_nav("inventory",query,page_num,total,limit)}</div>'''
     return page("انبارگردانی","".join([body]),"inventory")
 
-def product_ledger_page(c, product_id):
-    p = c.execute("SELECT * FROM products WHERE id=?",(product_id,)).fetchone()
+def product_ledger_page(c, product_id, search="", page_num=1):
+    p=c.execute("SELECT * FROM products WHERE id=?",(product_id,)).fetchone()
     if p is None:
         return page("کالا پیدا نشد",'<div class="notice">این کالا وجود ندارد.</div>',"products")
-    events = []
-    for r in c.execute("SELECT id,date,qty,unit_cost,extra_cost,supplier,notes FROM purchases WHERE product_id=?",(product_id,)):
-        factor = num(p["purchase_factor"] or 1,1) or 1
-        events.append({"date":r["date"],"key":("purchase",r["id"]),"kind":"خرید",
-                       "delta":float(r["qty"])*factor,"detail":f'خرید #{r["id"]} · {r["supplier"] or ""}',
-                       "notes":r["notes"] or ""})
-    for r in c.execute("SELECT id,date,qty,unit_price,customer,notes FROM sales WHERE product_id=?",(product_id,)):
-        events.append({"date":r["date"],"key":("sale",r["id"]),"kind":"فروش",
-                       "delta":-float(r["qty"]),"detail":f'فروش #{r["id"]} · {r["customer"] or ""}',
-                       "notes":r["notes"] or ""})
-    for r in c.execute("SELECT id,date,qty,return_value,reason,notes FROM purchase_returns WHERE product_id=?",(product_id,)):
-        events.append({"date":r["date"],"key":("purchase_return",r["id"]),"kind":"مرجوعی خرید",
-                       "delta":-float(r["qty"]),"detail":f'مرجوعی خرید #{r["id"]} · {r["reason"]}',
-                       "notes":r["notes"] or ""})
-    for r in c.execute("SELECT id,date,qty,return_value,reason,notes FROM sales_returns WHERE product_id=?",(product_id,)):
-        events.append({"date":r["date"],"key":("sales_return",r["id"]),"kind":"مرجوعی فروش",
-                       "delta":float(r["qty"]),"detail":f'مرجوعی فروش #{r["id"]} · {r["reason"]}',
-                       "notes":r["notes"] or ""})
-    for r in c.execute("SELECT id,date,expected_qty,counted_qty,delta_qty,reason,notes FROM inventory_adjustments WHERE product_id=?",(product_id,)):
-        events.append({"date":r["date"],"key":("adjustment",r["id"]),"kind":"تعدیل انبار",
-                       "delta":float(r["delta_qty"]),"detail":r["reason"],
-                       "notes":r["notes"] or f'دفتر: {r["expected_qty"]:g}؛ شمارش: {r["counted_qty"]:g}'})
-    events.sort(key=lambda e:(e["date"] or "",e["key"][1],e["key"][0]))
-    movement_total = sum(e["delta"] for e in events)
-    running = float(p["stock"] or 0) - movement_total
-    for e in events:
-        running += e["delta"]
-        e["balance"] = running
-    current = float(p["stock"] or 0)
-    rows = []
-    for e in reversed(events[-500:]):
-        delta = e["delta"]
-        rows.append([show_date(e["date"]),esc(e["kind"]),f'{max(delta,0):g} {esc(p["unit"])}',
-                     f'{max(-delta,0):g} {esc(p["unit"])}',f'{e["balance"]:g} {esc(p["unit"])}',
-                     esc(e["detail"]),esc(e["notes"])])
-    baseline = current - movement_total
-    body = f'''<h1>کارت گردش کالا: {esc(p["name"])}</h1>
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    movement_sql="""SELECT p.date AS date,p.id AS id,'purchase' AS source_type,'خرید' AS kind,
+                           p.qty*COALESCE(pr.purchase_factor,1) AS delta,
+                           'خرید #'||p.id||' · '||COALESCE(p.supplier,'') AS detail,
+                           COALESCE(p.notes,'') AS notes
+                    FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE p.product_id=:pid
+                    UNION ALL
+                    SELECT s.date,s.id,'sale','فروش',-s.qty,
+                           'فروش #'||s.id||' · '||COALESCE(s.customer,''),COALESCE(s.notes,'')
+                    FROM sales s WHERE s.product_id=:pid
+                    UNION ALL
+                    SELECT r.date,r.id,'purchase_return','مرجوعی خرید',-r.qty,
+                           'مرجوعی خرید #'||r.id||' · '||COALESCE(r.reason,''),COALESCE(r.notes,'')
+                    FROM purchase_returns r WHERE r.product_id=:pid
+                    UNION ALL
+                    SELECT r.date,r.id,'sales_return','مرجوعی فروش',r.qty,
+                           'مرجوعی فروش #'||r.id||' · '||COALESCE(r.reason,''),COALESCE(r.notes,'')
+                    FROM sales_returns r WHERE r.product_id=:pid
+                    UNION ALL
+                    SELECT a.date,a.id,'adjustment','تعدیل انبار',a.delta_qty,
+                           COALESCE(a.reason,''),COALESCE(a.notes,'')
+                    FROM inventory_adjustments a WHERE a.product_id=:pid"""
+    total_all,total_delta=c.execute(
+        "SELECT COUNT(*),COALESCE(SUM(delta),0) FROM ("+movement_sql+") events",{"pid":product_id}
+    ).fetchone()
+    filtered_total=scalar(c,"SELECT COUNT(*) FROM ("+movement_sql+") e WHERE kind LIKE :pat OR detail LIKE :pat OR notes LIKE :pat",
+                          {"pid":product_id,"pat":pattern})
+    # Window aggregation is calculated before the outer search filter; searched results retain their true historical balances.
+    event_rows=c.execute("""WITH events AS ("""+movement_sql+"""),
+        rolled AS (
+            SELECT events.*,
+                   SUM(delta) OVER (ORDER BY date ASC,id ASC,source_type ASC
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_delta
+            FROM events
+        )
+        SELECT * FROM rolled
+        WHERE kind LIKE :pat OR detail LIKE :pat OR notes LIKE :pat
+        ORDER BY date DESC,id DESC,source_type DESC LIMIT :limit OFFSET :offset""",
+        {"pid":product_id,"pat":pattern,"limit":limit,"offset":offset}).fetchall()
+    current=float(p["stock"] or 0)
+    baseline=current-float(total_delta or 0)
+    rows=[]
+    for e in event_rows:
+        delta=float(e["delta"] or 0)
+        balance=baseline+float(e["running_delta"] or 0)
+        rows.append([show_date(e["date"]),esc(e["kind"]),
+                     f'{max(delta,0):g} {esc(p["unit"])}',
+                     f'{max(-delta,0):g} {esc(p["unit"])}',
+                     f'{balance:g} {esc(p["unit"])}',esc(e["detail"]),esc(e["notes"])])
+    body=f'''<h1>کارت گردش کالا: {esc(p["name"])}</h1>
     <div class="grid section">
       <div class="card metric"><div class="label">موجودی فعلی</div><div class="value">{current:g} {esc(p["unit"])}</div></div>
-      <div class="card metric"><div class="label">تعداد گردش‌های ثبت‌شده</div><div class="value">{len(events)}</div></div>
+      <div class="card metric"><div class="label">کل گردش‌های ثبت‌شده</div><div class="value">{int(total_all):,}</div></div>
       <div class="card metric"><div class="label">مانده پایه خارج از گردش ثبت‌شده</div><div class="value">{baseline:g} {esc(p["unit"])}</div><div class="muted">موجودی اولیه/تعدیلاتی که سند جداگانه ندارند</div></div>
     </div>
-    <div class="card section"><p class="small">حداکثر ۵۰۰ گردش آخر نمایش داده می‌شود. مانده‌های قبلی از موجودی فعلی و گردش‌های ثبت‌شده بازسازی می‌شوند؛ اگر موجودی دستی ویرایش شده باشد، تفاوت در مانده پایه دیده می‌شود.</p>
-    {table(["تاریخ","نوع گردش","ورودی","خروجی","مانده پس از گردش","مرجع/طرف حساب","یادداشت"],rows)}
+    <div class="card section"><p class="small">ماندهٔ هر ردیف از تمام گردش‌های قبلی محاسبه می‌شود؛ جستجو فقط ردیف‌های نمایشی را فیلتر می‌کند. در هر صفحه حداکثر ۵۰ گردش نمایش داده می‌شود.</p>
+    <form method="get" action="/product_ledger" class="search-form"><input type="hidden" name="id" value="{int(product_id)}"><label>جستجوی گردش</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نوع گردش، طرف حساب یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+    {table(["تاریخ","نوع گردش","ورودی","خروجی","مانده پس از گردش","مرجع/طرف حساب","یادداشت"],rows,filtered_total)}
+    {page_nav("product_ledger",query,page_num,filtered_total,limit).replace("q=","q=")+"<input type='hidden' value='"+str(int(product_id))+"' name='id'>" if False else page_nav("product_ledger",query,page_num,filtered_total,limit)}
     <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>'''
+    # page_nav must preserve the selected product identifier across page transitions.
+    nav=page_nav("product_ledger",query,page_num,filtered_total,limit)
+    if nav:
+        nav=nav.replace(f'/product_ledger?q=',f'/product_ledger?id={int(product_id)}&amp;q=')
+        marker=f'<div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div>'
+        body=body.replace(page_nav("product_ledger",query,page_num,filtered_total,limit),nav)
     return page("کارت گردش کالا",body,"products")
 
 def cash_page(c, search='', page_num=1):
@@ -1614,7 +1636,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
                 return
             if path=='product_ledger':
-                try: self.send(product_ledger_page(c,int(q.get('id',['0'])[0])))
+                try:
+                    product_id=int(q.get('id',['0'])[0])
+                    page_num=int(q.get('page',['1'])[0])
+                    self.send(product_ledger_page(c,product_id,q.get('q',[''])[0],page_num))
                 except Exception: self.send(page('خطا','<div class="notice">شناسه کالا نامعتبر است.</div>','products'))
                 return
             if path in ('edit_purchase','edit_sale','edit_expense'):
