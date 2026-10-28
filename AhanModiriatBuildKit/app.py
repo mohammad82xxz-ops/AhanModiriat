@@ -1818,10 +1818,18 @@ class Handler(BaseHTTPRequestHandler):
                 elif path=='update_product':
                     pid=int(v('product_id')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p: raise ValueError('کالا پیدا نشد.')
-                    if v('unit')!=p['unit'] and (scalar(c,'SELECT COUNT(*) FROM purchases WHERE product_id=?',(pid,)) or scalar(c,'SELECT COUNT(*) FROM sales WHERE product_id=?',(pid,))):
-                        raise ValueError('این کالا سابقه تراکنش دارد؛ تغییر واحد پایه برای جلوگیری از خراب‌شدن سوابق مسدود شد.')
                     pf=num(v('purchase_factor')); sf=num(v('sale_factor')); new_stock=num(v('stock'),-1)
                     if not v('name') or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
+                    has_movement=any(scalar(c,f'SELECT COUNT(*) FROM {table} WHERE product_id=?',(pid,)) for table in ('purchases','sales','inventory_adjustments','purchase_returns','sales_returns'))
+                    unit_mapping_changed=(
+                        v('unit')!=p['unit'] or
+                        abs(pf-float(p['purchase_factor'] or 1))>0.000001 or
+                        abs(sf-float(p['sale_factor'] or 1))>0.000001 or
+                        v('purchase_unit')!=p['purchase_unit'] or
+                        v('sale_unit')!=p['sale_unit']
+                    )
+                    if has_movement and unit_mapping_changed:
+                        raise ValueError('این کالا سابقهٔ گردش دارد؛ تغییر واحد پایه، واحد خرید/فروش یا ضریب تبدیل مسدود است تا مانده‌های تاریخی خراب نشوند.')
                     if new_stock<0: raise ValueError('موجودی کالا نمی‌تواند منفی باشد.')
                     old_stock=float(p['stock'] or 0); stock_delta=new_stock-old_stock
                     c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',
