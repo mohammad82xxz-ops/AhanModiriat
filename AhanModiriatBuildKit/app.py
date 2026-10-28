@@ -1123,6 +1123,21 @@ def parse_xlsx_workbook(payload):
     except (zipfile.BadZipFile, OSError) as exc:
         raise ValueError("فایل انتخاب‌شده یک فایل XLSX معتبر نیست.") from exc
     with archive:
+        infos=archive.infolist()
+        if len(infos)>512:
+            raise ValueError("فایل اکسل بیش از حد فایل داخلی دارد.")
+        total_uncompressed=sum(int(item.file_size or 0) for item in infos)
+        if total_uncompressed>40*1024*1024:
+            raise ValueError("حجم بازشدهٔ محتوای اکسل از سقف ۴۰ مگابایت بیشتر است.")
+        for item in infos:
+            expanded=int(item.file_size or 0)
+            compressed=int(item.compress_size or 0)
+            if expanded>16*1024*1024:
+                raise ValueError("یکی از بخش‌های اکسل از سقف ۱۶ مگابایت بیشتر است.")
+            if expanded>1*1024*1024 and (compressed==0 or expanded/max(1,compressed)>500):
+                raise ValueError("نسبت فشرده‌سازی فایل اکسل غیرعادی است.")
+            if item.flag_bits & 0x1:
+                raise ValueError("فایل اکسل رمزگذاری‌شده پشتیبانی نمی‌شود.")
         names = set(archive.namelist())
         if "xl/workbook.xml" not in names:
             raise ValueError("ساختار فایل XLSX شناسایی نشد.")
