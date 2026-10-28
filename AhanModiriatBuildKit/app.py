@@ -1770,7 +1770,7 @@ class Handler(BaseHTTPRequestHandler):
                 target=(STATIC_DIR / path.removeprefix('static/')).resolve()
                 target.relative_to(STATIC_DIR.resolve())
                 if not target.is_file(): raise FileNotFoundError
-                mime=mimetypes.guess_type(str(target))[0] or 'application/octet-stream'
+                mime='font/woff2' if target.suffix.lower()=='.woff2' else (mimetypes.guess_type(str(target))[0] or 'application/octet-stream')
                 if mime.startswith('text/') or mime in ('application/javascript','application/json','image/svg+xml'): mime += '; charset=utf-8'
                 self.send(target.read_bytes(),mime); return
             except (ValueError, OSError):
