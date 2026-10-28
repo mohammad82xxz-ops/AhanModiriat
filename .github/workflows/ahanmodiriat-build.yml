@@ -32,6 +32,7 @@ jobs:
           python test_excel_io.py
           python test_profit_reports.py
           node --check static/app.js
+          node test_jalali_picker.js
   windows-onedir:
     runs-on: windows-latest
     needs: smoke-test
