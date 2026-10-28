@@ -71,6 +71,12 @@ def main():
         movement_page_two = app.product_ledger_page(c, pid, "needle", 2)
         assert "صفحه 2 از 5" in movement_page_two
         assert "مانده پس از گردش" in movement_page_two
+        statement_one=app.parties_page(c,"needle customer","",1,1)
+        assert "نمایش 50 رکورد از مجموع 110 رکورد" in statement_one
+        assert "صفحه بعدی" in statement_one
+        assert "name=needle%20customer&amp;spage=2" in statement_one
+        statement_two=app.parties_page(c,"needle customer","",1,2)
+        assert "صفحه 2 از 3" in statement_two
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("SQL SEARCH AND PAGINATION TESTS PASSED")
 
