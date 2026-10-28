@@ -461,7 +461,9 @@ def init():
                     INSERT OR IGNORE INTO people(name,kind)
                         VALUES(TRIM(NEW.{text_column}),'{party_kind}');
                     UPDATE people SET kind=CASE
-                        WHEN kind IN ('{party_kind}','both') THEN kind ELSE 'both' END
+                        WHEN kind='both' THEN 'both'
+                        WHEN '{party_kind}'='both' THEN kind
+                        WHEN kind='{party_kind}' THEN kind ELSE 'both' END
                         WHERE name=TRIM(NEW.{text_column});
                     UPDATE {table_name}
                         SET {ref_column}=(SELECT id FROM people WHERE name=TRIM(NEW.{text_column}))
@@ -475,7 +477,9 @@ def init():
                     INSERT OR IGNORE INTO people(name,kind)
                         VALUES(TRIM(NEW.{text_column}),'{party_kind}');
                     UPDATE people SET kind=CASE
-                        WHEN kind IN ('{party_kind}','both') THEN kind ELSE 'both' END
+                        WHEN kind='both' THEN 'both'
+                        WHEN '{party_kind}'='both' THEN kind
+                        WHEN kind='{party_kind}' THEN kind ELSE 'both' END
                         WHERE name=TRIM(NEW.{text_column});
                     UPDATE {table_name}
                         SET {ref_column}=(SELECT id FROM people WHERE name=TRIM(NEW.{text_column}))
