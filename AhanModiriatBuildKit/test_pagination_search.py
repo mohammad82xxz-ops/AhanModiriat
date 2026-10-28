@@ -38,6 +38,8 @@ def main():
                          VALUES('2026-01-07',?,?,'needle return supplier',0.01,1,0,'needle return reason','pagination test')""",(purchase_id,pid))
             c.execute("INSERT INTO audit_log(action,details) VALUES('needle audit','pagination regression row')")
             c.execute("INSERT INTO people(name,kind,phone,notes) VALUES(?,?,?,?)",(f"needle person {i:03d}","customer",f"09{i:09d}","pagination test"))
+            c.execute("INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,100,90,10,'2026-12-01','needle loan rate','pagination test',1,'month')",(f"needle loan {i:03d}",))
+            c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-01-08',?,10,?)",(pid,f"needle price {i:03d}"))
 
         checks = [
             ("products", app.products(c, "needle product", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
@@ -50,6 +52,8 @@ def main():
             ("returns", app.returns_page(c, "needle return", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("audit", app.audit_page(c, "needle audit", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("parties", app.parties_page(c, "", "needle person", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("loans", app.loans(c, "needle loan", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
+            ("prices", app.prices(c, pid, "needle price", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
         ]
         for name, html, expected in checks:
             assert expected in html, (name, expected)
