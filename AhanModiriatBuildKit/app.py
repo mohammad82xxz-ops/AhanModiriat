@@ -218,11 +218,11 @@ def init():
                 if person_name:
                     c.execute("INSERT OR IGNORE INTO people(name,kind) VALUES(?,?)", (person_name, kind))
         # A legacy opening-capital setting is an opening balance, not a transaction.
-        if scalar(c, "SELECT COUNT(*) FROM cash_movements") == 0:
-            opening = int(round(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)))
-            current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
-            if opening and not current:
-                c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1", (opening,))
+        opening = int(round(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)))
+        current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
+        # A manual transfer must not prevent migration of the legacy opening cash balance.
+        if opening and not current:
+            c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1", (opening,))
         migrated = backfill_legacy_cash_postings(c)
         if migrated:
             c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",
