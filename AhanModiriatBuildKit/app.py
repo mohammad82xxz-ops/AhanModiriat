@@ -1205,6 +1205,25 @@ class Handler(BaseHTTPRequestHandler):
                 try: data=DB.read_bytes(); self.send_response(200); self.send_header('Content-Type','application/octet-stream'); self.send_header('Content-Disposition','attachment; filename="business-backup.db"'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
                 except Exception as e:self.send(str(e),status=500)
                 return
+            if path=='export.xlsx':
+                try:
+                    product_rows=[["name","code","unit","stock","avg_cost","market_price","min_stock","category","purchase_unit","purchase_factor","sale_unit","sale_factor","roll_weight","sheet_area","notes"]]
+                    for r in c.execute("""SELECT name,code,unit,stock,avg_cost,market_price,min_stock,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area,notes FROM products ORDER BY name"""):
+                        product_rows.append([r[k] for k in ("name","code","unit","stock","avg_cost","market_price","min_stock","category","purchase_unit","purchase_factor","sale_unit","sale_factor","roll_weight","sheet_area","notes")])
+                    people_rows=[["name","kind","phone","notes"]]
+                    for r in c.execute("SELECT name,kind,phone,notes FROM people ORDER BY name"):
+                        people_rows.append([r[k] for k in ("name","kind","phone","notes")])
+                    payload=build_xlsx_workbook([("Products",product_rows),("People",people_rows)])
+                    self.send_response(200)
+                    self.send_header("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    self.send_header("Content-Disposition",'attachment; filename="AhanModiriat-Export.xlsx"')
+                    self.send_header("Content-Length",str(len(payload)))
+                    self.send_header("X-Content-Type-Options","nosniff")
+                    self.end_headers()
+                    self.wfile.write(payload)
+                except Exception as e:
+                    self.send(str(e),"text/plain; charset=utf-8",500)
+                return
             if path=='export.csv':
                 import csv, io
                 out=io.StringIO(); w=csv.writer(out); w.writerow(['نوع','تاریخ','شرح','مبلغ/درآمد','هزینه/اصل','یادداشت'])
@@ -1285,6 +1304,75 @@ class Handler(BaseHTTPRequestHandler):
                 if candidate_path:
                     try: candidate_path.unlink(missing_ok=True)
                     except OSError: pass
+            return
+        if path=='import.xlsx':
+            target_page='/products'
+            try:
+                content_type=self.headers.get('Content-Type','')
+                header=(f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n").encode('ascii','strict')
+                message=BytesParser(policy=email_policy).parsebytes(header+raw_bytes)
+                if not message.is_multipart():
+                    raise ValueError("فرم بارگذاری اکسل معتبر نیست.")
+                payload=None; filename=""; sheet_choice="Products"
+                for part in message.iter_parts():
+                    field_name=part.get_param('name',header='content-disposition')
+                    if field_name=='file':
+                        payload=part.get_payload(decode=True) or b""
+                        filename=part.get_filename() or ""
+                    elif field_name=='sheet':
+                        sheet_choice=(part.get_payload(decode=True) or b"Products").decode('utf-8','replace').strip()
+                target_page='/parties' if sheet_choice.lower() in ('people','customers','اشخاص','طرف‌حساب‌ها') else '/products'
+                if not filename.lower().endswith('.xlsx'):
+                    raise ValueError("فقط فایل XLSX قابل ورود است.")
+                workbook=parse_xlsx_workbook(payload)
+                sheet_name=next((name for name in workbook if name.lower()==sheet_choice.lower()),None)
+                if sheet_name is None:
+                    wanted="People" if target_page=='/parties' else "Products"
+                    sheet_name=next((name for name in workbook if name.lower()==wanted.lower()),None)
+                if sheet_name is None:
+                    raise ValueError("برگهٔ موردنظر در فایل اکسل پیدا نشد.")
+                records=workbook[sheet_name]
+                if len(records)<2:
+                    raise ValueError("برگهٔ اکسل، ردیف داده‌ای برای ورود ندارد.")
+                headers=[str(x or '').strip().lower() for x in records[0]]
+                imported=0; skipped=0
+                with LOCK, conn() as c:
+                    for row_values in records[1:]:
+                        row_values=(row_values+[""]*len(headers))[:len(headers)]
+                        record={headers[i]:row_values[i] for i in range(len(headers)) if headers[i]}
+                        name=str(record.get("name","") or "").strip()
+                        if not name:
+                            skipped+=1; continue
+                        exists=c.execute("SELECT id FROM products WHERE name=?",(name,)).fetchone() if target_page=='/products' else c.execute("SELECT id FROM people WHERE name=?",(name,)).fetchone()
+                        if exists:
+                            skipped+=1; continue
+                        if target_page=='/products':
+                            unit=str(record.get("unit") or "کیلوگرم").strip()
+                            stock=num(record.get("stock",0),0)
+                            avg_cost=num(record.get("avg_cost",0),0)
+                            market_price=num(record.get("market_price",0),0)
+                            min_stock=num(record.get("min_stock",0),0)
+                            pf=num(record.get("purchase_factor",1),1) or 1
+                            sf=num(record.get("sale_factor",1),1) or 1
+                            if stock<0 or min_stock<0 or pf<=0 or sf<=0 or avg_cost<0 or market_price<0:
+                                skipped+=1; continue
+                            c.execute("""INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area,notes)
+                                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                      (name,str(record.get("code","") or ""),unit,stock,avg_cost,market_price,min_stock,
+                                       str(record.get("category","سایر") or "سایر"),str(record.get("purchase_unit") or unit),pf,
+                                       str(record.get("sale_unit") or unit),sf,num(record.get("roll_weight",0),0),
+                                       num(record.get("sheet_area",0),0),str(record.get("notes","") or "")))
+                        else:
+                            kind=str(record.get("kind","both") or "both").strip().lower()
+                            if kind not in ('customer','supplier','both'): kind='both'
+                            c.execute("INSERT INTO people(name,kind,phone,notes) VALUES(?,?,?,?)",
+                                      (name,kind,str(record.get("phone","") or ""),str(record.get("notes","") or "")))
+                        imported+=1
+                    audit_details=json.dumps({"sheet":sheet_name,"imported":imported,"skipped":skipped,"rows":max(0,len(records)-1)},ensure_ascii=False)
+                    c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",("import.xlsx",audit_details))
+                self.redirect(target_page,f"ورود اکسل انجام شد؛ {imported} ردیف افزوده و {skipped} ردیف رد شد (ردیف تکراری یا نامعتبر).")
+            except Exception as e:
+                self.redirect(target_page,str(e))
             return
         raw=raw_bytes.decode('utf-8')
         d={k:v[-1] for k,v in parse_qs(raw,keep_blank_values=True).items()}
