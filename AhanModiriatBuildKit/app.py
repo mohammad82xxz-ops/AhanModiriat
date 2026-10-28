@@ -446,8 +446,6 @@ def init():
             ("SELECT supplier FROM purchases", "supplier"),
             ("SELECT customer FROM sales", "customer"),
             ("SELECT customer FROM services", "customer"),
-            ("SELECT source FROM expenses", "supplier"),
-            ("SELECT source FROM loan_payments", "both"),
             ("SELECT party FROM settlements", "both"),
         ):
             for row in c.execute(query).fetchall():
