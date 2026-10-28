@@ -64,6 +64,13 @@ def main():
         filtered = app.products(c, "needle product 054", 1)
         assert "نمایش 1 رکورد از مجموع 1 رکورد" in filtered
         assert "needle product 054" in filtered
+        movement_page = app.product_ledger_page(c, pid, "needle", 1)
+        assert "نمایش 50 رکورد از مجموع 220 رکورد" in movement_page
+        assert "صفحه بعدی" in movement_page
+        assert f"/product_ledger?id={pid}&amp;q=needle&amp;page=2" in movement_page
+        movement_page_two = app.product_ledger_page(c, pid, "needle", 2)
+        assert "صفحه 2 از 5" in movement_page_two
+        assert "مانده پس از گردش" in movement_page_two
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("SQL SEARCH AND PAGINATION TESTS PASSED")
 
