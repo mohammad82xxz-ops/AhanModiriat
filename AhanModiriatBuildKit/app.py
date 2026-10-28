@@ -1044,8 +1044,8 @@ def dashboard_sales_chart(c, month_limit=6):
         label=f"{jy:04d}/{jm:02d}"
         groups.append(f'''<div class="bar-chart-group" aria-label="ماه {label}">
           <div class="bar-chart-bars">
-            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["sales"])}</span><div class="bar-chart-track"><div class="bar-chart-fill sales" style="height:{sales_pct:.1f}%"></div></div><small>فروش کالا</small></div>
-            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["services"])}</span><div class="bar-chart-track"><div class="bar-chart-fill services" style="height:{service_pct:.1f}%"></div></div><small>خدمات</small></div>
+            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["sales"])}</span><div class="bar-chart-track"><svg class="bar-chart-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-chart-fill sales" x="0" y="{100-sales_pct:.1f}" width="100" height="{sales_pct:.1f}" rx="3"></rect></svg></div><small>فروش کالا</small></div>
+            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["services"])}</span><div class="bar-chart-track"><svg class="bar-chart-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-chart-fill services" x="0" y="{100-service_pct:.1f}" width="100" height="{service_pct:.1f}" rx="3"></rect></svg></div><small>خدمات</small></div>
           </div><strong>{label}</strong></div>''')
     if not groups:
         return '<div class="card section"><h2>نمودار فروش ماهانه</h2><p class="empty">برای ترسیم نمودار، ابتدا فروش یا خدمات ثبت کن.</p></div>'
