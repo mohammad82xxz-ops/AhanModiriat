@@ -148,7 +148,8 @@ def restore_database_from_file(source_path):
     if source_path.stat().st_size > 100 * 1024 * 1024:
         raise ValueError("حجم فایل پشتیبان از سقف ۱۰۰ مگابایت بیشتر است.")
     uri = "file:" + source_path.resolve().as_posix() + "?mode=ro"
-    with sqlite3.connect(uri, uri=True, timeout=20) as check:
+    check = sqlite3.connect(uri, uri=True, timeout=20)
+    try:
         if check.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ValueError("ساختار پایگاه دادهٔ پشتیبان سالم نیست.")
         tables = {r[0] for r in check.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -163,11 +164,18 @@ def restore_database_from_file(source_path):
             actual = {r[1] for r in check.execute(f"PRAGMA table_info({table})")}
             if not columns.issubset(actual):
                 raise ValueError("ساختار جدول‌های اصلی پشتیبان با آهن‌مدیریت سازگار نیست.")
+    finally:
+        check.close()
     # Retain a separate snapshot of the current database before replacing anything.
     create_startup_backup()
-    with sqlite3.connect(uri, uri=True, timeout=20) as source, sqlite3.connect(DB, timeout=20) as target:
+    source = sqlite3.connect(uri, uri=True, timeout=20)
+    target = sqlite3.connect(DB, timeout=20)
+    try:
         source.backup(target)
         target.commit()
+    finally:
+        source.close()
+        target.close()
     # Apply additive migrations and rebuild only missing cash-ledger links after restore.
     init()
 
@@ -726,7 +734,7 @@ class Handler(BaseHTTPRequestHandler):
             candidate_path=None
             try:
                 content_type=self.headers.get('Content-Type','')
-                header=(f"Content-Type: {content_type}\\r\\nMIME-Version: 1.0\\r\\n\\r\\n").encode('ascii','strict')
+                header=(f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n").encode('ascii','strict')
                 message=BytesParser(policy=email_policy).parsebytes(header+raw_bytes)
                 if not message.is_multipart():
                     raise ValueError('فرم بارگذاری فایل معتبر نیست.')
