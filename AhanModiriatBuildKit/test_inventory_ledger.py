@@ -49,6 +49,23 @@ def main():
             page = response.read().decode("utf-8")
             assert response.status == 200
             assert "انبارگردانی و تعدیل موجودی" in page
+
+        # Editing stock from the product form must also create an inventory movement.
+        edit_data=urllib.parse.urlencode({
+            "product_id":str(pid),"name":"test steel","code":"","unit":"kg","stock":"6",
+            "avg_cost":"10","market_price":"15","min_stock":"0","notes":"manual correction",
+            "category":"سایر","purchase_unit":"bundle","purchase_factor":"10",
+            "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
+        }).encode("utf-8")
+        edit_request=urllib.request.Request(
+            f"http://127.0.0.1:{port}/update_product",data=edit_data,
+            headers={"Host":f"127.0.0.1:{port}","Content-Type":"application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        with urllib.request.urlopen(edit_request,timeout=5) as response:
+            edit_page=response.read().decode("utf-8")
+            assert response.status==200
+            assert "کالاها" in edit_page
     finally:
         server.shutdown()
         server.server_close()
@@ -63,10 +80,16 @@ def main():
         assert adjustment["counted_qty"] == 7
         assert adjustment["delta_qty"] == -14
         assert adjustment["reason"] == "شمارش فیزیکی"
+        edit_adjustment=c.execute("SELECT * FROM inventory_adjustments WHERE product_id=? ORDER BY id DESC LIMIT 1",(pid,)).fetchone()
+        assert edit_adjustment["expected_qty"]==7 and edit_adjustment["counted_qty"]==6
+        assert edit_adjustment["delta_qty"]==-1
+        assert edit_adjustment["reason"]=="اصلاح موجودی از فرم ویرایش کالا"
+        assert c.execute("SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=?",(pid,)).fetchone()[0]==2
+        assert p["stock"]==6
         ledger = app.product_ledger_page(c, pid)
         assert "خرید" in ledger and "فروش" in ledger and "تعدیل انبار" in ledger
         assert "مانده پس از گردش" in ledger
-        assert "25 kg" in ledger and "21 kg" in ledger and "7 kg" in ledger
+        assert "25 kg" in ledger and "21 kg" in ledger and "7 kg" in ledger and "6 kg" in ledger
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("INVENTORY ADJUSTMENT AND MOVEMENT LEDGER TESTS PASSED")
 
