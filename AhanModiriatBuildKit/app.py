@@ -199,7 +199,7 @@ def purchase_advice(c):
         rows.append([esc(r["name"]),f'{r["stock"]:g} {esc(r["unit"])}',f'{r["min_stock"]:g}',
                      f'{r["sold"]:g} {esc(r["unit"])}',f'{r["daily"]:.3f}',cover,
                      f'{r["target"]:.3f}',f'{r["recommend"]:.3f} {esc(r["unit"])}',urgency])
-    body=f\'''<h1>پیشنهاد خرید کالا</h1>
+    body=f'''<h1>پیشنهاد خرید کالا</h1>
     <div class="notice">برآورد ساده بر پایهٔ فروش ثبت‌شدهٔ ۳۰ روز اخیر است: هدف موجودی = حداقل موجودی ایمن + فروش ۳۰ روز اخیر. این محاسبه جایگزین بررسی موجودی فیزیکی، سفارش‌های در راه و زمان واقعی تأمین نیست.</div>
     <div class="card section"><h2>پیشنهاد سفارش</h2>
     {table(["کالا","موجودی فعلی","حداقل ایمن","فروش ۳۰ روز","میانگین روزانه","پوشش موجودی","هدف موجودی","مقدار پیشنهادی سفارش","وضعیت"],rows)}
@@ -867,7 +867,10 @@ def expenses(c):
     return page('هزینه‌ها',body,'expenses')
 def loans(c):
     body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
-    rows=[[r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),f'{r["interval_value"]} {{"day":"روز","week":"هفته","month":"ماه","year":"سال"}.get(r["interval_unit"],r["interval_unit"])}',esc(r['rate_note'])] for r in c.execute('SELECT * FROM loans ORDER BY next_date')]
+    rows=[]
+    for r in c.execute('SELECT * FROM loans ORDER BY next_date'):
+        interval_label={"day":"روز","week":"هفته","month":"ماه","year":"سال"}.get(r["interval_unit"],r["interval_unit"])
+        rows.append([r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),f'{r["interval_value"]} {interval_label}',esc(r['rate_note'])])
     body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","دوره پرداخت","شرایط"],rows)}</div>'
     payments=[[show_date(r['date']),esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute('SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id ORDER BY lp.date DESC LIMIT 100')]
     body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments)}</div>'
