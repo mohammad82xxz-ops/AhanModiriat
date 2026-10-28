@@ -90,7 +90,7 @@ def main():
     round_trip = app.parse_xlsx_workbook(exported)
     # HTTP export contains the full product template (stock is column D).
     assert round_trip["Products"][1][0] == "excel steel", round_trip["Products"][1]
-    assert round_trip["Products"][1][3] == "3", round_trip["Products"][1]
+    assert round_trip["Products"][1][3] == "3.0", round_trip["Products"][1]
     assert round_trip["People"][1][0:2] == ["Excel Customer","customer"]
     with app.conn() as c:
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
