@@ -313,6 +313,71 @@ def restore_database_from_file(source_path):
     # Apply additive migrations and rebuild only missing cash-ledger links after restore.
     init()
 
+MONEY_INTEGER_COLUMNS = {
+    "products": ("avg_cost","market_price"),
+    "purchases": ("unit_cost","extra_cost","paid"),
+    "sales": ("unit_price","extra_cost","received","cost_basis"),
+    "services": ("revenue","cost","received"),
+    "expenses": ("amount",),
+    "loans": ("principal","remaining","installment"),
+    "loan_payments": ("amount","principal_part","interest_part"),
+    "cash_events": ("amount",),
+    "price_history": ("market_price",),
+    "opening_capital": ("amount",),
+    "settlements": ("amount",),
+    "purchase_returns": ("return_value",),
+    "sales_returns": ("return_value","cost_basis","extra_reversed"),
+}
+
+def migrate_money_columns_to_integer(c):
+    """Safely rebuild tables where legacy monetary columns use REAL; preserve all schema objects."""
+    migrated=0
+    for table, candidates in MONEY_INTEGER_COLUMNS.items():
+        table_row=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone()
+        if not table_row or not table_row["sql"]:
+            continue
+        create_sql=table_row["sql"]
+        info=c.execute(f'PRAGMA table_info("{table}")').fetchall()
+        money_types={row["name"]:str(row["type"] or "").strip().upper() for row in info}
+        to_convert=[name for name in candidates if money_types.get(name) in ("REAL","FLOAT","DOUBLE","NUMERIC","DECIMAL")]
+        if not to_convert:
+            continue
+        match=re.match(r'(?is)^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([A-Za-z_][A-Za-z_0-9]*)',create_sql)
+        if not match:
+            raise RuntimeError(f"ساختار جدول {table} برای مهاجرت مبلغ قابل بازسازی نیست.")
+        original_name=match.group(2)
+        if original_name.lower()!=table.lower():
+            raise RuntimeError(f"نام جدول {table} با طرح ذخیره‌شده همخوان نیست.")
+        temporary=f"__money_integer_{table}"
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(temporary,)).fetchone():
+            raise RuntimeError(f"جدول موقت مهاجرت {temporary} از قبل وجود دارد.")
+        objects=c.execute("""SELECT type,name,sql FROM sqlite_master
+                             WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL
+                             ORDER BY CASE type WHEN 'index' THEN 0 ELSE 1 END,name""",(table,)).fetchall()
+        rebuilt_sql=match.group(1)+f'"{temporary}"'+create_sql[match.end():]
+        for column in to_convert:
+            pattern=re.compile(r'(?i)(\b'+re.escape(column)+r'\s+)(?:REAL|FLOAT|DOUBLE|NUMERIC|DECIMAL)\b')
+            rebuilt_sql,count=pattern.subn(r'\1INTEGER',rebuilt_sql,count=1)
+            if count!=1:
+                raise RuntimeError(f"تعریف نوع ستون {table}.{column} قابل تبدیل نیست.")
+        columns=[row["name"] for row in info]
+        quoted_columns=",".join('"'+name.replace('"','""')+'"' for name in columns)
+        expressions=[]
+        for name in columns:
+            quoted='"'+name.replace('"','""')+'"'
+            if name in to_convert:
+                expressions.append(f"CASE WHEN {quoted} IS NULL THEN NULL ELSE CAST(ROUND({quoted}) AS INTEGER) END")
+            else:
+                expressions.append(quoted)
+        c.execute(rebuilt_sql)
+        c.execute(f'INSERT INTO "{temporary}" ({quoted_columns}) SELECT {",".join(expressions)} FROM "{table}"')
+        c.execute(f'DROP TABLE "{table}"')
+        c.execute(f'ALTER TABLE "{temporary}" RENAME TO "{table}"')
+        for obj in objects:
+            c.execute(obj["sql"])
+        migrated+=len(to_convert)
+    return migrated
+
 def init():
     create_startup_backup()
     with conn() as c:
@@ -410,6 +475,8 @@ def init():
         ''')
     # Safe additive migration; existing transactions and history are preserved.
     with conn() as c:
+        # Table rebuilds below temporarily disable foreign-key enforcement on this connection.
+        c.execute("PRAGMA foreign_keys=OFF")
         cols = {row['name'] for row in c.execute("PRAGMA table_info(products)")}
         for name, decl in {
             "category": "TEXT NOT NULL DEFAULT 'سایر'",
@@ -540,6 +607,13 @@ def init():
         if migrated:
             c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",
                       ("بازسازی گردش صندوق از اسناد قدیمی", json.dumps({"rows": migrated}, ensure_ascii=False)))
+        fk_before=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
+        converted_money_columns=migrate_money_columns_to_integer(c)
+        fk_after=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
+        if fk_after!=fk_before:
+            raise RuntimeError("مهاجرت ستون‌های پولی باعث تغییر وضعیت کلیدهای خارجی شد؛ عملیات لغو شد.")
+        c.commit()
+        c.execute("PRAGMA foreign_keys=ON")
 
 DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 def num(v, default=0):
