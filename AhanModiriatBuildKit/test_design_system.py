@@ -14,6 +14,11 @@ def main():
     root = Path(app.STATIC_DIR)
     for name in ("tokens.css", "app.css", "app.js", "icons.svg", "fa.json", "print.css"):
         assert (root / name).is_file(), f"missing local asset: {name}"
+    font_path = root / "fonts" / "Vazirmatn-Variable.woff2"
+    license_path = root / "fonts" / "OFL-Vazirmatn.txt"
+    assert font_path.is_file() and font_path.stat().st_size > 50000
+    assert font_path.read_bytes()[:4] == b"wOF2"
+    assert license_path.is_file() and "SIL OPEN FONT LICENSE" in license_path.read_text(encoding="utf-8")
     tokens = (root / "tokens.css").read_text(encoding="utf-8")
     css = (root / "app.css").read_text(encoding="utf-8")
     js = (root / "app.js").read_text(encoding="utf-8")
@@ -21,6 +26,8 @@ def main():
     assert "--neutral-50:" in tokens and "--neutral-950:" in tokens
     assert '[data-theme="dark"]' in tokens
     assert ".app-shell" in css and "prefers-reduced-motion" in css
+    assert 'url("/static/fonts/Vazirmatn-Variable.woff2") format("woff2")' in css
+    assert "font-display:swap" in css
     assert "https://" not in css + js and "http://" not in css + js
     assert "localStorage" in js and "keydown" in js
     assert "requestSubmit" in js and "e.key.toLowerCase()==='n'" in js
@@ -46,6 +53,10 @@ def main():
         req = urllib.request.Request(f"http://127.0.0.1:{port}/static/tokens.css", headers={"Host": f"127.0.0.1:{port}"})
         with urllib.request.urlopen(req, timeout=5) as response:
             assert response.status == 200 and "--brand-50" in response.read().decode("utf-8")
+        font_req=urllib.request.Request(f"http://127.0.0.1:{port}/static/fonts/Vazirmatn-Variable.woff2",headers={"Host":f"127.0.0.1:{port}"})
+        with urllib.request.urlopen(font_req,timeout=5) as response:
+            assert response.status==200 and response.headers.get("Content-Type","").startswith("font/woff2")
+            assert response.read(4)==b"wOF2"
     finally:
         server.shutdown()
         server.server_close()
