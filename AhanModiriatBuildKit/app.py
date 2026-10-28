@@ -721,7 +721,7 @@ def product_ledger_page(c, product_id, search="", page_num=1):
     <div class="card section"><p class="small">ماندهٔ هر ردیف از تمام گردش‌های قبلی محاسبه می‌شود؛ جستجو فقط ردیف‌های نمایشی را فیلتر می‌کند. در هر صفحه حداکثر ۵۰ گردش نمایش داده می‌شود.</p>
     <form method="get" action="/product_ledger" class="search-form"><input type="hidden" name="id" value="{int(product_id)}"><label>جستجوی گردش</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نوع گردش، طرف حساب یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
     {table(["تاریخ","نوع گردش","ورودی","خروجی","مانده پس از گردش","مرجع/طرف حساب","یادداشت"],rows,filtered_total)}
-    {page_nav("product_ledger",query,page_num,filtered_total,limit).replace("q=","q=")+"<input type='hidden' value='"+str(int(product_id))+"' name='id'>" if False else page_nav("product_ledger",query,page_num,filtered_total,limit)}
+    {page_nav("product_ledger",query,page_num,filtered_total,limit)}
     <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>'''
     # page_nav must preserve the selected product identifier across page transitions.
     nav=page_nav("product_ledger",query,page_num,filtered_total,limit)
