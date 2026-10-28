@@ -452,6 +452,42 @@ def init():
                     person_id = ensure_person(c, person_name, party_kind)
                     c.execute(f"UPDATE {table_name} SET {ref_column}=? WHERE id=?", (person_id,source_row["id"]))
             c.execute(f"CREATE INDEX IF NOT EXISTS ix_{table_name}_{ref_column} ON {table_name}({ref_column})")
+        # Keep party references linked even for records inserted/updated by an older code path.
+        for table_name, ref_column, text_column, party_kind in party_ref_specs:
+            c.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_{table_name}_party_insert
+                AFTER INSERT ON {table_name}
+                WHEN TRIM(COALESCE(NEW.{text_column},''))<>'' AND NEW.{ref_column} IS NULL
+                BEGIN
+                    INSERT OR IGNORE INTO people(name,kind)
+                        VALUES(TRIM(NEW.{text_column}),'{party_kind}');
+                    UPDATE people SET kind=CASE
+                        WHEN kind IN ('{party_kind}','both') THEN kind ELSE 'both' END
+                        WHERE name=TRIM(NEW.{text_column});
+                    UPDATE {table_name}
+                        SET {ref_column}=(SELECT id FROM people WHERE name=TRIM(NEW.{text_column}))
+                        WHERE id=NEW.id AND {ref_column} IS NULL;
+                END""")
+            c.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_{table_name}_party_update
+                AFTER UPDATE OF {text_column} ON {table_name}
+                WHEN TRIM(COALESCE(NEW.{text_column},''))<>''
+                  AND (NEW.{ref_column} IS NULL OR NEW.{ref_column}<>(SELECT id FROM people WHERE name=TRIM(NEW.{text_column})))
+                BEGIN
+                    INSERT OR IGNORE INTO people(name,kind)
+                        VALUES(TRIM(NEW.{text_column}),'{party_kind}');
+                    UPDATE people SET kind=CASE
+                        WHEN kind IN ('{party_kind}','both') THEN kind ELSE 'both' END
+                        WHERE name=TRIM(NEW.{text_column});
+                    UPDATE {table_name}
+                        SET {ref_column}=(SELECT id FROM people WHERE name=TRIM(NEW.{text_column}))
+                        WHERE id=NEW.id;
+                END""")
+            c.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_{table_name}_party_clear
+                AFTER UPDATE OF {text_column} ON {table_name}
+                WHEN TRIM(COALESCE(NEW.{text_column},''))=''
+                  AND NEW.{ref_column} IS NOT NULL
+                BEGIN
+                    UPDATE {table_name} SET {ref_column}=NULL WHERE id=NEW.id;
+                END""")
         # Seed the party directory from historical free-text names without rewriting source documents.
         for query, kind in (
             ("SELECT supplier FROM purchases", "supplier"),
