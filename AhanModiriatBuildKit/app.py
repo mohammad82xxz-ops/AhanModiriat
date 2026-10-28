@@ -767,9 +767,14 @@ def party_balances(c):
         add(row["name"],"payable",row["amount"])
     return balances
 
-def parties_page(c, selected=""):
+def parties_page(c, selected="", search="", page_num=1):
     balances = party_balances(c)
-    people = c.execute("SELECT * FROM people ORDER BY name").fetchall()
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total=scalar(c,"SELECT COUNT(*) FROM people WHERE name LIKE ? OR phone LIKE ? OR notes LIKE ? OR kind LIKE ?",(pattern,pattern,pattern,pattern))
+    people = c.execute("SELECT * FROM people WHERE name LIKE ? OR phone LIKE ? OR notes LIKE ? OR kind LIKE ? ORDER BY name LIMIT ? OFFSET ?",
+                       (pattern,pattern,pattern,pattern,limit,offset)).fetchall()
+    all_people = c.execute("SELECT name FROM people ORDER BY name").fetchall()
     rows = []
     from urllib.parse import quote
     for person in people:
@@ -777,7 +782,7 @@ def parties_page(c, selected=""):
         rows.append([esc(person["name"]),esc(person["kind"]),esc(person["phone"]),
                      money(bal["receivable"]),money(bal["payable"]),
                      f'<a class="btn secondary" href="/parties?name={quote(person["name"])}">ریز حساب</a>'])
-    person_opts = [(p["name"],p["name"]) for p in people]
+    person_opts = [(p["name"],p["name"]) for p in all_people]
     body = f'''<h1>طرف حساب‌ها و مانده اشخاص</h1>
     <div class="card section"><h2>ورود و خروج اکسل اشخاص</h2><div class="actions"><a class="btn" href="/export.xlsx">دانلود الگوی اکسل و اطلاعات</a></div>
     <form method="post" action="/import.xlsx" enctype="multipart/form-data"><input type="hidden" name="sheet" value="People"><div class="formgrid"><label>فایل XLSX اشخاص<input type="file" name="file" accept=".xlsx" required></label></div><div class="actions"><button>ورود اشخاص</button></div><p class="small">ستون‌های name، kind، phone و notes پشتیبانی می‌شوند. اشخاص با نام تکراری وارد نمی‌شوند.</p></form></div>
@@ -791,7 +796,10 @@ def parties_page(c, selected=""):
     {field("تاریخ","date","date",TODAY,True)}{field("مبلغ تسویه (تومان)","amount","number","0",True,"1")}
     {field("شرح/یادداشت","notes")}
     </div><div class="actions"><button>ثبت تسویه و به‌روزرسانی صندوق</button></div></form></div>
-    <div class="card section"><h2>مانده اشخاص</h2>{table(["نام","نوع","تماس","طلب ما از شخص","بدهی ما به شخص","ریز حساب"],rows)}</div>'''
+    <div class="card section"><h2>مانده اشخاص</h2>
+    <form method="get" action="/parties" class="search-form"><label>جستجوی طرف حساب</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام، نوع، تماس یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+    {table(["نام","نوع","تماس","طلب ما از شخص","بدهی ما به شخص","ریز حساب"],rows,total)}
+    {page_nav("parties",query,page_num,total,limit)}</div>'''
     selected = normalize_person(selected)
     if selected:
         statement = []
@@ -1571,7 +1579,9 @@ class Handler(BaseHTTPRequestHandler):
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
-                self.send(parties_page(c,q.get('name',[''])[0]))
+                try: page_num=int(q.get('page',['1'])[0])
+                except (TypeError,ValueError): page_num=1
+                self.send(parties_page(c,q.get('name',[''])[0],q.get('q',[''])[0],page_num))
             elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit','returns'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
