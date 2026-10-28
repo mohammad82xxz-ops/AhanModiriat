@@ -823,7 +823,7 @@ def party_balances(c):
         add(row["name"],"payable",row["amount"])
     return balances
 
-def parties_page(c, selected="", search="", page_num=1):
+def parties_page(c, selected="", search="", page_num=1, statement_page=1):
     balances = party_balances(c)
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
@@ -858,18 +858,36 @@ def parties_page(c, selected="", search="", page_num=1):
     {page_nav("parties",query,page_num,total,limit)}</div>'''
     selected = normalize_person(selected)
     if selected:
-        statement = []
-        for r in c.execute("SELECT date,'فروش کالا' kind,qty*unit_price total,received settled,notes FROM sales WHERE TRIM(customer)=?",(selected,)):
-            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
-        for r in c.execute("SELECT date,'خدمات' kind,revenue total,received settled,notes FROM services WHERE TRIM(customer)=?",(selected,)):
-            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
-        for r in c.execute("SELECT date,'خرید' kind,qty*unit_cost+extra_cost total,paid settled,notes FROM purchases WHERE TRIM(supplier)=?",(selected,)):
-            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
-        for r in c.execute("SELECT date,CASE WHEN kind='receive' THEN 'دریافت تسویه' ELSE 'پرداخت تسویه' END kind,amount total,amount settled,notes FROM settlements WHERE TRIM(party)=?",(selected,)):
-            statement.append((r["date"],r["kind"],r["total"],r["settled"],r["notes"]))
-        statement.sort(key=lambda x:(x[0] or "",x[1]),reverse=True)
-        details = [[show_date(r[0]),esc(r[1]),money(r[2]),money(r[3]),money(float(r[2] or 0)-float(r[3] or 0)),esc(r[4] or "")] for r in statement]
-        body += f'<div class="card section"><h2>ریز حساب: {esc(selected)}</h2>{table(["تاریخ","شرح","مبلغ سند","پرداخت/دریافت این سند","مانده همان سند","یادداشت"],details)}<div class="actions"><a class="btn secondary" href="/parties">بستن ریز حساب</a></div></div>'
+        stmt_limit,stmt_offset,statement_page=page_window(statement_page,50)
+        statement_sql="""SELECT id,date,'فروش کالا' AS kind,qty*unit_price AS total,received AS settled,notes,'sales' AS source_type
+                           FROM sales WHERE TRIM(customer)=:person
+                           UNION ALL
+                           SELECT id,date,'خدمات',revenue,received,notes,'services'
+                           FROM services WHERE TRIM(customer)=:person
+                           UNION ALL
+                           SELECT id,date,'خرید',qty*unit_cost+extra_cost,paid,notes,'purchases'
+                           FROM purchases WHERE TRIM(supplier)=:person
+                           UNION ALL
+                           SELECT id,date,CASE WHEN kind='receive' THEN 'دریافت تسویه' ELSE 'پرداخت تسویه' END,
+                                  amount,amount,notes,'settlements'
+                           FROM settlements WHERE TRIM(party)=:person
+                           UNION ALL
+                           SELECT id,date,'مرجوعی فروش',-return_value,-refund_amount,notes,'sales_returns'
+                           FROM sales_returns WHERE TRIM(customer)=:person
+                           UNION ALL
+                           SELECT id,date,'مرجوعی خرید',-return_value,-cash_refund,notes,'purchase_returns'
+                           FROM purchase_returns WHERE TRIM(supplier)=:person"""
+        statement_total=scalar(c,"SELECT COUNT(*) FROM ("+statement_sql+") statement_rows",{"person":selected})
+        statement=c.execute("SELECT * FROM ("+statement_sql+") statement_rows ORDER BY date DESC,id DESC,source_type DESC LIMIT :limit OFFSET :offset",
+                            {"person":selected,"limit":stmt_limit,"offset":stmt_offset}).fetchall()
+        details=[[show_date(r["date"]),esc(r["kind"]),money(r["total"]),money(r["settled"]),
+                  money(float(r["total"] or 0)-float(r["settled"] or 0)),esc(r["notes"] or "")]
+                 for r in statement]
+        body += f'''<div class="card section"><h2>ریز حساب: {esc(selected)}</h2>
+        <p class="small">مرجوعی خرید و فروش در ریزحساب با مبلغ منفی نمایش داده می‌شود؛ وجه واقعی برگشتی در ستون تسویه اثر معکوس دارد.</p>
+        {table(["تاریخ","شرح","مبلغ سند","پرداخت/دریافت این سند","مانده همان سند","یادداشت"],details,statement_total)}
+        {page_nav("parties","",statement_page,statement_total,stmt_limit,extra_params={"name":selected},query_key=None,page_key="spage")}
+        <div class="actions"><a class="btn secondary" href="/parties">بستن ریز حساب</a></div></div>'''
     return page("طرف حساب‌ها",body,"parties")
 
 def calc(c, start=None, end=None):
@@ -1656,9 +1674,12 @@ class Handler(BaseHTTPRequestHandler):
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
-                try: page_num=int(q.get('page',['1'])[0])
-                except (TypeError,ValueError): page_num=1
-                self.send(parties_page(c,q.get('name',[''])[0],q.get('q',[''])[0],page_num))
+                try:
+                    page_num=int(q.get('page',['1'])[0])
+                    statement_page=int(q.get('spage',['1'])[0])
+                except (TypeError,ValueError):
+                    page_num=1; statement_page=1
+                self.send(parties_page(c,q.get('name',[''])[0],q.get('q',[''])[0],page_num,statement_page))
             elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit','returns'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
