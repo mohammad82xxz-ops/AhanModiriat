@@ -62,6 +62,13 @@ def main():
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert c.execute("SELECT COUNT(*) FROM people WHERE name='legacy supplier'").fetchone()[0] == 1
         assert c.execute("SELECT COUNT(*) FROM people WHERE name='legacy customer'").fetchone()[0] == 1
+        supplier_ref = c.execute("SELECT supplier_person_id FROM purchases WHERE supplier='legacy supplier'").fetchone()[0]
+        customer_ref = c.execute("SELECT customer_person_id FROM sales WHERE customer='legacy customer'").fetchone()[0]
+        service_ref = c.execute("SELECT customer_person_id FROM services WHERE customer='legacy customer'").fetchone()[0]
+        assert supplier_ref and customer_ref and service_ref
+        assert c.execute("SELECT name FROM people WHERE id=?", (supplier_ref,)).fetchone()[0] == "legacy supplier"
+        assert c.execute("SELECT name FROM people WHERE id=?", (customer_ref,)).fetchone()[0] == "legacy customer"
+        assert c.execute("PRAGMA foreign_key_check").fetchall() == []
     print("CASH LEDGER MIGRATION TESTS PASSED")
 
 
