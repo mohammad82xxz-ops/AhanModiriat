@@ -68,7 +68,8 @@ def main() -> None:
             browser = playwright.chromium.launch()
             try:
                 # Confirm that every required UI asset is served by the local application.
-                with browser.new_context() as asset_context:
+                asset_context = browser.new_context()
+                try:
                     for asset in (
                         "tokens.css",
                         "app.css",
@@ -85,6 +86,8 @@ def main() -> None:
                                 errors.append(f"WOFF2 MIME type is {content_type!r}, expected 'font/woff2'.")
                             if not response.body().startswith(b"wOF2"):
                                 errors.append("Vazirmatn font response does not have the WOFF2 signature.")
+                finally:
+                    asset_context.close()
 
                 for width, height in VIEWPORTS:
                     for theme in THEMES:
@@ -151,7 +154,7 @@ def main() -> None:
                                 if metadata["unnamedIconButtons"]:
                                     errors.append(f"{prefix}: icon-only button lacks aria-label: {metadata['unnamedIconButtons'][0]}")
 
-                                page.evaluate("() => document.fonts.ready")
+                                page.evaluate("() => document.fonts.ready.then(() => true)")
                                 shot_path = screenshot_dir / f"{slug}-{width}x{height}-{theme}.png"
                                 page.screenshot(path=str(shot_path), full_page=False, animations="disabled")
                                 if not shot_path.is_file() or shot_path.stat().st_size < 1000:
