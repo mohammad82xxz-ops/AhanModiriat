@@ -61,6 +61,8 @@ def main():
         second_page = app.products(c, "needle product", 2)
         assert "نمایش 5 رکورد از مجموع 55 رکورد" in second_page
         assert "صفحه 2 از 2" in second_page
+        price_page=app.prices(c,pid,"needle price",1)
+        assert f"/prices?product_id={pid}&amp;q=needle%20price&amp;page=2" in price_page
         filtered = app.products(c, "needle product 054", 1)
         assert "نمایش 1 رکورد از مجموع 1 رکورد" in filtered
         assert "needle product 054" in filtered
