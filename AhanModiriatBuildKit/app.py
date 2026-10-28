@@ -859,33 +859,57 @@ def parties_page(c, selected="", search="", page_num=1, statement_page=1):
     selected = normalize_person(selected)
     if selected:
         stmt_limit,stmt_offset,statement_page=page_window(statement_page,50)
-        statement_sql="""SELECT id,date,'فروش کالا' AS kind,qty*unit_price AS total,received AS settled,notes,'sales' AS source_type
+        statement_sql="""SELECT id,date,'فروش کالا' AS kind,
+                                  qty*unit_price AS total,received AS settled,notes,'sales' AS source_type,
+                                  qty*unit_price-received AS receivable_delta,0 AS payable_delta
                            FROM sales WHERE TRIM(customer)=:person
                            UNION ALL
-                           SELECT id,date,'خدمات',revenue,received,notes,'services'
+                           SELECT id,date,'خدمات',revenue,received,notes,'services',
+                                  revenue-received,0
                            FROM services WHERE TRIM(customer)=:person
                            UNION ALL
-                           SELECT id,date,'خرید',qty*unit_cost+extra_cost,paid,notes,'purchases'
+                           SELECT id,date,'خرید',qty*unit_cost+extra_cost,paid,notes,'purchases',
+                                  0,qty*unit_cost+extra_cost-paid
                            FROM purchases WHERE TRIM(supplier)=:person
                            UNION ALL
-                           SELECT id,date,CASE WHEN kind='receive' THEN 'دریافت تسویه' ELSE 'پرداخت تسویه' END,
-                                  amount,amount,notes,'settlements'
+                           SELECT id,date,
+                                  CASE WHEN kind='receive' THEN 'دریافت تسویه' ELSE 'پرداخت تسویه' END,
+                                  -amount,0,notes,'settlements',
+                                  CASE WHEN kind='receive' THEN -amount ELSE 0 END,
+                                  CASE WHEN kind='pay' THEN -amount ELSE 0 END
                            FROM settlements WHERE TRIM(party)=:person
                            UNION ALL
-                           SELECT id,date,'مرجوعی فروش',-return_value,-refund_amount,notes,'sales_returns'
+                           SELECT id,date,'مرجوعی فروش',-return_value,-refund_amount,notes,'sales_returns',
+                                  -return_value+refund_amount,0
                            FROM sales_returns WHERE TRIM(customer)=:person
                            UNION ALL
-                           SELECT id,date,'مرجوعی خرید',-return_value,-cash_refund,notes,'purchase_returns'
+                           SELECT id,date,'مرجوعی خرید',-return_value,-cash_refund,notes,'purchase_returns',
+                                  0,-return_value+cash_refund
                            FROM purchase_returns WHERE TRIM(supplier)=:person"""
-        statement_total=scalar(c,"SELECT COUNT(*) FROM ("+statement_sql+") statement_rows",{"person":selected})
-        statement=c.execute("SELECT * FROM ("+statement_sql+") statement_rows ORDER BY date DESC,id DESC,source_type DESC LIMIT :limit OFFSET :offset",
-                            {"person":selected,"limit":stmt_limit,"offset":stmt_offset}).fetchall()
+        statement_params={"person":selected}
+        statement_total=scalar(c,"SELECT COUNT(*) FROM ("+statement_sql+") statement_rows",statement_params)
+        statement=c.execute("""WITH raw AS ("""+statement_sql+"""),
+            rolled AS (
+                SELECT raw.*,
+                       (COALESCE(total,0)-COALESCE(settled,0)) AS effect,
+                       SUM(receivable_delta) OVER (
+                           ORDER BY date ASC,id ASC,source_type ASC
+                           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS receivable_balance,
+                       SUM(payable_delta) OVER (
+                           ORDER BY date ASC,id ASC,source_type ASC
+                           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS payable_balance
+                FROM raw
+            )
+            SELECT * FROM rolled
+            ORDER BY date DESC,id DESC,source_type DESC
+            LIMIT :limit OFFSET :offset""",
+            {**statement_params,"limit":stmt_limit,"offset":stmt_offset}).fetchall()
         details=[[show_date(r["date"]),esc(r["kind"]),money(r["total"]),money(r["settled"]),
-                  money(float(r["total"] or 0)-float(r["settled"] or 0)),esc(r["notes"] or "")]
+                  money(r["effect"]),money(r["receivable_balance"]),money(r["payable_balance"]),esc(r["notes"] or "")]
                  for r in statement]
         body += f'''<div class="card section"><h2>ریز حساب: {esc(selected)}</h2>
-        <p class="small">مرجوعی خرید و فروش در ریزحساب با مبلغ منفی نمایش داده می‌شود؛ وجه واقعی برگشتی در ستون تسویه اثر معکوس دارد.</p>
-        {table(["تاریخ","شرح","مبلغ سند","پرداخت/دریافت این سند","مانده همان سند","یادداشت"],details,statement_total)}
+        <p class="small">اثر هر سند بر مانده و دو ماندهٔ تجمعی دریافتنی/پرداختنی پیش از صفحه‌بندی با SQL محاسبه می‌شوند. مرجوعی و تسویه در گردش تجمعی لحاظ می‌شوند.</p>
+        {table(["تاریخ","شرح","مبلغ سند","پرداخت/دریافت این سند","اثر بر مانده","مانده تجمعی دریافتنی","مانده تجمعی پرداختنی","یادداشت"],details,statement_total)}
         {page_nav("parties","",statement_page,statement_total,stmt_limit,extra_params={"name":selected},query_key=None,page_key="spage")}
         <div class="actions"><a class="btn secondary" href="/parties">بستن ریز حساب</a></div></div>'''
     return page("طرف حساب‌ها",body,"parties")
