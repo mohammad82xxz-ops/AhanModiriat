@@ -78,16 +78,15 @@ def main():
             person = c.execute("SELECT * FROM people WHERE name='Excel Customer'").fetchone()
             assert person is not None and person["kind"] == "customer"
             assert c.execute("SELECT COUNT(*) FROM people WHERE name='Excel Customer'").fetchone()[0] == 1
+        request = urllib.request.Request(f"http://127.0.0.1:{port}/export.xlsx", headers={"Host": f"127.0.0.1:{port}"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            assert response.status == 200
+            assert "spreadsheetml.sheet" in response.headers.get("Content-Type","")
+            exported = response.read()
     finally:
         server.shutdown()
         server.server_close()
 
-    request = urllib.request.Request(f"http://127.0.0.1:{port}/export.xlsx", headers={"Host": f"127.0.0.1:{port}"})
-    # The server is closed after the import tests; export utility can still be verified directly.
-    exported = app.build_xlsx_workbook([
-        ("Products",[["name","stock"],["excel steel",3]]),
-        ("People",[["name","kind"],["Excel Customer","customer"]]),
-    ])
     round_trip = app.parse_xlsx_workbook(exported)
     assert round_trip["Products"][1] == ["excel steel","3"]
     assert round_trip["People"][1] == ["Excel Customer","customer"]
