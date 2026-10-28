@@ -30,6 +30,9 @@ def post(port, path, fields):
 
 
 def main():
+    assert app.money_int("80.5") == 81
+    assert app.money_int("80.4") == 80
+    assert app.money_int("-80.5") == -81
     app.init()
     with app.conn() as c:
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
