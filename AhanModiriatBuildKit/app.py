@@ -951,9 +951,10 @@ class Handler(BaseHTTPRequestHandler):
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
                     base_qty=qty*factor
                     newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=(oldvalue+qty*cost+extra)/newstock if newstock else 0
-                    c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
+                    purchase_cur=c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
+                    purchase_id=purchase_cur.lastrowid
                     ensure_person(c,v('supplier'),'supplier')
-                    sync_cash_posting(c,"purchases",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
+                    sync_cash_posting(c,"purchases",purchase_id,to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
                     pid=int(v('product_id')); qty=num(v('qty')); price=num(v('unit_price')); extra=num(v('extra_cost')); received=num(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
@@ -961,14 +962,16 @@ class Handler(BaseHTTPRequestHandler):
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
                     base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
-                    c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    sale_cur=c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    sale_id=sale_cur.lastrowid
                     ensure_person(c,v('customer'),'customer')
-                    sync_cash_posting(c,"sales",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
+                    sync_cash_posting(c,"sales",sale_id,to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
-                    c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')))
+                    service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')))
+                    service_id=service_cur.lastrowid
                     ensure_person(c,v('customer'),'customer')
-                    sync_cash_posting(c,"services",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
+                    sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
                     c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
