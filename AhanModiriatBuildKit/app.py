@@ -1165,7 +1165,8 @@ def prices(c):
     body+=f'<div class="card section"><h2>تاریخچه قیمت‌ها</h2>{table(["تاریخ","کالا","قیمت روز","یادداشت"],rows)}</div>'
     return page('قیمت روز',body,'prices')
 def report_detail_sections(c):
-    product_rows=[]
+    # Product profitability, net of sales returns, sorted by true numeric profit.
+    product_metrics=[]
     for r in c.execute("""SELECT p.id,p.name,
         COALESCE(s.rev,0) AS sold_rev, COALESCE(s.cost,0) AS sold_cost, COALESCE(s.extra,0) AS sold_extra,
         COALESCE(sr.rev,0) AS return_rev, COALESCE(sr.cost,0) AS return_cost, COALESCE(sr.extra,0) AS return_extra
@@ -1176,54 +1177,74 @@ def report_detail_sections(c):
         revenue=float(r["sold_rev"] or 0)-float(r["return_rev"] or 0)
         cost=float(r["sold_cost"] or 0)-float(r["return_cost"] or 0)
         extra=float(r["sold_extra"] or 0)-float(r["return_extra"] or 0)
-        product_rows.append([esc(r["name"]),money(revenue),money(cost),money(extra),money(revenue-cost-extra)])
-    product_rows.sort(key=lambda row: -float(str(row[-1]).replace(",","")) if row[-1].replace(",","").replace("-","").replace(".","").isdigit() else 0)
-    # Customer profit combines goods and services, net of sales returns.
+        product_metrics.append({"name":r["name"],"revenue":revenue,"cost":cost,"extra":extra,"profit":revenue-cost-extra})
+    product_metrics.sort(key=lambda item:item["profit"],reverse=True)
+    product_rows=[[esc(r["name"]),money(r["revenue"]),money(r["cost"]),money(r["extra"]),money(r["profit"])] for r in product_metrics]
+
+    # Customer profit includes goods, returned goods, and services.
     customer_stats={}
     def customer_bucket(name):
         name=normalize_person(name) or "(بدون نام)"
         return customer_stats.setdefault(name,{"sales_rev":0.0,"sales_cost":0.0,"sales_extra":0.0,"service_rev":0.0,"service_cost":0.0})
     for r in c.execute("SELECT TRIM(customer) customer,SUM(qty*unit_price) rev,SUM(qty*cost_basis) cost,SUM(extra_cost) extra FROM sales GROUP BY TRIM(customer)"):
-        b=customer_bucket(r["customer"]); b["sales_rev"]+=float(r["rev"] or 0); b["sales_cost"]+=float(r["cost"] or 0); b["sales_extra"]+=float(r["extra"] or 0)
+        b=customer_bucket(r["customer"])
+        b["sales_rev"]+=float(r["rev"] or 0); b["sales_cost"]+=float(r["cost"] or 0); b["sales_extra"]+=float(r["extra"] or 0)
     for r in c.execute("SELECT TRIM(customer) customer,SUM(return_value) rev,SUM(qty*cost_basis) cost,SUM(extra_reversed) extra FROM sales_returns GROUP BY TRIM(customer)"):
-        b=customer_bucket(r["customer"]); b["sales_rev"]-=float(r["rev"] or 0); b["sales_cost"]-=float(r["cost"] or 0); b["sales_extra"]-=float(r["extra"] or 0)
+        b=customer_bucket(r["customer"])
+        b["sales_rev"]-=float(r["rev"] or 0); b["sales_cost"]-=float(r["cost"] or 0); b["sales_extra"]-=float(r["extra"] or 0)
     for r in c.execute("SELECT TRIM(customer) customer,SUM(revenue) rev,SUM(cost) cost FROM services GROUP BY TRIM(customer)"):
-        b=customer_bucket(r["customer"]); b["service_rev"]+=float(r["rev"] or 0); b["service_cost"]+=float(r["cost"] or 0)
-    customer_rows=[]
+        b=customer_bucket(r["customer"])
+        b["service_rev"]+=float(r["rev"] or 0); b["service_cost"]+=float(r["cost"] or 0)
+    customer_metrics=[]
     for name,b in customer_stats.items():
         sales_profit=b["sales_rev"]-b["sales_cost"]-b["sales_extra"]
         service_profit=b["service_rev"]-b["service_cost"]
-        customer_rows.append([esc(name),money(b["sales_rev"]),money(sales_profit),money(b["service_rev"]),money(service_profit),money(sales_profit+service_profit)])
-    customer_rows.sort(key=lambda row:float(row[-1].replace(",","")) if row[-1].replace(",","").replace("-","").replace(".","").isdigit() else 0,reverse=True)
-    # Monthly net profit deducts sale-return value and reverses returned unit costs.
+        customer_metrics.append({"name":name,"sales_rev":b["sales_rev"],"sales_profit":sales_profit,
+                                 "service_rev":b["service_rev"],"service_profit":service_profit,
+                                 "profit":sales_profit+service_profit})
+    customer_metrics.sort(key=lambda item:item["profit"],reverse=True)
+    customer_rows=[[esc(r["name"]),money(r["sales_rev"]),money(r["sales_profit"]),money(r["service_rev"]),money(r["service_profit"]),money(r["profit"])] for r in customer_metrics]
+
+    # Aggregate by Jalali month, converting stored Gregorian ISO dates at the boundary.
     months={}
-    def month_bucket(month):
-        return months.setdefault(month,{"sales_rev":0.0,"sales_cost":0.0,"sales_extra":0.0,"service_rev":0.0,"service_cost":0.0,"expenses":0.0,"interest":0.0})
-    month_queries=[
-        ("SELECT substr(date,1,7) m,SUM(qty*unit_price) value FROM sales GROUP BY substr(date,1,7)","sales_rev",1),
-        ("SELECT substr(date,1,7) m,SUM(qty*cost_basis) value FROM sales GROUP BY substr(date,1,7)","sales_cost",1),
-        ("SELECT substr(date,1,7) m,SUM(extra_cost) value FROM sales GROUP BY substr(date,1,7)","sales_extra",1),
-        ("SELECT substr(date,1,7) m,SUM(return_value) value FROM sales_returns GROUP BY substr(date,1,7)","sales_rev",-1),
-        ("SELECT substr(date,1,7) m,SUM(qty*cost_basis) value FROM sales_returns GROUP BY substr(date,1,7)","sales_cost",-1),
-        ("SELECT substr(date,1,7) m,SUM(extra_reversed) value FROM sales_returns GROUP BY substr(date,1,7)","sales_extra",-1),
-        ("SELECT substr(date,1,7) m,SUM(revenue) value FROM services GROUP BY substr(date,1,7)","service_rev",1),
-        ("SELECT substr(date,1,7) m,SUM(cost) value FROM services GROUP BY substr(date,1,7)","service_cost",1),
-        ("SELECT substr(date,1,7) m,SUM(amount) value FROM expenses WHERE business=1 GROUP BY substr(date,1,7)","expenses",1),
-        ("SELECT substr(date,1,7) m,SUM(interest_part) value FROM loan_payments GROUP BY substr(date,1,7)","interest",1),
+    def month_bucket(key):
+        return months.setdefault(key,{"sales_rev":0.0,"sales_cost":0.0,"sales_extra":0.0,
+                                      "service_rev":0.0,"service_cost":0.0,"expenses":0.0,"interest":0.0})
+    def add_monthly(sql, key, sign=1):
+        for row in c.execute(sql):
+            if not row["date"]:
+                continue
+            try:
+                gy,gm,gd=map(int,str(row["date"]).split("-")[:3])
+                jy,jm,jd=gregorian_to_jalali(gy,gm,gd)
+            except (TypeError,ValueError):
+                continue
+            month_key=(jy,jm)
+            month_bucket(month_key)[key]+=sign*float(row["value"] or 0)
+    monthly_queries=[
+        ("SELECT date,SUM(qty*unit_price) value FROM sales GROUP BY date","sales_rev",1),
+        ("SELECT date,SUM(qty*cost_basis) value FROM sales GROUP BY date","sales_cost",1),
+        ("SELECT date,SUM(extra_cost) value FROM sales GROUP BY date","sales_extra",1),
+        ("SELECT date,SUM(return_value) value FROM sales_returns GROUP BY date","sales_rev",-1),
+        ("SELECT date,SUM(qty*cost_basis) value FROM sales_returns GROUP BY date","sales_cost",-1),
+        ("SELECT date,SUM(extra_reversed) value FROM sales_returns GROUP BY date","sales_extra",-1),
+        ("SELECT date,SUM(revenue) value FROM services GROUP BY date","service_rev",1),
+        ("SELECT date,SUM(cost) value FROM services GROUP BY date","service_cost",1),
+        ("SELECT date,SUM(amount) value FROM expenses WHERE business=1 GROUP BY date","expenses",1),
+        ("SELECT date,SUM(interest_part) value FROM loan_payments GROUP BY date","interest",1),
     ]
-    for sql,key,sign in month_queries:
-        for r in c.execute(sql):
-            if r["m"]:
-                month_bucket(r["m"])[key]+=sign*float(r["value"] or 0)
+    for sql,key,sign in monthly_queries:
+        add_monthly(sql,key,sign)
     monthly_rows=[]
-    for month,b in sorted(months.items(),reverse=True)[:24]:
+    for (jy,jm),b in sorted(months.items(),reverse=True)[:24]:
         sales_profit=b["sales_rev"]-b["sales_cost"]-b["sales_extra"]
         service_profit=b["service_rev"]-b["service_cost"]
         net=sales_profit+service_profit-b["expenses"]-b["interest"]
-        monthly_rows.append([esc(show_date(month+"-01")),money(b["sales_rev"]),money(sales_profit),money(service_profit),money(b["expenses"]),money(b["interest"]),money(net)])
+        monthly_rows.append([f"{jy:04d}/{jm:02d}",money(b["sales_rev"]),money(sales_profit),money(service_profit),
+                             money(b["expenses"]),money(b["interest"]),money(net)])
     return f'''<div class="card section"><h2>سود تفصیلی به تفکیک کالا</h2><p class="small">مرجوعی فروش از فروش، بهای تمام‌شده و هزینه مستقیم کسر شده است.</p>{table(["کالا","فروش خالص","بهای تمام‌شده خالص","هزینه مستقیم خالص","سود فروش کالا"],product_rows,len(product_rows))}</div>
     <div class="card section"><h2>سود به تفکیک مشتری</h2>{table(["مشتری","فروش کالای خالص","سود فروش کالا","درآمد خدمات","سود خدمات","سود کل مشتری"],customer_rows,len(customer_rows))}</div>
-    <div class="card section"><h2>سود خالص ماهانه</h2>{table(["ماه","فروش کالای خالص","سود فروش کالا","سود خدمات","هزینه کسب‌وکار","سود/کارمزد وام","سود خالص"],monthly_rows,len(monthly_rows))}</div>'''
+    <div class="card section"><h2>سود خالص ماهانه (تقویم شمسی)</h2>{table(["ماه شمسی","فروش کالای خالص","سود فروش کالا","سود خدمات","هزینه کسب‌وکار","سود/کارمزد وام","سود خالص"],monthly_rows,len(monthly_rows))}</div>'''
 
 def reports(c):
     start=html.escape(jalali_month_start_iso()); end=TODAY
