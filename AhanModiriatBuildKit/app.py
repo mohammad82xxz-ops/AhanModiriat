@@ -878,7 +878,7 @@ def design_page(c=None):
     <section class="card section"><h2>وضعیت پیام‌ها</h2><div class="success" role="status">ذخیره شد؛ اطلاعات ثبت شدند.</div><div class="notice err" role="alert">ذخیره انجام نشد؛ پایگاه داده قفل است. کمی بعد دوباره تلاش کن.</div></section>'''
     return page('سیستم طراحی',body,'design')
 
-MONEY_FIELDS = {'unit_cost','unit_price','extra_cost','paid','received','revenue','cost','amount','principal','remaining','installment','principal_part','interest_part','market_price','avg_cost','capital'}
+MONEY_FIELDS = {'unit_cost','unit_price','extra_cost','paid','received','revenue','cost','amount','principal','remaining','installment','principal_part','interest_part','market_price','avg_cost','capital','refund_amount','cash_refund'}
 def field(label,name,typ='text',value='',required=False,step=None,placeholder=''):
     req='required' if required else ''
     st=f' step="{step}"' if step and typ != 'date' else ''
