@@ -31,6 +31,8 @@ def main():
         loan_id = c.execute("SELECT id FROM loans WHERE title='report loan'").fetchone()[0]
         c.execute("""INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes)
                      VALUES(?,'2026-05-13',10,0,10,'cash','interest test')""", (loan_id,))
+        c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-01',?,90,'first price')",(pid,))
+        c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-15',?,110,'second price')",(pid,))
         html = app.report_detail_sections(c)
         assert "profit product" in html
         assert "Customer Profit" in html
@@ -41,6 +43,12 @@ def main():
         assert "650" in html and "250" in html and "300" in html
         jy,jm,_ = app.gregorian_to_jalali(2026,5,15)
         assert f"{jy:04d}/{jm:02d}" in html
+        price_page = app.prices(c,pid)
+        assert "روند قیمت" in price_page and "polyline" in price_page
+        assert "۹۰" not in price_page or "90" in price_page
+        chart = app.dashboard_sales_chart(c,6)
+        assert "روند فروش ماهانه" in chart and "فروش کالا" in chart
+        assert f"{jy:04d}/{jm:02d}" in chart
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("PROFIT REPORT TESTS PASSED")
 
