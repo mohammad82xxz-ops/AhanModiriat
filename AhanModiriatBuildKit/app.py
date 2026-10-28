@@ -1199,6 +1199,8 @@ def expense_editor(c, record_id):
 
 def assert_purchase_reversible(c, row):
     pid, date, rid = row["product_id"], row["date"], row["id"]
+    if scalar(c,"SELECT COUNT(*) FROM purchase_returns WHERE purchase_id=?",(rid,)):
+        raise ValueError("این خرید دارای سند مرجوعی است؛ برای حفظ ارتباط حسابداری ابتدا مرجوعی را مستقل اصلاح کن.")
     later = (
         scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=? AND id<>?",(pid,date,rid)) +
         scalar(c,"SELECT COUNT(*) FROM sales WHERE product_id=? AND date>=?",(pid,date)) +
@@ -1209,6 +1211,8 @@ def assert_purchase_reversible(c, row):
 
 def assert_sale_reversible(c, row):
     pid, date = row["product_id"], row["date"]
+    if scalar(c,"SELECT COUNT(*) FROM sales_returns WHERE sale_id=?",(row["id"],)):
+        raise ValueError("این فروش دارای سند مرجوعی است؛ برای حفظ ریزحساب و موجودی فروش اصلی را ویرایش یا حذف نکن.")
     later = (
         scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=?",(pid,date)) +
         scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
@@ -1836,6 +1840,8 @@ class Handler(BaseHTTPRequestHandler):
                     remaining=float(sale["qty"])-already
                     if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از ماندهٔ قابل برگشت بیشتر است؛ مانده {remaining:g} {sale['unit']} است.")
                     return_value=int(round(qty*float(sale["unit_price"])))
+                    if refund>return_value:
+                        raise ValueError("وجه برگشتی از ارزش فروش مرجوع‌شده بیشتر است؛ مبلغ اضافه را جداگانه به‌عنوان هزینه ثبت کن.")
                     cost_value=qty*float(sale["cost_basis"])
                     extra_reversed=float(sale["extra_cost"] or 0)*qty/float(sale["qty"])
                     c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
