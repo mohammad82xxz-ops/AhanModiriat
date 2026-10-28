@@ -1230,10 +1230,57 @@ def loans(c):
     payments=[[show_date(r['date']),esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute('SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id ORDER BY lp.date DESC LIMIT 100')]
     body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments)}</div>'
     return page('وام‌ها',body,'loans')
-def prices(c):
-    body=f'''<h1>قیمت روز بازار</h1><div class="card section"><form method="post" action="/add_price"><div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',options_products(c))}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form><p class="small">ثبت قیمت جدید، قیمت روز فعلی کالا را به‌روزرسانی می‌کند ولی سود تحقق‌یافته معاملات قبلی را تغییر نمی‌دهد.</p></div>'''
-    rows=[[show_date(r['date']),esc(r['name']),money(r['market_price']),esc(r['notes'])] for r in c.execute('SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id ORDER BY h.date DESC,h.id DESC LIMIT 200')]
-    body+=f'<div class="card section"><h2>تاریخچه قیمت‌ها</h2>{table(["تاریخ","کالا","قیمت روز","یادداشت"],rows)}</div>'
+def prices(c, selected_product_id=0):
+    product_options=options_products(c)
+    try:
+        selected_product_id=int(selected_product_id or 0)
+    except (TypeError,ValueError):
+        selected_product_id=0
+    if selected_product_id and not c.execute("SELECT 1 FROM products WHERE id=?",(selected_product_id,)).fetchone():
+        selected_product_id=0
+    if not selected_product_id:
+        latest=c.execute("SELECT product_id FROM price_history ORDER BY date DESC,id DESC LIMIT 1").fetchone()
+        if latest:
+            selected_product_id=int(latest["product_id"])
+    selected_product=c.execute("SELECT * FROM products WHERE id=?",(selected_product_id,)).fetchone() if selected_product_id else None
+    trend_rows=[]
+    if selected_product:
+        trend_rows=c.execute("""SELECT date,market_price,notes FROM price_history WHERE product_id=?
+                                ORDER BY date DESC,id DESC LIMIT 24""",(selected_product_id,)).fetchall()
+        trend_rows=list(reversed(trend_rows))
+    chart=""
+    if trend_rows:
+        values=[float(r["market_price"] or 0) for r in trend_rows]
+        low=min(values); high=max(values); span=high-low or 1.0
+        width=760; left=56; right=738; top=22; bottom=160
+        count=len(trend_rows)
+        points=[]
+        dots=[]
+        labels=[]
+        for i,r in enumerate(trend_rows):
+            x=left+(right-left)*(i/(count-1) if count>1 else 0.5)
+            y=bottom-(float(r["market_price"] or 0)-low)/span*(bottom-top)
+            points.append(f"{x:.1f},{y:.1f}")
+            dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4"><title>{esc(show_date(r["date"]))}: {money(r["market_price"])} تومان</title></circle>')
+            label=show_date(r["date"])
+            short_label=label[5:] if len(label)>=10 else label
+            labels.append(f'<text x="{x:.1f}" y="190" text-anchor="middle">{esc(short_label)}</text>')
+        chart=f'''<div class="card section"><h2>روند قیمت: {esc(selected_product["name"])}</h2>
+          <p class="small">حداکثر ۲۴ ثبت قیمت اخیر؛ برای مشاهدهٔ مقدار هر نقطه، نشانگر را روی آن قرار بده.</p>
+          <div class="price-chart-wrap"><svg class="price-chart" viewBox="0 0 {width} 210" role="img" aria-label="نمودار روند قیمت {esc(selected_product["name"])}">
+            <line x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" class="chart-axis"/>
+            <line x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" class="chart-axis"/>
+            <text x="8" y="{top+4}">{money(high)}</text><text x="8" y="{bottom}">{money(low)}</text>
+            <polyline points="{" ".join(points)}" class="price-line"/>
+            {"".join(dots)}{"".join(labels)}
+          </svg></div>
+        </div>'''
+    body=f'''<h1>قیمت روز بازار</h1>
+    <div class="card section"><form method="post" action="/add_price"><div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
+    <p class="small">ثبت قیمت جدید، قیمت روز فعلی کالا را به‌روزرسانی می‌کند ولی سود تحقق‌یافته معاملات قبلی را تغییر نمی‌دهد.</p></div>
+    <div class="card section"><h2>انتخاب کالا برای نمودار قیمت</h2><form method="get" action="/prices"><div class="formgrid">{selectfield('کالا','product_id',product_options,value=selected_product_id)}<button>نمایش روند قیمت</button></div></form></div>
+    {chart}
+    <div class="card section"><h2>تاریخچه قیمت‌ها</h2>{table(["تاریخ","کالا","قیمت روز","یادداشت"],[[show_date(r['date']),esc(r['name']),money(r['market_price']),esc(r['notes'])] for r in c.execute('SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id ORDER BY h.date DESC,h.id DESC LIMIT 200')])}</div>'''
     return page('قیمت روز',body,'prices')
 def report_detail_sections(c):
     # Product profitability, net of sales returns, sorted by true numeric profit.
@@ -1421,6 +1468,10 @@ class Handler(BaseHTTPRequestHandler):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
                 self.send(fn(c,q.get('q',[''])[0],page_num))
+            elif path=='prices':
+                try: selected_product_id=int(q.get('product_id',['0'])[0])
+                except (TypeError,ValueError): selected_product_id=0
+                self.send(prices(c,selected_product_id))
             else:
                 self.send(fn(c))
     def do_POST(self):
