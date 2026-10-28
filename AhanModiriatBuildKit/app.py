@@ -164,6 +164,8 @@ def restore_database_from_file(source_path):
             actual = {r[1] for r in check.execute(f"PRAGMA table_info({table})")}
             if not columns.issubset(actual):
                 raise ValueError("ساختار جدول‌های اصلی پشتیبان با آهن‌مدیریت سازگار نیست.")
+    except sqlite3.DatabaseError as exc:
+        raise ValueError("فایل پشتیبان قابل خواندن نیست یا پایگاه دادهٔ SQLite معتبری نیست.") from exc
     finally:
         check.close()
     # Retain a separate snapshot of the current database before replacing anything.
