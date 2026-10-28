@@ -23,6 +23,8 @@ def main():
     assert ".app-shell" in css and "prefers-reduced-motion" in css
     assert "https://" not in css + js and "http://" not in css + js
     assert "localStorage" in js and "keydown" in js
+    assert "requestSubmit" in js and "e.key.toLowerCase()==='n'" in js
+    assert "if(!inField" in js and "F2" in js and "F3" in js and "F4" in js
     with app.conn() as c:
         rendered = app.design_page(c)
         assert "سیستم طراحی" in rendered
