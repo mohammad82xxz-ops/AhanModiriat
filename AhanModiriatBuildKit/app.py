@@ -843,7 +843,7 @@ NAV_GROUPS=[
     ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('buy-advice','پیشنهاد خرید','cart'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
     ('مالی',[('cash','صندوق و بانک','wallet'),('parties','طرف حساب‌ها','users')]),
-    ('مدیریت',[('loans','وام‌ها','calendar'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
+    ('مدیریت',[('loans','وام‌ها','calendar'),('audit','گزارش ممیزی','shield-check'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
 ]
 def svg_icon(name, cls='icon'):
     return f'<svg class="{cls}" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{esc(name)}"></use></svg>'
@@ -1405,6 +1405,37 @@ def reports(c):
     qs=parse_qs(urlparse('').query)
     # handler sets range via special global? handled in do_GET before call
     return page('گزارش‌ها',body,'reports')
+def audit_page(c):
+    rows=[]
+    for r in c.execute("SELECT id,created_at,action,details FROM audit_log ORDER BY id DESC LIMIT 200"):
+        try:
+            details=json.loads(r["details"] or "{}")
+        except (TypeError,ValueError):
+            details={}
+        fields=details.get("fields",[])
+        if isinstance(fields,list):
+            fields_text="، ".join(str(x) for x in fields)
+        else:
+            fields_text=str(fields or "")
+        record_id=details.get("record_id","")
+        actor=details.get("actor","legacy/system")
+        label={
+            "add_purchase":"ثبت خرید","update_purchase":"اصلاح خرید","delete_purchase":"حذف خرید",
+            "add_sale":"ثبت فروش","update_sale":"اصلاح فروش","delete_sale":"حذف فروش",
+            "add_expense":"ثبت هزینه","update_expense":"اصلاح هزینه","delete_expense":"حذف هزینه",
+            "add_person":"ثبت طرف حساب","add_settlement":"ثبت تسویه",
+            "add_sales_return":"مرجوعی فروش","add_purchase_return":"مرجوعی خرید",
+            "add_cash_movement":"گردش دستی صندوق","inventory_adjust":"انبارگردانی",
+            "restore_backup":"بازیابی پشتیبان","import.xlsx":"ورود اکسل",
+            "بازسازی گردش صندوق از اسناد قدیمی":"مهاجرت گردش نقدی",
+        }.get(r["action"],r["action"])
+        rows.append([esc(r["created_at"] or "زمان ثبت قدیمی در دسترس نیست"),esc(label),
+                     esc(actor),esc(record_id or "—"),esc(fields_text or "—")])
+    body=f'''<h1>گزارش ممیزی فعالیت‌ها</h1>
+    <div class="notice">برای حفظ حریم داده، گزارش ممیزی نام عملیات، زمان ثبت رخداد، شناسهٔ سند و نام فیلدهای ارسالی را ذخیره می‌کند؛ مقدار واقعی فرم‌ها در ممیزی کپی نمی‌شود. داده‌های قدیمی که پیش از فعال‌شدن timestamp ثبت شده‌اند، زمان ایجاد اصلی ندارند.</div>
+    <div class="card section"><h2>آخرین ۲۰۰ رخداد</h2>{table(["زمان رخداد","عملیات","عامل","شناسه سند","فیلدهای درخواست"],rows)}</div>'''
+    return page("گزارش ممیزی",body,"audit")
+
 def settings(c):
     capital=c.execute('SELECT * FROM opening_capital WHERE id=1').fetchone()
     body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',str(capital['amount']),True,'0.01')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>پشتیبان خودکار پیش از شروع برنامه ساخته می‌شود و ۷ نسخه آخر در پوشه <code>data/backups</code> می‌ماند. برای نگهداری خارج از دستگاه، فایل پشتیبان را نیز جداگانه کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div><p class="small">دیتابیس با حالت WAL اجرا می‌شود. هنگام بازیابی، ابتدا از دیتابیس فعلی یک پشتیبان جداگانه ساخته می‌شود.</p>
@@ -1499,7 +1530,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     self.send(page('خطا','<div class="notice">شناسه سند نامعتبر است.</div>'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page,'buy-advice':purchase_advice,'returns':returns_page}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page,'buy-advice':purchase_advice,'returns':returns_page,'audit':audit_page}
             fn=pages.get(path)
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
