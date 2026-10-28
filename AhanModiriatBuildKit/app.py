@@ -1443,7 +1443,7 @@ def prices(c, selected_product_id=0, search='', page_num=1):
     {chart}
     <div class="card section"><h2>تاریخچه قیمت‌ها</h2><form method="get" action="/prices" class="search-form"><label>جستجوی تاریخچه قیمت</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام کالا یا منبع قیمت"><input type="hidden" name="product_id" value="{selected_product_id}"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
     {table(["تاریخ","کالا","قیمت روز","یادداشت"],[[show_date(r['date']),esc(r['name']),money(r['market_price']),esc(r['notes'])] for r in history_rows],total_prices)}
-    {page_nav("prices",query,page_num,total_prices,limit)}</div>'''
+    {page_nav("prices",query,page_num,total_prices,limit,extra_params={"product_id":selected_product_id})}</div>'''
     return page('قیمت روز',body,'prices')
 def report_detail_sections(c):
     # Product profitability, net of sales returns, sorted by true numeric profit.
