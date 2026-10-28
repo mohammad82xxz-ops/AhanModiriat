@@ -25,6 +25,11 @@ def main():
                      VALUES('2026-02-03',?,2,100,0,'Supplier B',50,'partially paid purchase')""", (pid,))
         app.ensure_person(c, "Customer A", "customer")
         app.ensure_person(c, "Supplier B", "supplier")
+        sale_ref=c.execute("SELECT customer_person_id FROM sales WHERE customer='Customer A'").fetchone()[0]
+        service_ref=c.execute("SELECT customer_person_id FROM services WHERE customer='Customer A'").fetchone()[0]
+        purchase_ref=c.execute("SELECT supplier_person_id FROM purchases WHERE supplier='Supplier B'").fetchone()[0]
+        assert sale_ref and service_ref and purchase_ref
+        assert c.execute("PRAGMA foreign_key_check").fetchall()==[]
         cur = c.execute("INSERT INTO settlements(date,party,kind,amount,notes) VALUES('2026-02-04','Customer A','receive',250,'customer settlement')")
         app.sync_cash_posting(c, "settlements", cur.lastrowid, "2026-02-04", 250, "in", "Customer A", "customer settlement")
         cur = c.execute("INSERT INTO settlements(date,party,kind,amount,notes) VALUES('2026-02-05','Supplier B','pay',40,'supplier settlement')")
