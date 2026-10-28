@@ -579,7 +579,10 @@ def backfill_legacy_cash_postings(c):
         inserted += 1
     return inserted
 
-def inventory_page(c):
+def inventory_page(c, search='', page_num=1):
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total=scalar(c,"SELECT COUNT(*) FROM inventory_adjustments a JOIN products p ON p.id=a.product_id WHERE p.name LIKE ? OR a.reason LIKE ? OR a.notes LIKE ?",(pattern,pattern,pattern))
     products = options_products(c)
     body = f'''<h1>انبارگردانی و تعدیل موجودی</h1>
     <div class="card section"><h2>ثبت شمارش فیزیکی</h2>
@@ -595,11 +598,13 @@ def inventory_page(c):
     </div>'''
     rows = []
     for r in c.execute("""SELECT a.*,p.name,p.unit FROM inventory_adjustments a
-                          JOIN products p ON p.id=a.product_id ORDER BY a.date DESC,a.id DESC LIMIT 100"""):
+                          JOIN products p ON p.id=a.product_id WHERE p.name LIKE ? OR a.reason LIKE ? OR a.notes LIKE ? ORDER BY a.date DESC,a.id DESC LIMIT ? OFFSET ?""",(pattern,pattern,pattern,limit,offset)):
         rows.append([show_date(r["date"]),esc(r["name"]),f'{r["expected_qty"]:g} {esc(r["unit"])}',
                      f'{r["counted_qty"]:g} {esc(r["unit"])}',
                      f'{r["delta_qty"]:+g} {esc(r["unit"])}',esc(r["reason"]),esc(r["notes"])])
-    body += f'<div class="card section"><h2>آخرین تعدیلات</h2>{table(["تاریخ","کالا","موجودی دفتری","شمارش واقعی","اختلاف","علت","یادداشت"],rows)}</div>'
+    body += f'<div class="card section"><h2>تاریخچه انبارگردانی</h2>
+    <form method="get" action="/inventory" class="search-form"><label>جستجوی تعدیل</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، علت یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
+    {table(["تاریخ","کالا","موجودی دفتری","شمارش واقعی","اختلاف","علت","یادداشت"],rows,total)}{page_nav("inventory",query,page_num,total,limit)}</div>'
     return page("انبارگردانی","".join([body]),"inventory")
 
 def product_ledger_page(c, product_id):
@@ -1423,9 +1428,12 @@ def reports(c):
     qs=parse_qs(urlparse('').query)
     # handler sets range via special global? handled in do_GET before call
     return page('گزارش‌ها',body,'reports')
-def audit_page(c):
+def audit_page(c, search='', page_num=1):
+    limit,offset,page_num=page_window(page_num,50)
+    query=str(search or '').strip(); pattern='%'+query+'%'
+    total=scalar(c,"SELECT COUNT(*) FROM audit_log WHERE action LIKE ? OR details LIKE ?",(pattern,pattern))
     rows=[]
-    for r in c.execute("SELECT id,created_at,action,details FROM audit_log ORDER BY id DESC LIMIT 200"):
+    for r in c.execute("SELECT id,created_at,action,details FROM audit_log WHERE action LIKE ? OR details LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?",(pattern,pattern,limit,offset)):
         try:
             details=json.loads(r["details"] or "{}")
         except (TypeError,ValueError):
@@ -1451,7 +1459,7 @@ def audit_page(c):
                      esc(actor),esc(record_id or "—"),esc(fields_text or "—")])
     body=f'''<h1>گزارش ممیزی فعالیت‌ها</h1>
     <div class="notice">برای حفظ حریم داده، گزارش ممیزی نام عملیات، زمان ثبت رخداد، شناسهٔ سند و نام فیلدهای ارسالی را ذخیره می‌کند؛ مقدار واقعی فرم‌ها در ممیزی کپی نمی‌شود. داده‌های قدیمی که پیش از فعال‌شدن timestamp ثبت شده‌اند، زمان ایجاد اصلی ندارند.</div>
-    <div class="card section"><h2>آخرین ۲۰۰ رخداد</h2>{table(["زمان رخداد","عملیات","عامل","شناسه سند","فیلدهای درخواست"],rows)}</div>'''
+    <div class="card section"><h2>رخدادهای ممیزی</h2><form method="get" action="/audit" class="search-form"><label>جستجوی رخداد</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نوع عملیات یا شناسه/جزئیات"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["زمان رخداد","عملیات","عامل","شناسه سند","فیلدهای درخواست"],rows,total)}{page_nav("audit",query,page_num,total,limit)}</div>'''
     return page("گزارش ممیزی",body,"audit")
 
 def settings(c):
@@ -1553,7 +1561,7 @@ class Handler(BaseHTTPRequestHandler):
             if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
             if path=='parties':
                 self.send(parties_page(c,q.get('name',[''])[0]))
-            elif path in ('products','purchases','sales','services','expenses','cash'):
+            elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
                 self.send(fn(c,q.get('q',[''])[0],page_num))
