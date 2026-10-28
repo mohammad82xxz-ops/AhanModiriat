@@ -498,6 +498,7 @@ def num(v, default=0):
         return float(cleaned or default)
     except (ValueError, TypeError):
         return float(default)
+def money_int(v, default=0): return int(round(num(v, default)))
 def money(v): return f'{v:,.0f}'
 def esc(v): return html.escape(str(v if v is not None else ''))
 def fval(row,key,default=''):
@@ -1585,8 +1586,8 @@ class Handler(BaseHTTPRequestHandler):
                         if target_page=='/products':
                             unit=str(record.get("unit") or "کیلوگرم").strip()
                             stock=num(record.get("stock",0),0)
-                            avg_cost=num(record.get("avg_cost",0),0)
-                            market_price=num(record.get("market_price",0),0)
+                            avg_cost=money_int(record.get("avg_cost",0),0)
+                            market_price=money_int(record.get("market_price",0),0)
                             min_stock=num(record.get("min_stock",0),0)
                             pf=num(record.get("purchase_factor",1),1) or 1
                             sf=num(record.get("sale_factor",1),1) or 1
@@ -1618,7 +1619,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path=='add_product':
                     pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
                     if not v('name') or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
-                    c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(v('name'),v('code'),v('unit','کیلوگرم'),num(v('stock')),num(v('avg_cost')),num(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area')))); dest='/products'; msg='کالا ثبت شد.'
+                    c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(v('name'),v('code'),v('unit','کیلوگرم'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area')))); dest='/products'; msg='کالا ثبت شد.'
                 elif path=='update_product':
                     pid=int(v('product_id')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p: raise ValueError('کالا پیدا نشد.')
@@ -1626,10 +1627,10 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('این کالا سابقه تراکنش دارد؛ تغییر واحد پایه برای جلوگیری از خراب‌شدن سوابق مسدود شد.')
                     pf=num(v('purchase_factor')); sf=num(v('sale_factor'))
                     if not v('name') or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
-                    c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',(v('name'),v('code'),v('unit'),num(v('stock')),num(v('avg_cost')),num(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
+                    c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',(v('name'),v('code'),v('unit'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
                     dest='/products'; msg='مشخصات کالا به‌روزرسانی شد.'
                 elif path=='add_purchase':
-                    pid=int(v('product_id')); qty=num(v('qty')); cost=num(v('unit_cost')); extra=num(v('extra_cost')); paid=num(v('paid')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    pid=int(v('product_id')); qty=num(v('qty')); cost=money_int(v('unit_cost')); extra=money_int(v('extra_cost')); paid=money_int(v('paid')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0: raise ValueError('کالا، مقدار یا قیمت خرید نامعتبر است.')
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
@@ -1641,7 +1642,7 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"purchases",purchase_id,to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
-                    pid=int(v('product_id')); qty=num(v('qty')); price=num(v('unit_price')); extra=num(v('extra_cost')); received=num(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    pid=int(v('product_id')); qty=num(v('qty')); price=money_int(v('unit_price')); extra=money_int(v('extra_cost')); received=money_int(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or price<0:raise ValueError('کالا، مقدار یا قیمت فروش نامعتبر است.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
@@ -1652,13 +1653,13 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"sales",sale_id,to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
-                    service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),num(v('revenue')),num(v('cost')),num(v('received')),v('customer'),v('notes')))
+                    service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),money_int(v('revenue')),money_int(v('cost')),money_int(v('received')),v('customer'),v('notes')))
                     service_id=service_cur.lastrowid
                     link_party(c,"services","customer_person_id",service_id,v('customer'),'customer')
                     sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
-                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),num(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
+                    c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),money_int(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
                     sync_cash_posting(c,"expenses",c.execute("SELECT last_insert_rowid()").fetchone()[0],to_iso_date(v('date',jalali_today())),num(v('amount')),"out",v('source'),v('notes') or "پرداخت هزینه")
                     dest='/expenses';msg='پرداخت ثبت شد.'
                 elif path=='add_loan':
@@ -1666,9 +1667,9 @@ class Handler(BaseHTTPRequestHandler):
                     interval_unit=v('interval_unit','month')
                     if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
                         raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
-                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(v('title'),num(v('principal')),num(v('remaining')),num(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit));dest='/loans';msg='وام ثبت شد.'
+                    c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(v('title'),money_int(v('principal')),money_int(v('remaining')),money_int(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit));dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
-                    lid=int(v('loan_id')); amount=num(v('amount')); principal=num(v('principal_part')); interest=num(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
+                    lid=int(v('loan_id')); amount=money_int(v('amount')); principal=money_int(v('principal_part')); interest=money_int(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
                     if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
                     if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
@@ -1677,7 +1678,7 @@ class Handler(BaseHTTPRequestHandler):
                     nextdate=add_interval_date(loan['next_date'],loan['interval_value'],loan['interval_unit'])
                     c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=? WHERE id=?',(principal,nextdate,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل و سررسید بعدی به‌روزرسانی شد.'
                 elif path=='add_price':
-                    pid=int(v('product_id')); price=num(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
+                    pid=int(v('product_id')); price=money_int(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
                     c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')));c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
                 elif path=='add_person':
@@ -1704,7 +1705,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند خرید پیدا نشد.')
                     assert_purchase_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=num(v("qty"),-1); cost=num(v("unit_cost"),-1); extra=num(v("extra_cost")); paid=num(v("paid"),-1)
+                    qty=num(v("qty"),-1); cost=money_int(v("unit_cost"),-1); extra=money_int(v("extra_cost")); paid=money_int(v("paid"),-1)
                     if qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('مقدار و مبالغ خرید باید معتبر و غیرمنفی باشند.')
                     factor=num(product["purchase_factor"] or 1,1) or 1
                     stock_before=float(product["stock"] or 0)-float(row["qty"])*factor
@@ -1743,7 +1744,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند فروش پیدا نشد.')
                     assert_sale_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=num(v("qty"),-1); price=num(v("unit_price"),-1); extra=num(v("extra_cost")); received=num(v("received"),-1)
+                    qty=num(v("qty"),-1); price=money_int(v("unit_price"),-1); extra=money_int(v("extra_cost")); received=money_int(v("received"),-1)
                     if qty<=0 or price<0 or extra<0 or received<0: raise ValueError('مقدار و مبالغ فروش باید معتبر و غیرمنفی باشند.')
                     new_stock=float(product["stock"] or 0)+float(row["qty"])-qty
                     if new_stock < -0.000001: raise ValueError('اصلاح مقدار فروش موجودی منفی ایجاد می‌کند.')
@@ -1768,7 +1769,7 @@ class Handler(BaseHTTPRequestHandler):
                     rid=int(v('record_id'))
                     row=c.execute("SELECT * FROM expenses WHERE id=?",(rid,)).fetchone()
                     if row is None: raise ValueError('سند هزینه پیدا نشد.')
-                    date=to_iso_date(v('date',jalali_today())); category=v('category'); amount=num(v('amount'),-1)
+                    date=to_iso_date(v('date',jalali_today())); category=v('category'); amount=money_int(v('amount'),-1)
                     business=v('business','1'); source=v('source','نامشخص')
                     if not category or amount<0 or business not in ('0','1'): raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست.')
                     c.execute("UPDATE expenses SET date=?,category=?,amount=?,source=?,business=?,notes=? WHERE id=?",
@@ -1791,7 +1792,7 @@ class Handler(BaseHTTPRequestHandler):
                     already=float(scalar(c,"SELECT COALESCE(SUM(qty),0) FROM sales_returns WHERE sale_id=?",(sale_id,)) or 0)
                     remaining=float(sale["qty"])-already
                     if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از ماندهٔ قابل برگشت بیشتر است؛ مانده {remaining:g} {sale['unit']} است.")
-                    return_value=qty*float(sale["unit_price"])
+                    return_value=int(round(qty*float(sale["unit_price"])))
                     cost_value=qty*float(sale["cost_basis"])
                     extra_reversed=float(sale["extra_cost"] or 0)*qty/float(sale["qty"])
                     c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
@@ -1821,7 +1822,7 @@ class Handler(BaseHTTPRequestHandler):
                     if qty>float(purchase["stock"] or 0)+0.000001: raise ValueError("موجودی فعلی برای این مرجوعی کافی نیست.")
                     unit_base_cost=float(purchase["unit_cost"] or 0)/factor
                     extra_per_base=float(purchase["extra_cost"] or 0)/bought_base if bought_base else 0
-                    return_value=qty*(unit_base_cost+extra_per_base)
+                    return_value=int(round(qty*(unit_base_cost+extra_per_base)))
                     if cash_refund>return_value+0.99: raise ValueError("وجه دریافتی از فروشنده نمی‌تواند از ارزش مرجوعی بیشتر باشد.")
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(purchase["product_id"],)).fetchone()
                     old_stock=float(product["stock"] or 0); new_stock=old_stock-qty
