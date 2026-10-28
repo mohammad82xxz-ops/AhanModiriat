@@ -775,6 +775,40 @@ def calc(c, start=None, end=None):
     purchases_paid=scalar(c,'SELECT COALESCE(SUM(paid),0) FROM purchases'+where,args)
     return dict(sales_rev=sales_rev,sales_cost=sales_cost,sales_extra=sales_extra,service_rev=service_rev,service_cost=service_cost,exp=exp,interest=interest,gross=gross,net=net,paid_exp=paid_exp,loan_paid=loan_paid,sales_received=sales_received,services_received=services_received,purchases_paid=purchases_paid)
 
+def dashboard_sales_chart(c, month_limit=6):
+    """Compact CSS bar chart of sales/services grouped by Jalali month."""
+    buckets={}
+    def add(sql,key,sign=1):
+        for row in c.execute(sql):
+            if not row["date"]:
+                continue
+            try:
+                gy,gm,gd=map(int,str(row["date"]).split("-")[:3])
+                jy,jm,jd=gregorian_to_jalali(gy,gm,gd)
+            except (TypeError,ValueError):
+                continue
+            b=buckets.setdefault((jy,jm),{"sales":0.0,"services":0.0})
+            b[key]+=sign*float(row["value"] or 0)
+    add("SELECT date,SUM(qty*unit_price) value FROM sales GROUP BY date","sales")
+    add("SELECT date,SUM(return_value) value FROM sales_returns GROUP BY date","sales",-1)
+    add("SELECT date,SUM(revenue) value FROM services GROUP BY date","services")
+    latest=sorted(buckets.items(),key=lambda item:item[0],reverse=True)[:max(1,min(12,int(month_limit)))]
+    latest=list(reversed(latest))
+    max_value=max((max(0,b[k]) for _,b in latest for k in ("sales","services")),default=0)
+    groups=[]
+    for (jy,jm),b in latest:
+        sales_pct=100*max(0,b["sales"])/max_value if max_value else 0
+        service_pct=100*max(0,b["services"])/max_value if max_value else 0
+        label=f"{jy:04d}/{jm:02d}"
+        groups.append(f'''<div class="bar-chart-group" aria-label="ماه {label}">
+          <div class="bar-chart-bars">
+            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["sales"])}</span><div class="bar-chart-track"><div class="bar-chart-fill sales" style="height:{sales_pct:.1f}%"></div></div><small>فروش کالا</small></div>
+            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["services"])}</span><div class="bar-chart-track"><div class="bar-chart-fill services" style="height:{service_pct:.1f}%"></div></div><small>خدمات</small></div>
+          </div><strong>{label}</strong></div>''')
+    if not groups:
+        return '<div class="card section"><h2>نمودار فروش ماهانه</h2><p class="empty">برای ترسیم نمودار، ابتدا فروش یا خدمات ثبت کن.</p></div>'
+    return '<div class="card section"><h2>روند فروش ماهانه</h2><p class="small">جمع فروش کالا پس از کسر مرجوعی و درآمد خدمات، در ماه‌های شمسی دارای تراکنش. این نمودار درآمد است، نه سود خالص.</p><div class="bar-chart-legend"><span><i class="legend-swatch sales"></i> فروش خالص کالا</span><span><i class="legend-swatch services"></i> درآمد خدمات</span></div><div class="bar-chart">'+"".join(groups)+'</div></div>'
+
 NAV_GROUPS=[
     ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('returns','مرجوعی‌ها','refresh-cw'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
     ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('buy-advice','پیشنهاد خرید','cart'),('prices','قیمت روز','chart')]),
@@ -1017,6 +1051,7 @@ def dash(c):
     stock_value=scalar(c,'SELECT SUM(stock*avg_cost) FROM products'); market_value=scalar(c,'SELECT SUM(stock*market_price) FROM products'); stock_delta=market_value-stock_value
     cash_in=scalar(c,'SELECT COALESCE(SUM(received),0) FROM sales')+scalar(c,'SELECT COALESCE(SUM(received),0) FROM services')
     cash_out=scalar(c,'SELECT COALESCE(SUM(paid),0) FROM purchases')+scalar(c,'SELECT COALESCE(SUM(amount),0) FROM expenses')+scalar(c,'SELECT COALESCE(SUM(amount),0) FROM loan_payments')
+    sales_chart=dashboard_sales_chart(c,6)
     low=c.execute('SELECT name,stock,min_stock,unit FROM products WHERE stock<=min_stock ORDER BY name').fetchall()
     due=c.execute("SELECT title,installment,next_date FROM loans WHERE remaining>0 ORDER BY next_date LIMIT 5").fetchall()
     def metric(label,val,note='',cls=''):
@@ -1025,6 +1060,7 @@ def dash(c):
     <div class="grid section">{metric('سود خالص امروز',d['net'],'فروش و خدمات منهای هزینه‌ها و سود وام','positive' if d['net']>=0 else 'negative')}{metric('سود خالص این ماه',m['net'],'از ابتدای ماه تا امروز','positive' if m['net']>=0 else 'negative')}{metric('سود خالص امسال',y['net'],'از ابتدای سال شمسی تا امروز','positive' if y['net']>=0 else 'negative')}{metric('ارزش موجودی به بهای خرید',stock_value,'برآورد بر اساس میانگین بهای ثبت‌شده')}</div>
     <div class="grid section">{metric('ارزش موجودی به قیمت روز',market_value,'با آخرین قیمت روز واردشده')}{metric('تغییر ارزش برآوردی انبار',stock_delta,'جدا از سود نقدی فروش','positive' if stock_delta>=0 else 'negative')}{metric('کل اقساط پرداخت‌شده',scalar(c,'SELECT COALESCE(SUM(amount),0) FROM loan_payments'),'اصل و سود؛ خروج وجه نقد')}{metric('مانده اصل وام‌ها',scalar(c,'SELECT COALESCE(SUM(remaining),0) FROM loans'),'مانده ثبت‌شده وام‌ها')}</div>
     <div class="twocol section"><div class="card"><h2>هشدار موجودی کم</h2>{table(['کالا','موجودی','حداقل'],[[esc(r['name']),f"{r['stock']:g} {esc(r['unit'])}",f"{r['min_stock']:g}"] for r in low])}</div><div class="card"><h2>وام‌ها و اقساط آینده</h2>{table(['وام','قسط','سررسید بعدی'],[[esc(r['title']),money(r['installment'])+' تومان',esc(show_date(r['next_date']) if r['next_date'] else 'ثبت نشده')] for r in due])}</div></div>
+    {sales_chart}
     <div class="notice section"><b>تفسیر درست:</b> سود خالص با تغییر ارزش انبار یکی نیست. خرید کالا به‌خودی‌خود هزینه کامل سودوزیان محسوب نمی‌شود؛ بهای کالا هنگام فروش در سود معامله منظور می‌شود. پرداخت اصل وام نیز هزینه سودوزیان نیست، اما از نقدینگی کم می‌کند. این نسخه «بودجه خرج امن» را به‌صورت قطعی تعیین نمی‌کند مگر اینکه موجودی نقد آغاز دوره، مطالبات، بدهی‌های سررسیدشده و ذخیره خرید مجدد را هم دقیق ثبت کنی.</div>'''
     return page('داشبورد',body,'')
 
