@@ -685,6 +685,8 @@ def parties_page(c, selected=""):
                      f'<a class="btn secondary" href="/parties?name={quote(person["name"])}">ریز حساب</a>'])
     person_opts = [(p["name"],p["name"]) for p in people]
     body = f'''<h1>طرف حساب‌ها و مانده اشخاص</h1>
+    <div class="card section"><h2>ورود و خروج اکسل اشخاص</h2><div class="actions"><a class="btn" href="/export.xlsx">دانلود الگوی اکسل و اطلاعات</a></div>
+    <form method="post" action="/import.xlsx" enctype="multipart/form-data"><input type="hidden" name="sheet" value="People"><div class="formgrid"><label>فایل XLSX اشخاص<input type="file" name="file" accept=".xlsx" required></label></div><div class="actions"><button>ورود اشخاص</button></div><p class="small">ستون‌های name، kind، phone و notes پشتیبانی می‌شوند. اشخاص با نام تکراری وارد نمی‌شوند.</p></form></div>
     <div class="card section"><h2>ثبت شخص جدید</h2><form method="post" action="/add_person"><div class="formgrid">
     {field("نام و نام خانوادگی/شرکت","name","text","",True)}
     {selectfield("نوع طرف حساب","kind",[("customer","مشتری"),("supplier","فروشنده"),("both","هر دو")])}
@@ -1015,6 +1017,8 @@ def products(c, search='', page_num=1):
     {field('حداقل موجودی هشدار','min_stock','number','0',False,'0.001')}{field('یادداشت','notes')}
     </div><p class="small">نمونه: رابیتس بسته ۱۰ عددی = ضریب ۱۰؛ طلق برگ ۶×۲٫۱۰ متر = ضریب ۱۲٫۶؛ سیم مفتول رول = ضریب برابر وزن رول.</p><div class="actions"><button>ثبت کالا</button></div></form></div>
     <div class="card section"><h2>فهرست کالاها</h2>
+      <div class="actions"><a class="btn" href="/export.xlsx">دانلود اکسل کالاها و اشخاص</a></div>
+      <form method="post" action="/import.xlsx" enctype="multipart/form-data" class="search-form"><input type="hidden" name="sheet" value="Products"><label>ورود کالاها از اکسل (.xlsx)</label><div class="formgrid"><input type="file" name="file" accept=".xlsx" required><button>ورود کالاها</button></div><p class="small">کالاهای هم‌نام اضافه نمی‌شوند؛ برای جلوگیری از بازنویسی تصادفی موجودی، ردیف‌های تکراری رد خواهند شد.</p></form>
       <form method="get" action="/products" class="search-form"><label for="product-q">جستجوی کالا</label><div class="formgrid"><input id="product-q" type="search" name="q" value="{esc(query)}" placeholder="نام، کد یا دسته‌بندی"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
       {table(['کالا','دسته‌بندی','کد','موجودی','بهای پایه','قیمت روز پایه','ارزش موجودی','وضعیت','عملیات'],rows,total)}
       {page_nav('products',query,page_num,total,limit)}</div>'''
