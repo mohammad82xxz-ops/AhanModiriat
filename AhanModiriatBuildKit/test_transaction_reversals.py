@@ -96,9 +96,17 @@ def main():
             "record_id":sale_id,"qty":"2","unit_price":"30","extra_cost":"0",
             "received":"40","customer":"Customer A revised","notes":"edited sale"
         })
+        # Changing unit conversions after movement history exists must be rejected.
+        protected_page=post(port,"update_product",{
+            "product_id":pid,"name":"reversal steel","code":"","unit":"kg","stock":"8",
+            "avg_cost":"5","market_price":"10","min_stock":"0","notes":"",
+            "category":"سایر","purchase_unit":"kg","purchase_factor":"2",
+            "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
+        })
+        assert "سابقهٔ گردش دارد" in protected_page
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 8 and p["avg_cost"] == 5
+            assert p["stock"] == 8 and p["avg_cost"] == 5 and p["purchase_factor"] == 1
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 40
 
         post(port, "delete_sale", {"record_id":sale_id})
