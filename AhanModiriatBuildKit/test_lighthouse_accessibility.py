@@ -36,11 +36,15 @@ def main():
                 for route in AXE_ROUTES:
                     page = browser.new_page(viewport={"width": 1366, "height": 768}, color_scheme="light")
                     try:
+                        # Serve axe-core as a same-origin external script so the app's
+                        # restrictive script-src 'self' CSP remains enabled during the audit.
+                        page.route(base + "/axe.min.js", lambda request_route: request_route.fulfill(
+                            path=str(AXE_SCRIPT), content_type="application/javascript"))
                         response = page.goto(base + route, wait_until="networkidle")
                         if response is None or response.status != 200:
                             failures.append(f"axe: {route} returned HTTP {getattr(response, 'status', None)}")
                             continue
-                        page.add_script_tag(path=str(AXE_SCRIPT))
+                        page.add_script_tag(url=base + "/axe.min.js")
                         result = page.evaluate("""async () => {
                           const r = await axe.run(document, {
                             runOnly: {type: 'tag', values: ['wcag2a','wcag2aa','wcag21a','wcag21aa','best-practice']}
