@@ -228,7 +228,7 @@ def returns_page(c, search='', page_num=1):
     body=f'''<h1>مرجوعی خرید و فروش</h1>
     <div class="twocol section">
       <div class="card"><h2>ثبت مرجوعی فروش از مشتری</h2>
-        <form method="post" action="/add_sales_return"><div class="formgrid">
+        <form method="post" action="/add_sales_return">{submission_token(c,'add_sales_return')}<div class="formgrid">
           {selectfield("سند فروش اصلی","sale_id",sales_opts)}
           {field("تاریخ مرجوعی","date","date",TODAY,True)}
           {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001")}
@@ -239,7 +239,7 @@ def returns_page(c, search='', page_num=1):
         <p class="small">کالا با بهای تمام‌شده ذخیره‌شده در فروش اصلی به موجودی برمی‌گردد؛ مبلغ برگشتی از فروش و سود همان تاریخ مرجوعی کم می‌شود.</p>
       </div>
       <div class="card"><h2>ثبت مرجوعی خرید به فروشنده</h2>
-        <form method="post" action="/add_purchase_return"><div class="formgrid">
+        <form method="post" action="/add_purchase_return">{submission_token(c,'add_purchase_return')}<div class="formgrid">
           {selectfield("سند خرید اصلی","purchase_id",purchase_opts)}
           {field("تاریخ مرجوعی","date","date",TODAY,True)}
           {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001")}
@@ -2013,7 +2013,7 @@ class Handler(BaseHTTPRequestHandler):
         def v(k,default=''):return d.get(k,default).strip()
         try:
             with LOCK, conn() as c:
-                if path in ('add_purchase','add_sale','add_expense'):
+                if path in ('add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return'):
                     submission=d.get('_submission_token','').strip()
                     if not submission:
                         raise ValueError('فرم ثبت تراکنش شناسهٔ معتبر ندارد؛ صفحه را تازه‌سازی کن و دوباره ثبت کن.')

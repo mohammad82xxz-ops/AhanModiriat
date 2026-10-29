@@ -16,6 +16,12 @@ import app
 
 
 def post(port, path, fields):
+    fields = dict(fields)
+    protected = {"add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return"}
+    if path in protected and "_submission_token" not in fields:
+        with app.conn() as c:
+            token_markup = app.submission_token(c, path)
+            fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}", data=data,
@@ -135,6 +141,35 @@ def main():
                 assert c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0] == stock_before, (route, fields)
                 assert app.calc(c)["sales_rev"] == sales_total_before, (route, fields)
                 assert app.party_balances(c) == balances_before, (route, fields)
+                assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        # Replaying a consumed return form token must not create a second financial event.
+        for route, fields in [
+            ("add_sales_return", {"sale_id":sale_id,"date":"2026-01-06","qty":"0.25","refund_amount":"1","reason":"replay guard","notes":"one-use token"}),
+            ("add_purchase_return", {"purchase_id":purchase_id,"date":"2026-01-06","qty":"0.25","cash_refund":"1","reason":"replay guard","notes":"one-use token"}),
+        ]:
+            with app.conn() as c:
+                token_markup = app.submission_token(c, route)
+                token = token_markup.split('value="', 1)[1].split('"', 1)[0]
+                before = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+            fields["_submission_token"] = token
+            post(port, route, fields)
+            post(port, route, fields)
+            with app.conn() as c:
+                after = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+                assert after[:4] == before[:4], (route, before, after)
+                assert after[4] == before[4], (route, before[4], after[4])
                 assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         with app.conn() as c:
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
