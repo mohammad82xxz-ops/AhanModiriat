@@ -5,7 +5,7 @@ Python standard library only. Data stays in ./data/business.db.
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
-import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar, io, zipfile, re, xml.etree.ElementTree as ET
+import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar, io, zipfile, re, secrets, xml.etree.ElementTree as ET
 from email.parser import BytesParser
 from email.policy import default as email_policy
 
@@ -395,6 +395,11 @@ def init():
         CREATE TABLE IF NOT EXISTS audit_log(
             id INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             action TEXT NOT NULL, details TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS form_submission_tokens(
+            token TEXT PRIMARY KEY, action TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            consumed_at TEXT DEFAULT NULL
         );
         CREATE TABLE IF NOT EXISTS opening_capital(id INTEGER PRIMARY KEY CHECK(id=1), amount REAL NOT NULL DEFAULT 0, date TEXT NOT NULL);
         INSERT OR IGNORE INTO opening_capital(id,amount,date) VALUES(1,0,date('now'));
@@ -1457,12 +1462,19 @@ def assert_sale_reversible(c, row):
     if later:
         raise ValueError("پس از این فروش خرید یا تعدیل موجودی ثبت شده؛ برای حفظ میانگین موزون، اصلاح/حذف خودکار ایمن نیست.")
 
+def submission_token(c, action):
+    """Issue a one-use token for a state-changing finance form."""
+    c.execute("DELETE FROM form_submission_tokens WHERE created_at < datetime('now','-30 days')")
+    token=secrets.token_urlsafe(32)
+    c.execute("INSERT INTO form_submission_tokens(token,action) VALUES(?,?)",(token,action))
+    return f'<input type="hidden" name="_submission_token" value="{token}">'
+
 def purchases(c, search='', page_num=1):
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total=scalar(c,"SELECT COUNT(*) FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE pr.name LIKE ? OR p.supplier LIKE ? OR p.notes LIKE ?",(pattern,pattern,pattern))
     prods=options_products(c); opt=[(v,t) for v,t in prods]
-    body=f'''<h1>ثبت خرید</h1><div class="card section"><form method="post" action="/add_purchase"><div class="formgrid">{field('تاریخ خرید','date','date',TODAY,True)}{selectfield('کالا','product_id',opt)}{field('مقدار خرید','qty','number','1',True,'0.001')}{field('قیمت خرید هر واحد (تومان)','unit_cost','number','0',True,'0.01')}{field('هزینه جانبی کل (حمل/تخلیه)','extra_cost','number','0',False,'0.01')}{field('مبلغ پرداخت‌شده','paid','number','0',True,'0.01')}{field('فروشنده','supplier')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خرید و افزایش موجودی</button></div></form><p class="small">پس از ثبت خرید، موجودی و میانگین موزون بهای خرید به‌روزرسانی می‌شود. هزینه جانبی به بهای تمام‌شده خرید اضافه می‌شود.</p></div>'''
+    body=f'''<h1>ثبت خرید</h1><div class="card section"><form method="post" action="/add_purchase">{submission_token(c,'add_purchase')}<div class="formgrid">{field('تاریخ خرید','date','date',TODAY,True)}{selectfield('کالا','product_id',opt)}{field('مقدار خرید','qty','number','1',True,'0.001')}{field('قیمت خرید هر واحد (تومان)','unit_cost','number','0',True,'0.01')}{field('هزینه جانبی کل (حمل/تخلیه)','extra_cost','number','0',False,'0.01')}{field('مبلغ پرداخت‌شده','paid','number','0',True,'0.01')}{field('فروشنده','supplier')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خرید و افزایش موجودی</button></div></form><p class="small">پس از ثبت خرید، موجودی و میانگین موزون بهای خرید به‌روزرسانی می‌شود. هزینه جانبی به بهای تمام‌شده خرید اضافه می‌شود.</p></div>'''
     rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(r['qty']*r['unit_cost']+r['extra_cost']),esc(r['supplier']),money(r['paid']),record_actions(r['id'],'edit_purchase','delete_purchase','خرید')] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE pr.name LIKE ? OR p.supplier LIKE ? OR p.notes LIKE ? ORDER BY p.date DESC,p.id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>خریدها</h2><form method="get" action="/purchases" class="search-form"><label>جستجوی خرید</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، فروشنده یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","کالا","مقدار","قیمت واحد","هزینه جانبی","جمع بهای خرید","فروشنده","پرداخت‌شده","عملیات"],rows,total)}{page_nav("purchases",query,page_num,total,limit)}</div>'
     return page('خرید',body,'purchases')
@@ -1470,7 +1482,7 @@ def sales(c, search='', page_num=1):
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total=scalar(c,"SELECT COUNT(*) FROM sales s JOIN products p ON p.id=s.product_id WHERE p.name LIKE ? OR s.customer LIKE ? OR s.notes LIKE ?",(pattern,pattern,pattern))
-    body=f'''<h1>ثبت فروش کالا</h1><div class="card section"><form method="post" action="/add_sale"><div class="formgrid">{field('تاریخ فروش','date','date',TODAY,True)}{selectfield('کالا','product_id',options_products(c))}{field('مقدار فروش','qty','number','1',True,'0.001')}{field('قیمت فروش هر واحد (تومان)','unit_price','number','0',True,'0.01')}{field('هزینه مستقیم فروش','extra_cost','number','0',False,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت فروش و کسر موجودی</button></div></form><p class="small">بهای تمام‌شده از میانگین بهای خرید ثبت‌شده در همان لحظه ذخیره می‌شود تا گزارش سود فروش تاریخی با خریدهای بعدی تغییر نکند.</p></div>'''
+    body=f'''<h1>ثبت فروش کالا</h1><div class="card section"><form method="post" action="/add_sale">{submission_token(c,'add_sale')}<div class="formgrid">{field('تاریخ فروش','date','date',TODAY,True)}{selectfield('کالا','product_id',options_products(c))}{field('مقدار فروش','qty','number','1',True,'0.001')}{field('قیمت فروش هر واحد (تومان)','unit_price','number','0',True,'0.01')}{field('هزینه مستقیم فروش','extra_cost','number','0',False,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت فروش و کسر موجودی</button></div></form><p class="small">بهای تمام‌شده از میانگین بهای خرید ثبت‌شده در همان لحظه ذخیره می‌شود تا گزارش سود فروش تاریخی با خریدهای بعدی تغییر نکند.</p></div>'''
     rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_price']),money(r['cost_basis']),money(r['qty']*(r['unit_price']-r['cost_basis'])-r['extra_cost']),esc(r['customer']),money(r['received']),record_actions(r['id'],'edit_sale','delete_sale','فروش')] for r in c.execute('SELECT s.*,p.name FROM sales s JOIN products p ON p.id=s.product_id WHERE p.name LIKE ? OR s.customer LIKE ? OR s.notes LIKE ? ORDER BY s.date DESC,s.id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>فروش‌ها</h2><form method="get" action="/sales" class="search-form"><label>جستجوی فروش</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، مشتری یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","کالا","مقدار","قیمت فروش","بهای تمام‌شده","سود معامله پس از هزینه مستقیم","مشتری","دریافت‌شده","عملیات"],rows,total)}{page_nav("sales",query,page_num,total,limit)}</div>'
     return page('فروش',body,'sales')
@@ -1486,7 +1498,7 @@ def expenses(c, search='', page_num=1):
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total=scalar(c,"SELECT COUNT(*) FROM expenses WHERE category LIKE ? OR source LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
-    body=f'''<h1>هزینه‌ها و برداشت‌های شخصی</h1><div class="card section"><form method="post" action="/add_expense"><div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح/دسته هزینه','category',required=True)}{field('مبلغ (تومان)','amount','number','0',True,'0.01')}{selectfield('نوع','business',[('1','هزینه کسب‌وکار'),('0','برداشت شخصی/خانوادگی')])}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('توضیحات','notes')}</div><div class="actions"><button>ثبت پرداخت</button></div></form><p class="small">هزینه کسب‌وکار در سودوزیان کسر می‌شود؛ برداشت شخصی سود عملیاتی را کم نمی‌کند، اما از نقدینگی و سرمایه قابل‌استفاده کم می‌کند. منبع پرداخت یک تخصیص مدیریتی است و باید با موجودی نقد تطبیق داده شود.</p></div>'''
+    body=f'''<h1>هزینه‌ها و برداشت‌های شخصی</h1><div class="card section"><form method="post" action="/add_expense">{submission_token(c,'add_expense')}<div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح/دسته هزینه','category',required=True)}{field('مبلغ (تومان)','amount','number','0',True,'0.01')}{selectfield('نوع','business',[('1','هزینه کسب‌وکار'),('0','برداشت شخصی/خانوادگی')])}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('توضیحات','notes')}</div><div class="actions"><button>ثبت پرداخت</button></div></form><p class="small">هزینه کسب‌وکار در سودوزیان کسر می‌شود؛ برداشت شخصی سود عملیاتی را کم نمی‌کند، اما از نقدینگی و سرمایه قابل‌استفاده کم می‌کند. منبع پرداخت یک تخصیص مدیریتی است و باید با موجودی نقد تطبیق داده شود.</p></div>'''
     rows=[[show_date(r['date']),esc(r['category']),money(r['amount']), 'هزینه کسب‌وکار' if r['business'] else 'برداشت شخصی',esc(r['source']),esc(r['notes']),record_actions(r['id'],'edit_expense','delete_expense','هزینه')] for r in c.execute('SELECT * FROM expenses WHERE category LIKE ? OR source LIKE ? OR notes LIKE ? ORDER BY date DESC,id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>پرداخت‌ها و برداشت‌ها</h2><form method="get" action="/expenses" class="search-form"><label>جستجوی هزینه</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، منبع یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows,total)}{page_nav("expenses",query,page_num,total,limit)}</div>'
     return page('هزینه‌ها',body,'expenses')
@@ -2000,6 +2012,13 @@ class Handler(BaseHTTPRequestHandler):
         def v(k,default=''):return d.get(k,default).strip()
         try:
             with LOCK, conn() as c:
+                if path in ('add_purchase','add_sale','add_expense'):
+                    submission=d.get('_submission_token','').strip()
+                    if not submission:
+                        raise ValueError('فرم ثبت تراکنش شناسهٔ معتبر ندارد؛ صفحه را تازه‌سازی کن و دوباره ثبت کن.')
+                    token_update=c.execute("UPDATE form_submission_tokens SET consumed_at=datetime('now','localtime') WHERE token=? AND action=? AND consumed_at IS NULL",(submission,path))
+                    if token_update.rowcount!=1:
+                        raise ValueError('این فرم قبلاً ارسال شده یا منقضی است؛ برای جلوگیری از ثبت تکراری، صفحه را تازه‌سازی کن.')
                 if path=='add_product':
                     product_name=normalize_person(v('name'))
                     pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
