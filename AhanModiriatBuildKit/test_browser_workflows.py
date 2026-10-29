@@ -139,8 +139,8 @@ def main() -> None:
 
                 # Replay the exact successful POST payload as happens with refresh/back or a repeated submit.
                 replay_response = page.request.post(base + "/add_purchase", form=purchase_payload)
-                assert replay_response.status == 303, f"purchase replay should redirect safely, got {replay_response.status}"
-                replay_message = parse_qs(urlparse(replay_response.headers.get("location", "")).query).get("msg", [""])[0]
+                assert replay_response.status == 200, f"purchase replay should follow the safe redirect, got {replay_response.status}"
+                replay_message = parse_qs(urlparse(replay_response.url).query).get("msg", [""])[0]
                 assert "قبلاً ارسال شده" in replay_message, f"replayed purchase was not explicitly rejected: {replay_message}"
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0] == purchase_count_before_replay, "replayed purchase created a duplicate row"
@@ -357,8 +357,8 @@ def main() -> None:
                     sale_cash_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0]
 
                 replay_response = page.request.post(base + "/add_sale", form=sale_payload)
-                assert replay_response.status == 303, f"sale replay should redirect safely, got {replay_response.status}"
-                replay_message = parse_qs(urlparse(replay_response.headers.get("location", "")).query).get("msg", [""])[0]
+                assert replay_response.status == 200, f"sale replay should follow the safe redirect, got {replay_response.status}"
+                replay_message = parse_qs(urlparse(replay_response.url).query).get("msg", [""])[0]
                 assert "قبلاً ارسال شده" in replay_message, f"replayed sale was not explicitly rejected: {replay_message}"
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0] == sale_count_before_replay, "replayed sale created a duplicate row"
@@ -430,8 +430,8 @@ def main() -> None:
                     expense_cash_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0]
 
                 replay_response = page.request.post(base + "/add_expense", form=expense_payload)
-                assert replay_response.status == 303, f"expense replay should redirect safely, got {replay_response.status}"
-                replay_message = parse_qs(urlparse(replay_response.headers.get("location", "")).query).get("msg", [""])[0]
+                assert replay_response.status == 200, f"expense replay should follow the safe redirect, got {replay_response.status}"
+                replay_message = parse_qs(urlparse(replay_response.url).query).get("msg", [""])[0]
                 assert "قبلاً ارسال شده" in replay_message, f"replayed expense was not explicitly rejected: {replay_message}"
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()[0] == expense_count_before_replay, "replayed expense created a duplicate row"
