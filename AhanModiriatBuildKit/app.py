@@ -2061,10 +2061,14 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
-                    expense_cur=c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('category'),money_int(v('amount')),v('source','نامشخص'),int(v('business','1')),v('notes')))
+                    date=to_iso_date(v('date',jalali_today())); category=normalize_person(v('category')); amount=money_int(v('amount'),-1)
+                    business=v('business','1'); source=v('source','نامشخص')
+                    if not category or amount<=0 or business not in ('0','1'):
+                        raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست؛ مبلغ باید بیشتر از صفر باشد.')
+                    expense_cur=c.execute('INSERT INTO expenses(date,category,amount,source,business,notes) VALUES(?,?,?,?,?,?)',(date,category,amount,source,int(business),v('notes')))
                     expense_id=expense_cur.lastrowid
-                    sync_cash_posting(c,"expenses",expense_id,to_iso_date(v('date',jalali_today())),num(v('amount')),"out",v('source'),v('notes') or "پرداخت هزینه")
-                    dest='/expenses';msg='پرداخت ثبت شد.'
+                    sync_cash_posting(c,"expenses",expense_id,date,amount,"out",source,v('notes') or "پرداخت هزینه")
+                    dest='/expenses';msg='پرداخت هزینه ثبت شد.'
                 elif path=='add_loan':
                     interval_value=int(num(v('interval_value',1)))
                     interval_unit=v('interval_unit','month')
