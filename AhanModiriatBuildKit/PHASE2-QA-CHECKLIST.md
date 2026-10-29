@@ -23,7 +23,8 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: isolated test suite, browser workflow suite, Lighthouse + axe audit, UI screenshot matrix, and Windows OneDir build passed in CI runs #310 and #311.
 - [x] Regression: product creation rejects duplicate names after case-folding and collapsing repeated whitespace, without changing existing stock or average cost. Passed in [Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408).
 - [x] Regression: editing a second product to a duplicate normalized name is rejected and leaves both records unchanged. Passed in [Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408).
-- [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
+- [x] Duplicate-submission regression: replaying the exact successful POST for purchase, sale, or expense is rejected by a one-use server-side token; regression verifies no duplicate transaction, stock change, or duplicate cash movement. Passed in [Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232).
+- [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
 
 Negative-path findings and resolutions:
 - [Run #274](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904421556) caught an empty sale price being converted to zero and accepted. The server guard was tightened from `price < 0` to `price <= 0`; [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed.
@@ -35,16 +36,15 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
-- [Run #331 — latest push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408) passed both `smoke-test` and `windows-onedir` on the latest QA branch snapshot, including the two duplicate-name regressions. The smoke-test job passed compile, isolated tests, the 17-route browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe audit, and report/screenshot uploads. The Windows OneDir job completed packaging and uploaded its artifact.
-- The latest run's successful jobs are the evidence for the duplicate-name changes; older runs below are historical context only.
-
-- [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed on the older commit `ac12541c99b389e2b187757a3a0aa60746a57185`. They remain historical evidence for earlier validation, not proof for the latest commit.
+- [Run #347 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232) passed both `smoke-test` and `windows-onedir` on commit `976dcc324ce47cc6918652ef6f28bfa9d392a789`. The smoke-test job passed compile, isolated tests, the 17-route browser UI matrix, finance/inventory workflows (including purchase/sale/expense replay rejection), keyboard/zoom accessibility proxies, Lighthouse + axe audit, and report/screenshot uploads. The Windows OneDir job completed packaging and uploaded its artifact.
+- [Run #331 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408) passed on an earlier commit and is retained as historical evidence only.
+- [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed on the older commit `ac12541c99b389e2b187757a3a0aa60746a57185`; they remain historical evidence only.
 
 ### Latest run artifacts
 
-- [Lighthouse + axe-core reports — Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408/artifacts/12919280160)
-- [UI screenshots — Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408/artifacts/12917359764)
-- [Windows OneDir build — Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408/artifacts/12917599625)
+- [Lighthouse + axe-core reports — Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232/artifacts/12922508824)
+- [UI screenshots — Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232/artifacts/12923785640)
+- [Windows OneDir build — Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232/artifacts/12923281747)
 
 ## Manual checks — required before calling the entire phase complete
 
