@@ -1116,7 +1116,8 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
     return f'<div class="field"><label for="field-{safe_name}">{label}</label><div class="input-wrap"><input id="field-{safe_name}" name="{safe_name}" type="{typ}" value="{esc(value)}" {req}{st}{attrs}{ph}></div>{monetary}</div>'
 def selectfield(label,name,opts,required=True,value=None):
     opt=''.join(f'<option value="{esc(v)}" {"selected" if value is not None and str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
-    return f'<div class="field"><label>{label}</label><select name="{name}" {"required" if required else ""}>{opt}</select></div>'
+    safe_name=esc(name)
+    return f'<div class="field"><label for="field-{safe_name}">{label}</label><select id="field-{safe_name}" name="{safe_name}" {"required" if required else ""}>{opt}</select></div>'
 XLSX_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 XLSX_OFFICE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 XLSX_PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
