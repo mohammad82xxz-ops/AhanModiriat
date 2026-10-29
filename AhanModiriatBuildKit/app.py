@@ -2023,9 +2023,13 @@ class Handler(BaseHTTPRequestHandler):
                     product_name=normalize_person(v('name'))
                     pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
                     if not product_name or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
+                    stock=num(v('stock')); avg_cost=money_int(v('avg_cost')); market_price=money_int(v('market_price')); min_stock=num(v('min_stock'))
+                    roll_weight=num(v('roll_weight')); sheet_area=num(v('sheet_area'))
+                    if stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
+                        raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
                     duplicate=any(normalize_person(row['name']).casefold()==product_name.casefold() for row in c.execute('SELECT name FROM products'))
                     if duplicate: raise ValueError('این کالا قبلاً ثبت شده است؛ برای تغییر مشخصات، همان کالا را ویرایش کن.')
-                    product_cur=c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(product_name,v('code'),v('unit','کیلوگرم'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area'))))
+                    product_cur=c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(product_name,v('code'),v('unit','کیلوگرم'),stock,avg_cost,market_price,min_stock,v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,roll_weight,sheet_area))
                     new_product_id=product_cur.lastrowid
                     dest='/products'; msg='کالا ثبت شد.'
                 elif path=='update_product':
