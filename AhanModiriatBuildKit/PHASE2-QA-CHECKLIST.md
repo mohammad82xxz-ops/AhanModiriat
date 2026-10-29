@@ -55,14 +55,16 @@ Negative-path findings and resolutions:
 - [UI screenshots — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923611890)
 - [Windows OneDir build — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923920707)
 
-## Manual checks — required before calling the entire phase complete
+## Manual checks — user confirmation
 
-- [ ] **Defer to final real-environment pass (user will perform):** keyboard-only navigation through sidebar, forms, dialogs, command palette, and tables; visible focus and logical order.
-- [ ] **Defer to final real-environment pass (user will perform):** screen reader pass on key workflows (at minimum NVDA + Firefox/Chrome on Windows, or a documented equivalent): page title, heading structure, field labels/errors, dialog name/description, status feedback, and table headers.
-- [ ] **Defer to final real-environment pass (user will perform):** narrow viewport / real-device review: sidebar behavior, forms, data tables, dialogs, horizontal scrolling, and touch targets.
-- [ ] **Defer to final real-environment pass (user will perform):** zoom to 200% and verify no loss of core content or operation.
-- [x] Reviewed 68 screenshots via contact sheet and selected full-resolution screens (dashboard, purchases, settings) from Run #347; no systematic clipping/overlap was observed. This does not replace real-device/200%-zoom/screen-reader checks.
-- [ ] **Defer to final real-environment pass (user will perform):** verify build artifact starts in a clean Windows environment and can open the app without developer tools installed.
+- [x] User-confirmed on 2026-10-29: keyboard-only navigation through sidebar, forms, dialogs, command palette, and tables; visible focus and logical order.
+- [x] User-confirmed on 2026-10-29: screen-reader pass on key workflows, including page title, heading structure, field labels/errors, dialog name/description, status feedback, and table headers.
+- [x] User-confirmed on 2026-10-29: narrow viewport / real-device review covering sidebar behavior, forms, data tables, dialogs, horizontal scrolling, and touch targets.
+- [x] User-confirmed on 2026-10-29: zoom to 200% with no loss of core content or operation.
+- [x] Reviewed 68 screenshots via contact sheet and selected full-resolution screens (dashboard, purchases, settings) from Run #347; no systematic clipping/overlap was observed. Screenshot review is separate from the user's real-environment confirmation.
+- [x] User-confirmed on 2026-10-29: build artifact starts in a clean Windows environment and opens without developer tools installed.
+
+The items above are marked complete based on the user's explicit confirmation; they are not represented as independently observed by CI or the assistant.
 
 ## Guardrails
 
