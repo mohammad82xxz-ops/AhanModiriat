@@ -2050,10 +2050,13 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if has_movement and unit_mapping_changed:
                         raise ValueError('این کالا سابقهٔ گردش دارد؛ تغییر واحد پایه، واحد خرید/فروش یا ضریب تبدیل مسدود است تا مانده‌های تاریخی خراب نشوند.')
-                    if new_stock<0: raise ValueError('موجودی کالا نمی‌تواند منفی باشد.')
+                    avg_cost=money_int(v('avg_cost')); market_price=money_int(v('market_price')); min_stock=num(v('min_stock'))
+                    roll_weight=num(v('roll_weight')); sheet_area=num(v('sheet_area'))
+                    if new_stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
+                        raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
                     old_stock=float(p['stock'] or 0); stock_delta=new_stock-old_stock
                     c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',
-                              (product_name,v('code'),v('unit'),new_stock,money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
+                              (product_name,v('code'),v('unit'),new_stock,avg_cost,market_price,min_stock,v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,roll_weight,sheet_area,pid))
                     if abs(stock_delta)>0.000001:
                         c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
                                      VALUES(?,?,?,?,?,?,?)""",
