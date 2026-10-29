@@ -631,6 +631,21 @@ def money_int(v, default=0):
     amount=num(v,default)
     # Round half away from zero consistently with SQLite ROUND() in the schema migration.
     return int(amount+0.5) if amount>=0 else int(amount-0.5)
+def strict_number(v, label, allow_blank=False):
+    """Parse finite numeric input and reject malformed values rather than coercing them to zero."""
+    cleaned = str(v if v is not None else "").translate(DIGIT_TRANSLATION).replace(',', '').replace('٬', '').replace(' ', '').strip()
+    if not cleaned:
+        if allow_blank:
+            return 0.0
+        raise ValueError(f"{label} الزامی است و باید عدد معتبر باشد.")
+    try:
+        amount = float(cleaned)
+    except (ValueError, TypeError):
+        raise ValueError(f"{label} باید عدد معتبر باشد.")
+    if not math.isfinite(amount):
+        raise ValueError(f"{label} باید عدد معتبر باشد.")
+    return amount
+
 def strict_money_int(v, label, allow_blank=False):
     """Parse a transaction money field without silently converting malformed input to zero."""
     cleaned = str(v if v is not None else "").translate(DIGIT_TRANSLATION).replace(',', '').replace('٬', '').replace(' ', '').strip()
@@ -2079,7 +2094,7 @@ class Handler(BaseHTTPRequestHandler):
                                    'اصلاح موجودی از فرم ویرایش کالا',v('notes') or 'تعدیل خودکار از صفحه ویرایش کالا'))
                     dest='/products'; msg='مشخصات کالا به‌روزرسانی شد؛ تغییر موجودی نیز در کارت گردش ثبت شد.' if abs(stock_delta)>0.000001 else 'مشخصات کالا به‌روزرسانی شد.'
                 elif path=='add_purchase':
-                    pid=int(v('product_id')); qty=num(v('qty')); cost=strict_money_int(v('unit_cost'),'قیمت خرید',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی خرید',True); paid=strict_money_int(v('paid'),'مبلغ پرداختی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    pid=int(v('product_id')); qty=strict_number(v('qty'),'مقدار خرید'); cost=strict_money_int(v('unit_cost'),'قیمت خرید',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی خرید',True); paid=strict_money_int(v('paid'),'مبلغ پرداختی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('کالا، مقدار یا قیمت/هزینه خرید نامعتبر است؛ مبالغ جانبی و پرداخت نباید منفی باشند.')
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
@@ -2091,7 +2106,7 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"purchases",purchase_id,to_iso_date(v('date',jalali_today())),paid,"out",v('supplier'),v('notes') or "پرداخت خرید")
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
-                    pid=int(v('product_id')); qty=num(v('qty')); price=strict_money_int(v('unit_price'),'قیمت فروش',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی فروش',True); received=strict_money_int(v('received'),'مبلغ دریافتی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    pid=int(v('product_id')); qty=strict_number(v('qty'),'مقدار فروش'); price=strict_money_int(v('unit_price'),'قیمت فروش',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی فروش',True); received=strict_money_int(v('received'),'مبلغ دریافتی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
