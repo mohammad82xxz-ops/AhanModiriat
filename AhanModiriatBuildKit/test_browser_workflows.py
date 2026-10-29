@@ -112,6 +112,53 @@ def main() -> None:
                     assert c.execute("SELECT COUNT(*) FROM products WHERE name='Phase2 Negative Stock'").fetchone()[0] == negative_stock_count_before, "product with negative initial stock was persisted"
                 assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative initial stock was not rejected; url={page.url}"
 
+                # Service validation must reject negative revenue without ledger or cash side effects.
+                page.goto(base + "/services", wait_until="networkidle")
+                form = page.locator('form[action="/add_service"]')
+                form.locator('[name="title"]').fill("Phase2 Invalid Service")
+                form.locator('[name="revenue"]').fill("-10")
+                form.locator('[name="cost"]').fill("0")
+                form.locator('[name="received"]').fill("0")
+                with app.conn() as c:
+                    service_count_before = c.execute("SELECT COUNT(*) FROM services WHERE title='Phase2 Invalid Service'").fetchone()[0]
+                    service_cash_before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM services WHERE title='Phase2 Invalid Service'").fetchone()[0] == service_count_before, "service with negative revenue was persisted"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0] == service_cash_before, "cash movement created for rejected service"
+                assert "درآمد باید بیشتر از صفر" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative service revenue was not rejected; url={page.url}"
+
+                # Loan validation must reject a remaining balance greater than principal.
+                page.goto(base + "/loans", wait_until="networkidle")
+                form = page.locator('form[action="/add_loan"]')
+                form.locator('[name="title"]').fill("Phase2 Invalid Loan")
+                form.locator('[name="principal"]').fill("100")
+                form.locator('[name="remaining"]').fill("101")
+                form.locator('[name="installment"]').fill("10")
+                with app.conn() as c:
+                    loan_count_before = c.execute("SELECT COUNT(*) FROM loans WHERE title='Phase2 Invalid Loan'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM loans WHERE title='Phase2 Invalid Loan'").fetchone()[0] == loan_count_before, "loan balance greater than principal was persisted"
+                assert "مانده بین صفر و اصل وام باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid loan balance was not rejected; url={page.url}"
+
+                # A zero market price must not create price history or overwrite the current price.
+                page.goto(base + "/prices", wait_until="networkidle")
+                form = page.locator('form[action="/add_price"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="market_price"]').fill("0")
+                with app.conn() as c:
+                    price_count_before = c.execute("SELECT COUNT(*) FROM price_history WHERE product_id=?", (product_id,)).fetchone()[0]
+                    current_price_before = c.execute("SELECT market_price FROM products WHERE id=?", (product_id,)).fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM price_history WHERE product_id=?", (product_id,)).fetchone()[0] == price_count_before, "zero price history was persisted"
+                    assert c.execute("SELECT market_price FROM products WHERE id=?", (product_id,)).fetchone()[0] == current_price_before, "current market price changed after rejected zero price"
+                assert "قیمت روز باید بیشتر از صفر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"zero market price was not rejected; url={page.url}"
+
                 # The duplicate submission redirects back to /products; start a fresh form
                 # rather than reusing the now-detached locator.
                 page.goto(base + "/products", wait_until="networkidle")
