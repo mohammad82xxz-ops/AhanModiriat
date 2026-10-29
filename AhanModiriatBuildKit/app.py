@@ -1907,8 +1907,8 @@ class Handler(BaseHTTPRequestHandler):
                 except (TypeError,ValueError): page_num=1
                 rendered=fn(c,q.get('q',[''])[0],page_num)
                 if msg:
-                    flash=f'<div class="notice" role="status">{esc(msg)}</div>'
-                    rendered=rendered.replace('<main',flash+'<main',1)
+                    flash=f'<div class="success" role="status">{esc(msg)}</div>'
+                    rendered=rendered.replace('<div class="page-body">','<div class="page-body">'+flash,1)
                 self.send(rendered)
             elif path=='prices':
                 try:
