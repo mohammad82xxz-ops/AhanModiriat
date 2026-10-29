@@ -77,6 +77,31 @@ def main():
             assert after_missing_token == before_missing_token, (before_missing_token, after_missing_token)
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
+        # A valid token is scoped to its intended route and cannot authorize another transaction type.
+        with app.conn() as c:
+            purchase_token_markup = app.submission_token(c, "add_purchase")
+            purchase_token = purchase_token_markup.split('value="', 1)[1].split('"', 1)[0]
+            before_wrong_action = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+        post(port, "add_sale", {
+            "date":"2026-01-03","product_id":pid,"qty":"1","unit_price":"20",
+            "extra_cost":"0","received":"0","customer":"Wrong token action","notes":"reject",
+            "_submission_token":purchase_token,
+        }, auto_token=False)
+        with app.conn() as c:
+            after_wrong_action = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+            assert after_wrong_action == before_wrong_action, (before_wrong_action, after_wrong_action)
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
         post(port, "add_purchase", {
             "date":"2026-01-03","product_id":pid,"qty":"5","unit_cost":"10",
             "extra_cost":"0","paid":"25","supplier":"Supplier A","notes":"initial purchase"
