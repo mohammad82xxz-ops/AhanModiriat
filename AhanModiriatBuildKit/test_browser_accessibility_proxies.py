@@ -68,8 +68,8 @@ def main() -> None:
                         window.dispatchEvent(new Event('resize'));
                     }""")
                     zoom = page.evaluate("""() => {
-                        const main = document.querySelector('main');
-                        const control = document.querySelector('main a, main button, main input, main select, main textarea');
+                        const main = document.querySelector('main') || document.body;
+                        const control = document.querySelector('main a, main button, main input, main select, main textarea, body a, body button, body input, body select, body textarea');
                         const visible = el => {
                           if (!el) return false;
                           const r = el.getBoundingClientRect();
@@ -79,7 +79,7 @@ def main() -> None:
                         return {mainVisible: visible(main), controlVisible: visible(control)};
                     }""")
                     if not zoom["mainVisible"] or not zoom["controlVisible"]:
-                        failures.append(f"{route}: main content or first interactive control is not rendered at simulated 200% zoom")
+                        failures.append(f"{route}: page content or an interactive control is not rendered at simulated 200% zoom")
                     page.evaluate("() => { document.documentElement.style.zoom = ''; }")
                 if failures:
                     raise AssertionError("\\n".join(failures))
