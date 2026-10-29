@@ -82,11 +82,20 @@ def main() -> None:
                     assert float(product_after_duplicate["avg_cost"]) == 100, "duplicate product submission changed average cost"
                 assert "این کالا قبلاً ثبت شده است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"duplicate product rejection message missing; url={page.url}"
 
-                # Editing another product must not allow a case-insensitive duplicate name.
+                # The duplicate submission redirects back to /products; start a fresh form
+                # rather than reusing the now-detached locator.
+                page.goto(base + "/products", wait_until="networkidle")
+                form = page.locator('form[action="/add_product"]')
                 form.locator('[name="name"]').fill("Phase2 E2E Other")
+                form.locator('[name="unit"]').select_option(label="کیلوگرم")
+                form.locator('[name="purchase_unit"]').fill("کیلو")
+                form.locator('[name="purchase_factor"]').fill("1")
+                form.locator('[name="sale_unit"]').fill("کیلو")
+                form.locator('[name="sale_factor"]').fill("1")
                 form.locator('[name="stock"]').fill("0")
                 form.locator('[name="avg_cost"]').fill("0")
                 form.locator('[name="market_price"]').fill("0")
+                form.locator('[name="min_stock"]').fill("1")
                 form.locator("button").last.click()
                 with app.conn() as c:
                     other_product = c.execute("SELECT id FROM products WHERE name=?", ("Phase2 E2E Other",)).fetchone()
