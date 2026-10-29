@@ -60,6 +60,28 @@ def main() -> None:
                     assert float(product["stock"]) == 10
                     assert float(product["avg_cost"]) == 100
 
+                # Duplicate product names must be rejected without changing the existing product.
+                page.goto(base + "/products", wait_until="networkidle")
+                form = page.locator('form[action="/add_product"]')
+                form.locator('[name="name"]').fill(" Phase2 E2E Steel ")
+                form.locator('[name="unit"]').select_option(label="کیلوگرم")
+                form.locator('[name="purchase_unit"]').fill("کیلو")
+                form.locator('[name="purchase_factor"]').fill("1")
+                form.locator('[name="sale_unit"]').fill("کیلو")
+                form.locator('[name="sale_factor"]').fill("1")
+                form.locator('[name="stock"]').fill("999")
+                form.locator('[name="avg_cost"]').fill("999")
+                form.locator('[name="market_price"]').fill("999")
+                form.locator('[name="min_stock"]').fill("1")
+                form.locator("button").last.click()
+                with app.conn() as c:
+                    duplicate_rows = c.execute("SELECT COUNT(*) FROM products WHERE TRIM(name)=?", ("Phase2 E2E Steel",)).fetchone()[0]
+                    product_after_duplicate = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
+                    assert duplicate_rows == 1, f"duplicate product was persisted; count={duplicate_rows}"
+                    assert float(product_after_duplicate["stock"]) == 10, "duplicate product submission changed stock"
+                    assert float(product_after_duplicate["avg_cost"]) == 100, "duplicate product submission changed average cost"
+                assert "این کالا قبلاً ثبت شده است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"duplicate product rejection message missing; url={page.url}"
+
                 # Purchase: stock, weighted average cost, supplier link, and cash posting.
                 page.goto(base + "/purchases", wait_until="networkidle")
                 form = page.locator('form[action="/add_purchase"]')
