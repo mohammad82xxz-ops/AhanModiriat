@@ -151,7 +151,8 @@ def main() -> None:
                 form.locator('[name="principal"]').fill("1000")
                 form.locator('[name="remaining"]').fill("100")
                 form.locator('[name="installment"]').fill("50")
-                form.locator("button").first.click()
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
                 with app.conn() as c:
                     guarded_loan = c.execute("SELECT * FROM loans WHERE title=?", ("Phase2 Payment Guard Loan",)).fetchone()
                     assert guarded_loan is not None, "valid guard loan was not created"
