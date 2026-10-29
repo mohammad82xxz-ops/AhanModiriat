@@ -21,6 +21,8 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Negative path: purchase submitted with negative paid amount; server rejects it and the regression confirms no purchase row, stock/average-cost change, or purchase cash movement. Verified in CI run #310.
 - [x] Negative path: sale submitted with negative extra cost; server rejects it and the regression confirms no sale row, stock change, or sale cash movement. Verified in CI run #310.
 - [x] Regression: isolated test suite, browser workflow suite, Lighthouse + axe audit, UI screenshot matrix, and Windows OneDir build passed in CI runs #310 and #311.
+- [ ] Regression pending latest CI: product creation rejects duplicate names after case-folding and collapsing repeated whitespace, without changing existing stock or average cost.
+- [ ] Regression pending latest CI: editing a second product to a duplicate normalized name is rejected and leaves both records unchanged.
 - [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 
 Negative-path findings and resolutions:
@@ -32,6 +34,9 @@ Negative-path findings and resolutions:
 - Negative purchase paid amount and negative sale extra cost passed in [Run #310](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and PR-triggered [Run #311](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983).
 
 ## Latest automated CI evidence
+
+- The last completed CI evidence is still from before the latest duplicate-name validation/test edits: [Run #319 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40919470353) passed both browser/accessibility and Windows OneDir jobs, but it does **not** validate the newest commit.
+- [Run #325 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920084308) is still running against an earlier snapshot; do not use it as proof for later commits. Re-check CI on the current branch HEAD before marking the new duplicate-name regressions as passed.
 
 Both [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed `smoke-test` and `windows-onedir` on commit `ac12541c99b389e2b187757a3a0aa60746a57185`. Evidence includes the 17-route UI matrix, finance/inventory workflow regressions (including four negative-amount cases), keyboard/zoom proxies, Lighthouse + axe audit, and Windows OneDir packaging.
 
