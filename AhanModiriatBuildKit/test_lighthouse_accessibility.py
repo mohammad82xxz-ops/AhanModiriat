@@ -50,7 +50,7 @@ def main():
                             violations: r.violations.map(v => ({
                               id: v.id, impact: v.impact, description: v.description,
                               help: v.help, helpUrl: v.helpUrl,
-                              nodes: v.nodes.map(n => ({target: n.target, html: n.html.slice(0, 240), summary: n.failureSummary})
+                              nodes: v.nodes.map(n => ({target: n.target, html: n.html.slice(0, 240), summary: n.failureSummary}))
                             })),
                             passes: r.passes.length, incomplete: r.incomplete.length,
                             inapplicable: r.inapplicable.length
