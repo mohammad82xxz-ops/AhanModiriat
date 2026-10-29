@@ -2012,8 +2012,11 @@ class Handler(BaseHTTPRequestHandler):
                 elif path=='update_product':
                     pid=int(v('product_id')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p: raise ValueError('کالا پیدا نشد.')
+                    product_name=normalize_person(v('name'))
                     pf=num(v('purchase_factor')); sf=num(v('sale_factor')); new_stock=num(v('stock'),-1)
-                    if not v('name') or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
+                    if not product_name or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
+                    duplicate=c.execute('SELECT id FROM products WHERE TRIM(name)=? COLLATE NOCASE AND id<>?',(product_name,pid)).fetchone()
+                    if duplicate: raise ValueError('نام این کالا با کالای دیگری تکراری است.')
                     has_movement=any(scalar(c,f'SELECT COUNT(*) FROM {table} WHERE product_id=?',(pid,)) for table in ('purchases','sales','inventory_adjustments','purchase_returns','sales_returns'))
                     unit_mapping_changed=(
                         v('unit')!=p['unit'] or
@@ -2027,7 +2030,7 @@ class Handler(BaseHTTPRequestHandler):
                     if new_stock<0: raise ValueError('موجودی کالا نمی‌تواند منفی باشد.')
                     old_stock=float(p['stock'] or 0); stock_delta=new_stock-old_stock
                     c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',
-                              (v('name'),v('code'),v('unit'),new_stock,money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
+                              (product_name,v('code'),v('unit'),new_stock,money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,num(v('roll_weight')),num(v('sheet_area')),pid))
                     if abs(stock_delta)>0.000001:
                         c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
                                      VALUES(?,?,?,?,?,?,?)""",
