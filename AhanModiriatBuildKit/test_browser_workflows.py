@@ -101,7 +101,7 @@ def main() -> None:
                     assert purchases_after == purchases_before, "zero-quantity purchase was persisted"
                     assert float(product_after["stock"]) == float(product_before["stock"]), "stock changed after invalid purchase"
                     assert float(product_after["avg_cost"]) == float(product_before["avg_cost"]), "average cost changed after invalid purchase"
-                assert "کالا، مقدار یا قیمت خرید نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid purchase rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+                assert "کالا، مقدار یا قیمت/هزینه خرید نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid purchase rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Negative path: reject a purchase with a negative extra cost.
                 page.goto(base + "/purchases", wait_until="networkidle")
@@ -142,7 +142,7 @@ def main() -> None:
                     zero_sale_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
                 assert zero_sales_after == zero_sales_before, "zero-quantity sale was persisted"
                 assert float(zero_sale_stock_after) == float(zero_sale_stock_before), "stock changed after invalid sale"
-                assert "کالا، مقدار یا قیمت فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+                assert "کالا، مقدار یا قیمت/هزینه فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Negative path: reject a sale with a missing quantity even if browser validation is bypassed.
                 page.goto(base + "/sales", wait_until="networkidle")
@@ -162,7 +162,7 @@ def main() -> None:
                     missing_qty_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
                 assert missing_qty_sales_after == missing_qty_sales_before, "sale with missing quantity was persisted"
                 assert float(missing_qty_stock_after) == float(missing_qty_stock_before), "stock changed after sale with missing quantity"
-                assert "کالا، مقدار یا قیمت فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-quantity sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+                assert "کالا، مقدار یا قیمت/هزینه فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-quantity sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Negative path: reject a sale with a missing unit price even if browser validation is bypassed.
                 page.goto(base + "/sales", wait_until="networkidle")
@@ -182,7 +182,7 @@ def main() -> None:
                     missing_price_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
                 assert missing_price_sales_after == missing_price_sales_before, "sale with missing unit price was persisted"
                 assert float(missing_price_stock_after) == float(missing_price_stock_before), "stock changed after sale with missing unit price"
-                assert "کالا، مقدار یا قیمت فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+                assert "کالا، مقدار یا قیمت/هزینه فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Negative path: reject a sale with a negative received amount.
                 page.goto(base + "/sales", wait_until="networkidle")
