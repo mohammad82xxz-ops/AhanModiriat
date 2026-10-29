@@ -18,7 +18,9 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Negative path: expense submitted with a missing description; server rejects it. Browser regression passed in CI run #297.
 - [x] Negative path: purchase submitted with negative extra cost; server rejects it and the regression confirms no purchase row, stock/average-cost change, or purchase cash movement. Verified in CI run #304.
 - [x] Negative path: sale submitted with negative received amount; server rejects it and the regression confirms no sale row, stock change, or sale cash movement. Verified in CI run #304.
-- [x] Regression: run the full existing isolated test suite and Windows OneDir build.
+- [x] Negative path: purchase submitted with negative paid amount; server rejects it and the regression confirms no purchase row, stock/average-cost change, or purchase cash movement. Verified in CI run #310.
+- [x] Negative path: sale submitted with negative extra cost; server rejects it and the regression confirms no sale row, stock change, or sale cash movement. Verified in CI run #310.
+- [x] Regression: isolated test suite, browser workflow suite, Lighthouse + axe audit, UI screenshot matrix, and Windows OneDir build passed in CI runs #310 and #311.
 - [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 
 Negative-path findings and resolutions:
@@ -26,15 +28,16 @@ Negative-path findings and resolutions:
 - Missing sale quantity was added as a regression and passed in [Run #284](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668).
 - Blank/zero expense amounts were added as server-side validation and browser regressions; [Run #295](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40909914914) passed.
 - Missing expense description was added as a browser regression; [Run #297](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434) passed both jobs.
-- Negative purchase extra cost and negative sale received amount are now covered by browser regressions; [Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609) passed both jobs on commit `d30be1f060a00783a701492b78e9a15130e43868`.
+- Negative purchase extra cost and negative sale received amount passed in [Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609).
+- Negative purchase paid amount and negative sale extra cost passed in [Run #310](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and PR-triggered [Run #311](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983).
 
 ## Latest automated CI evidence
 
-[Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609) passed both `smoke-test` and `windows-onedir` on commit `d30be1f060a00783a701492b78e9a15130e43868`. The PR-triggered validation [Run #305](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913045342) also passed on the same commit. Evidence includes the 17-route UI matrix, finance/inventory workflow regressions, keyboard/zoom proxies, Lighthouse + axe audit, and Windows OneDir packaging.
+Both [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed `smoke-test` and `windows-onedir` on commit `ac12541c99b389e2b187757a3a0aa60746a57185`. Evidence includes the 17-route UI matrix, finance/inventory workflow regressions (including four negative-amount cases), keyboard/zoom proxies, Lighthouse + axe audit, and Windows OneDir packaging.
 
-- [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609/artifacts/12914293805)
-- [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609/artifacts/12914338645)
-- [Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609/artifacts/12915216647)
+- [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879/artifacts/12916725182)
+- [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879/artifacts/12915088853)
+- [Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879/artifacts/12915164705)
 
 ## Manual checks — required before calling the entire phase complete
 
