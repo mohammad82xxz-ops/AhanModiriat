@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 TMP = tempfile.TemporaryDirectory(prefix="ahan_browser_workflows_")
 os.environ["AHAN_DATA_DIR"] = str(Path(TMP.name) / "appdata")
@@ -96,7 +97,7 @@ def main() -> None:
                     sales_after = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
                     assert float(rejected_product["stock"]) == 15, rejected_product["stock"]
                     assert sales_after == sales_before, "oversale was persisted despite insufficient stock"
-                assert "موجودی کافی نیست" in page.locator("body").inner_text(), "oversale rejection message was not shown"
+                assert "موجودی کافی نیست" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"oversale rejection message was not returned in redirect; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Sale: stock reduction, frozen cost basis, profit, and cash receipt.
                 page.goto(base + "/sales", wait_until="networkidle")
