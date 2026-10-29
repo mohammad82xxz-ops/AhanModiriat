@@ -12,6 +12,7 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Negative path: browser regression test confirms that a sale exceeding available stock is rejected, stock remains unchanged, no sale record is created, and the rejection message is returned in the redirect query string. Verified in CI run #252.
 - [x] Negative path: browser regression submits a zero-quantity purchase while bypassing browser constraint validation; server rejection, unchanged stock/average cost, and no purchase record confirmed in CI run #262.
 - [x] Negative path: browser regression submits a zero-quantity sale while bypassing browser constraint validation; server rejection message, unchanged stock, and no sale record confirmed in CI run #266.
+- [ ] Negative path added: sale submitted with a missing unit price while browser validation is bypassed; awaiting CI confirmation of server rejection, unchanged stock, and no sale record.
 - [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 - [x] Regression: run the full existing isolated test suite and Windows OneDir build.
 
