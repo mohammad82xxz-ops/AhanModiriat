@@ -82,6 +82,36 @@ def main() -> None:
                     assert float(product_after_duplicate["avg_cost"]) == 100, "duplicate product submission changed average cost"
                 assert "این کالا قبلاً ثبت شده است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"duplicate product rejection message missing; url={page.url}"
 
+                # Whitespace-only product names must be rejected server-side.
+                page.goto(base + "/products", wait_until="networkidle")
+                form = page.locator('form[action="/add_product"]')
+                form.locator('[name="name"]').fill("   ")
+                form.locator('[name="stock"]').fill("0")
+                form.locator('[name="avg_cost"]').fill("0")
+                form.locator('[name="market_price"]').fill("0")
+                with app.conn() as c:
+                    blank_name_count_before = c.execute("SELECT COUNT(*) FROM products WHERE TRIM(name)=''").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM products WHERE TRIM(name)=''").fetchone()[0] == blank_name_count_before, "whitespace-only product name was persisted"
+                assert "نام کالا و ضرایب تبدیل معتبر الزامی هستند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"whitespace-only product name was not rejected; url={page.url}"
+
+                # Negative initial stock must be rejected without creating a product.
+                page.goto(base + "/products", wait_until="networkidle")
+                form = page.locator('form[action="/add_product"]')
+                form.locator('[name="name"]').fill("Phase2 Negative Stock")
+                form.locator('[name="stock"]').fill("-1")
+                form.locator('[name="avg_cost"]').fill("0")
+                form.locator('[name="market_price"]').fill("0")
+                with app.conn() as c:
+                    negative_stock_count_before = c.execute("SELECT COUNT(*) FROM products WHERE name='Phase2 Negative Stock'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM products WHERE name='Phase2 Negative Stock'").fetchone()[0] == negative_stock_count_before, "product with negative initial stock was persisted"
+                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative initial stock was not rejected; url={page.url}"
+
                 # The duplicate submission redirects back to /products; start a fresh form
                 # rather than reusing the now-detached locator.
                 page.goto(base + "/products", wait_until="networkidle")
