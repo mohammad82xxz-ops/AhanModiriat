@@ -122,6 +122,7 @@ def main() -> None:
                 form.locator('[name="paid"]').fill("300")
                 form.locator('[name="supplier"]').fill("Phase2 Supplier")
                 form.locator('[name="notes"]').fill("phase two browser purchase")
+                purchase_payload = form.evaluate("(form) => Object.fromEntries(new FormData(form).entries())")
                 form.locator("button").last.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
@@ -132,6 +133,19 @@ def main() -> None:
                     assert purchase["supplier_person_id"], "supplier was not linked to the party directory"
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase["id"],)).fetchall()
                     assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (300, "withdraw"), [dict(x) for x in postings]
+                    purchase_count_before_replay = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
+                    stock_before_replay = float(product["stock"])
+                    cash_count_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0]
+
+                # Replay the exact successful POST payload as happens with refresh/back or a repeated submit.
+                replay_response = page.request.post(base + "/add_purchase", form=purchase_payload)
+                assert replay_response.status == 303, f"purchase replay should redirect safely, got {replay_response.status}"
+                replay_message = parse_qs(urlparse(replay_response.headers.get("location", "")).query).get("msg", [""])[0]
+                assert "قبلاً ارسال شده" in replay_message, f"replayed purchase was not explicitly rejected: {replay_message}"
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0] == purchase_count_before_replay, "replayed purchase created a duplicate row"
+                    assert float(c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]) == stock_before_replay, "replayed purchase changed stock"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0] == cash_count_before_replay, "replayed purchase created a duplicate cash movement"
 
                 # Negative path: reject a purchase with zero quantity, even if browser-side validation is bypassed.
                 page.goto(base + "/purchases", wait_until="networkidle")
