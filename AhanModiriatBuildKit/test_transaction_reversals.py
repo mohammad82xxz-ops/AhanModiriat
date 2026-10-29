@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import app
 
 
-def post(port, path, fields):
+def post(port, path, fields, auto_token=True):
     fields = dict(fields)
-    if path in ("add_purchase", "add_sale", "add_expense") and "_submission_token" not in fields:
+    if auto_token and path in ("add_purchase", "add_sale", "add_expense") and "_submission_token" not in fields:
         with app.conn() as c:
             token_markup = app.submission_token(c, path)
             fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
@@ -50,6 +50,33 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        # The server must reject direct protected POSTs that omit a form token.
+        missing_token_cases = [
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Missing token","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_price":"20","extra_cost":"0","received":"0","customer":"Missing token","notes":"reject"}),
+            ("add_expense", {"date":"2026-01-03","category":"missing token","amount":"10","business":"1","source":"نامشخص","notes":"reject"}),
+        ]
+        with app.conn() as c:
+            before_missing_token = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+        for route, fields in missing_token_cases:
+            post(port, route, fields, auto_token=False)
+        with app.conn() as c:
+            after_missing_token = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+            assert after_missing_token == before_missing_token, (before_missing_token, after_missing_token)
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
         post(port, "add_purchase", {
             "date":"2026-01-03","product_id":pid,"qty":"5","unit_cost":"10",
             "extra_cost":"0","paid":"25","supplier":"Supplier A","notes":"initial purchase"
