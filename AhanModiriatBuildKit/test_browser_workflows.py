@@ -123,6 +123,26 @@ def main() -> None:
                 assert float(zero_sale_stock_after) == float(zero_sale_stock_before), "stock changed after invalid sale"
                 assert "کالا، مقدار یا قیمت فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
+                # Negative path: reject a sale with a missing unit price even if browser validation is bypassed.
+                page.goto(base + "/sales", wait_until="networkidle")
+                form = page.locator('form[action="/add_sale"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="qty"]').fill("1")
+                form.locator('[name="unit_price"]').fill("")
+                form.locator('[name="extra_cost"]').fill("0")
+                form.locator('[name="received"]').fill("0")
+                with app.conn() as c:
+                    missing_price_sales_before = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    missing_price_stock_before = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    missing_price_sales_after = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    missing_price_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
+                assert missing_price_sales_after == missing_price_sales_before, "sale with missing unit price was persisted"
+                assert float(missing_price_stock_after) == float(missing_price_stock_before), "stock changed after sale with missing unit price"
+                assert "کالا، مقدار یا قیمت فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+
                 # Negative path: reject a sale that exceeds available stock.
                 page.goto(base + "/sales", wait_until="networkidle")
                 form = page.locator('form[action="/add_sale"]')
