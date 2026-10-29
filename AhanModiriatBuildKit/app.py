@@ -2184,8 +2184,8 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند هزینه پیدا نشد.')
                     date=to_iso_date(v('date',jalali_today())); category=v('category'); amount=money_int(v('amount'),-1)
                     business=v('business','1'); source=v('source','نامشخص')
-                    if not category or amount<0 or business not in ('0','1'): raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست.')
-                    c.execute("UPDATE expenses SET date=?,category=?,amount=?,source=?,business=?,notes=? WHERE id=?",
+                    if not category or amount<=0 or business not in ('0','1'): raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست؛ مبلغ باید بیشتر از صفر باشد.')
+                    c.execute("UPDATE expenses SET date=?,category=?,amount=?,source=?,business=?,notes=? WHERE id=?,
                               (date,category,amount,source,int(business),v('notes'),rid))
                     sync_cash_posting(c,"expenses",rid,date,amount,"out",source,v('notes') or "اصلاح هزینه")
                     dest='/expenses';msg='هزینه/برداشت اصلاح شد.'
