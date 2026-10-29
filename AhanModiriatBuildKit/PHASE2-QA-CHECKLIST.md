@@ -11,9 +11,11 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Automated keyboard tab-reachability and simulated 200% zoom proxies on seven core routes (proxies only; do not substitute for manual review).
 - [x] Negative path: browser regression test confirms that a sale exceeding available stock is rejected, stock remains unchanged, no sale record is created, and the rejection message is returned in the redirect query string. Verified in CI run #252.
 - [x] Negative path: browser regression submits a zero-quantity purchase while bypassing browser constraint validation; server rejection, unchanged stock/average cost, and no purchase record confirmed in CI run #262.
-- [ ] Negative path added: zero-quantity sale submitted with browser validation bypassed; wait for CI to confirm server rejection, unchanged stock, and no sale record before marking passed.
+- [x] Negative path: browser regression submits a zero-quantity sale while bypassing browser constraint validation; server rejection message, unchanged stock, and no sale record confirmed in CI run #266.
 - [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 - [x] Regression: run the full existing isolated test suite and Windows OneDir build.
+
+CI evidence: [Run #266](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40884504867) passed both `smoke-test` and `windows-onedir`; axe-core reported zero violations on all 17 audited routes and all 10 Lighthouse reports were generated. Artifacts: [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40884504867/artifacts/12901803377), [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40884504867/artifacts/12902615947), [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40884504867/artifacts/12902297438).
 
 ## Manual checks — required before calling the entire phase complete
 
