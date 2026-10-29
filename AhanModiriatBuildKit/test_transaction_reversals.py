@@ -77,6 +77,35 @@ def main():
             assert after_missing_token == before_missing_token, (before_missing_token, after_missing_token)
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
+        # Invalid product references and malformed quantities must fail atomically.
+        invalid_input_cases = [
+            ("add_purchase", {"date":"2026-01-03","product_id":pid + 99999,"qty":"1","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Invalid product","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid + 99999,"qty":"1","unit_price":"20","extra_cost":"0","received":"0","customer":"Invalid product","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"not-a-number","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Invalid quantity","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"not-a-number","unit_price":"20","extra_cost":"0","received":"0","customer":"Invalid quantity","notes":"reject"}),
+        ]
+        with app.conn() as c:
+            before_invalid_input = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                c.execute("SELECT avg_cost FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+        for route, fields in invalid_input_cases:
+            post(port, route, fields)
+        with app.conn() as c:
+            after_invalid_input = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                c.execute("SELECT avg_cost FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+            assert after_invalid_input == before_invalid_input, (before_invalid_input, after_invalid_input)
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
         # A valid token is scoped to its intended route and cannot authorize another transaction type.
         with app.conn() as c:
             purchase_token_markup = app.submission_token(c, "add_purchase")
