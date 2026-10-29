@@ -2033,7 +2033,7 @@ class Handler(BaseHTTPRequestHandler):
                     dest='/products'; msg='مشخصات کالا به‌روزرسانی شد؛ تغییر موجودی نیز در کارت گردش ثبت شد.' if abs(stock_delta)>0.000001 else 'مشخصات کالا به‌روزرسانی شد.'
                 elif path=='add_purchase':
                     pid=int(v('product_id')); qty=num(v('qty')); cost=money_int(v('unit_cost')); extra=money_int(v('extra_cost')); paid=money_int(v('paid')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
-                    if not p or qty<=0 or cost<0: raise ValueError('کالا، مقدار یا قیمت خرید نامعتبر است.')
+                    if not p or qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('کالا، مقدار یا قیمت/هزینه خرید نامعتبر است؛ مبالغ جانبی و پرداخت نباید منفی باشند.')
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
                     base_qty=qty*factor
@@ -2045,7 +2045,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
                     pid=int(v('product_id')); qty=num(v('qty')); price=money_int(v('unit_price')); extra=money_int(v('extra_cost')); received=money_int(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
-                    if not p or qty<=0 or price<=0:raise ValueError('کالا، مقدار یا قیمت فروش نامعتبر است.')
+                    if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
                     base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
