@@ -204,6 +204,36 @@ def main() -> None:
                     assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (400, "deposit"), [dict(x) for x in postings]
                     assert sale["customer_person_id"], "customer was not linked to the party directory"
 
+                # Negative paths: missing and zero expense amounts must not create expense/cash records.
+                page.goto(base + "/expenses", wait_until="networkidle")
+                form = page.locator('form[action="/add_expense"]')
+                form.locator('[name="category"]').fill("Phase2 invalid expense")
+                form.locator('[name="amount"]').fill("")
+                form.locator('[name="business"]').select_option("1")
+                with app.conn() as c:
+                    invalid_expenses_before = c.execute("SELECT COUNT(*) FROM expenses WHERE category='Phase2 invalid expense'").fetchone()[0]
+                    invalid_cash_before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM expenses WHERE category='Phase2 invalid expense'").fetchone()[0] == invalid_expenses_before, "expense with missing amount was persisted"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0] == invalid_cash_before, "cash movement created for expense with missing amount"
+                assert "مبلغ باید بیشتر از صفر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-amount expense rejection message missing; url={page.url}"
+
+                page.goto(base + "/expenses", wait_until="networkidle")
+                form = page.locator('form[action="/add_expense"]')
+                form.locator('[name="category"]').fill("Phase2 zero expense")
+                form.locator('[name="amount"]').fill("0")
+                form.locator('[name="business"]').select_option("1")
+                with app.conn() as c:
+                    zero_expenses_before = c.execute("SELECT COUNT(*) FROM expenses WHERE category='Phase2 zero expense'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM expenses WHERE category='Phase2 zero expense'").fetchone()[0] == zero_expenses_before, "zero-amount expense was persisted"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0] == invalid_cash_before, "cash movement created for zero-amount expense"
+                assert "مبلغ باید بیشتر از صفر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"zero-amount expense rejection message missing; url={page.url}"
+
                 # Expense: a business expense affects the profit ledger and cash.
                 page.goto(base + "/expenses", wait_until="networkidle")
                 form = page.locator('form[action="/add_expense"]')
