@@ -206,6 +206,13 @@ def main() -> None:
                         "message": "مبلغ قسط باید مثبت و سهم اصل و سود/کارمزد نباید منفی باشد",
                     },
                     {
+                        "label": "negative payment amount",
+                        "amount": "-1",
+                        "principal": "0",
+                        "interest": "0",
+                        "message": "مبلغ قسط باید مثبت و سهم اصل و سود/کارمزد نباید منفی باشد",
+                    },
+                    {
                         "label": "missing payment amount",
                         "amount": "",
                         "principal": "0",
