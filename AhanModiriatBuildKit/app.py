@@ -1736,7 +1736,14 @@ class Handler(BaseHTTPRequestHandler):
         if method=="POST":
             origin=self.headers.get("Origin")
             referer=self.headers.get("Referer")
-            if origin and not self._same_origin_url(origin):
+            # Some same-origin browser form POSTs can carry Origin: null
+            # under a no-referrer policy. Accept that opaque Origin only when
+            # Fetch Metadata independently confirms same-origin; cross-site and
+            # unknown-site requests remain rejected.
+            if origin and origin.strip().lower()=="null":
+                if fetch_site!="same-origin":
+                    return "Cross-origin POST blocked"
+            elif origin and not self._same_origin_url(origin):
                 return "Cross-origin POST blocked"
             if not origin and referer and not self._same_origin_url(referer):
                 return "Cross-origin POST blocked"
