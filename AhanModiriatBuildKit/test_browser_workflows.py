@@ -191,6 +191,27 @@ def main() -> None:
                         "interest": "9",
                         "message": "مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد",
                     },
+                    {
+                        "label": "negative interest portion",
+                        "amount": "10",
+                        "principal": "11",
+                        "interest": "-1",
+                        "message": "سهم اصل و سود/کارمزد نباید منفی باشد",
+                    },
+                    {
+                        "label": "zero payment amount",
+                        "amount": "0",
+                        "principal": "0",
+                        "interest": "0",
+                        "message": "مبلغ قسط باید مثبت باشد",
+                    },
+                    {
+                        "label": "missing payment amount",
+                        "amount": "",
+                        "principal": "0",
+                        "interest": "0",
+                        "message": "مبلغ قسط باید مثبت باشد",
+                    },
                 ]
                 for case in invalid_payment_cases:
                     page.goto(base + "/loans", wait_until="networkidle")
