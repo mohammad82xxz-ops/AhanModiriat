@@ -9,7 +9,9 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Browser route matrix: all 17 routes at both viewport sizes and both themes; no console/page errors, unexpected external requests, or horizontal overflow.
 - [x] Browser workflows: create a purchase, verify stock/average cost/cash movement; create a sale, verify stock/profit/cash movement; create an expense, verify expense/cash/profit impact; perform a physical inventory count and verify adjustment ledger.
 - [x] Automated keyboard tab-reachability and simulated 200% zoom proxies on seven core routes (proxies only; do not substitute for manual review).
-- [x] Negative path: browser regression test confirms that a sale exceeding available stock is rejected, stock remains unchanged, no sale record is created, and the rejection message is returned in the redirect query string. Verified in CI run #252. Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
+- [x] Negative path: browser regression test confirms that a sale exceeding available stock is rejected, stock remains unchanged, no sale record is created, and the rejection message is returned in the redirect query string. Verified in CI run #252.
+- [ ] Negative path added: browser regression submits a zero-quantity purchase while bypassing browser constraint validation; server rejection, unchanged stock/average cost, and no purchase record must be confirmed by CI before marking passed.
+- [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 - [x] Regression: run the full existing isolated test suite and Windows OneDir build.
 
 ## Manual checks — required before calling the entire phase complete
