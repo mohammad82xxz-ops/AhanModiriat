@@ -1,4 +1,5 @@
 name: AhanModiriat smoke test and Windows build
+# QA audit: keep Lighthouse/axe checks on the PR branch
 on:
   push:
     branches: [main, "feature/**", "release/**"]
