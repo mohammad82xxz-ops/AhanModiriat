@@ -18,6 +18,13 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 def main() -> None:
     app.init()
+    security_events = []
+    original_security_check = app.Handler._request_security_error
+    def tracked_security_check(handler, method):
+        error = original_security_check(handler, method)
+        security_events.append({"method": method, "fetch_site": handler.headers.get("Sec-Fetch-Site"), "origin": handler.headers.get("Origin"), "referer": handler.headers.get("Referer"), "host": handler.headers.get("Host"), "error": error})
+        return error
+    app.Handler._request_security_error = tracked_security_check
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -47,7 +54,7 @@ def main() -> None:
                 form.locator("button").first.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE name=?", ("Phase2 E2E Steel",)).fetchone()
-                    assert product is not None, f"product was not created through the UI; url={page.url}; body={page.locator('body').inner_text()[:1200]}"
+                    assert product is not None, f"product was not created through the UI; url={page.url}; body={page.locator('body').inner_text()[:1200]}; security={security_events[-5:]}"
                     product_id = product["id"]
                     assert float(product["stock"]) == 10
                     assert float(product["avg_cost"]) == 100
