@@ -1044,8 +1044,8 @@ def dashboard_sales_chart(c, month_limit=6):
         label=f"{jy:04d}/{jm:02d}"
         groups.append(f'''<div class="bar-chart-group" aria-label="ماه {label}">
           <div class="bar-chart-bars">
-            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["sales"])}</span><div class="bar-chart-track"><div class="bar-chart-fill sales" style="height:{sales_pct:.1f}%"></div></div><small>فروش کالا</small></div>
-            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["services"])}</span><div class="bar-chart-track"><div class="bar-chart-fill services" style="height:{service_pct:.1f}%"></div></div><small>خدمات</small></div>
+            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["sales"])}</span><div class="bar-chart-track"><svg class="bar-chart-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-chart-fill sales" x="0" y="{100-sales_pct:.1f}" width="100" height="{sales_pct:.1f}" rx="3"></rect></svg></div><small>فروش کالا</small></div>
+            <div class="bar-chart-item"><span class="bar-chart-value">{money(b["services"])}</span><div class="bar-chart-track"><svg class="bar-chart-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-chart-fill services" x="0" y="{100-service_pct:.1f}" width="100" height="{service_pct:.1f}" rx="3"></rect></svg></div><small>خدمات</small></div>
           </div><strong>{label}</strong></div>''')
     if not groups:
         return '<div class="card section"><h2>نمودار فروش ماهانه</h2><p class="empty">برای ترسیم نمودار، ابتدا فروش یا خدمات ثبت کن.</p></div>'
@@ -1084,7 +1084,7 @@ def page(title, body, active='', msg=''):
     <dialog id="confirm-dialog" class="confirm-dialog"><h2 id="confirm-title">تأیید عملیات</h2><p id="confirm-description">این عملیات را تأیید می‌کنی؟</p><label>برای ادامه عبارت تأیید را وارد کن<input id="confirm-phrase" autocomplete="off"></label><div class="actions"><button type="button" class="secondary" id="confirm-cancel">انصراف</button><button type="button" class="danger" id="confirm-accept" disabled>تأیید</button></div></dialog>
     </body></html>'''
 def design_page(c=None):
-    body='''<section class="section"><p class="muted">این صفحه برای مرور چشمی توکن‌ها، اجزای پایه و حالت‌های رابط ساخته شده است. رنگ‌ها و فاصله‌ها از فایل‌های محلی سیستم طراحی می‌آیند.</p></section>
+    body='''<h1>سیستم طراحی</h1><section class="section"><p class="muted">این صفحه برای مرور چشمی توکن‌ها، اجزای پایه و حالت‌های رابط ساخته شده است. رنگ‌ها و فاصله‌ها از فایل‌های محلی سیستم طراحی می‌آیند.</p></section>
     <section class="card section"><h2>پالت رنگ</h2><div class="palette-grid"><div><h3>برند</h3><div class="swatch swatch-brand"><span>Brand</span></div></div><div><h3>خنثی</h3><div class="swatch swatch-neutral"><span>Neutral</span></div></div><div><h3>وضعیت‌های معنایی</h3><div class="state-row"><span class="badge success">موفق · بستانکار</span><span class="badge warning">هشدار · نزدیک سررسید</span><span class="badge danger">خطر · بدهکار</span><span class="badge info">اطلاع · پیش‌نویس</span></div></div></div></section>
     <section class="card section"><h2>حالت دکمه‌ها</h2><div class="state-row"><button>اصلی</button><button class="secondary">ثانویه</button><button class="neutral">خنثی</button><button class="ghost">متنی</button><button class="danger">خطرناک</button><button disabled>غیرفعال</button><button><span class="spinner" aria-hidden="true"></span>در حال ذخیره</button></div><div class="actions"><button class="sm secondary">کوچک</button><button class="secondary">معمولی</button><button class="lg secondary">بزرگ</button></div></section>
     <section class="card section"><h2>فیلدها و خطا</h2><div class="formgrid"><div class="field"><label for="demo-name">نام کالا</label><input id="demo-name" value="پروفیل ۲ میلی‌متر"><span class="help">برچسب بالای ورودی و راهنما زیر آن</span></div><div class="field"><label for="demo-amount">مبلغ (تومان)</label><input id="demo-amount" value="۲٬۵۰۰٬۰۰۰" inputmode="numeric"><span class="help">قالب‌بندی نمونه مبلغ</span></div><div class="field error"><label for="demo-error">حالت خطا</label><input id="demo-error" aria-invalid="true" value="تاریخ نامعتبر"><span class="error">تاریخ معتبر نیست؛ مقدار را اصلاح کن.</span></div></div></section>
@@ -1116,7 +1116,8 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
     return f'<div class="field"><label for="field-{safe_name}">{label}</label><div class="input-wrap"><input id="field-{safe_name}" name="{safe_name}" type="{typ}" value="{esc(value)}" {req}{st}{attrs}{ph}></div>{monetary}</div>'
 def selectfield(label,name,opts,required=True,value=None):
     opt=''.join(f'<option value="{esc(v)}" {"selected" if value is not None and str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
-    return f'<div class="field"><label>{label}</label><select name="{name}" {"required" if required else ""}>{opt}</select></div>'
+    safe_name=esc(name)
+    return f'<div class="field"><label for="field-{safe_name}">{label}</label><select id="field-{safe_name}" name="{safe_name}" {"required" if required else ""}>{opt}</select></div>'
 XLSX_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 XLSX_OFFICE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 XLSX_PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -1354,7 +1355,7 @@ def products(c, search='', page_num=1):
     </div><p class="small">نمونه: رابیتس بسته ۱۰ عددی = ضریب ۱۰؛ طلق برگ ۶×۲٫۱۰ متر = ضریب ۱۲٫۶؛ سیم مفتول رول = ضریب برابر وزن رول.</p><div class="actions"><button>ثبت کالا</button></div></form></div>
     <div class="card section"><h2>فهرست کالاها</h2>
       <div class="actions"><a class="btn" href="/export.xlsx">دانلود اکسل کالاها و اشخاص</a></div>
-      <form method="post" action="/import.xlsx" enctype="multipart/form-data" class="search-form"><input type="hidden" name="sheet" value="Products"><label>ورود کالاها از اکسل (.xlsx)</label><div class="formgrid"><input type="file" name="file" accept=".xlsx" required><button>ورود کالاها</button></div><p class="small">کالاهای هم‌نام اضافه نمی‌شوند؛ برای جلوگیری از بازنویسی تصادفی موجودی، ردیف‌های تکراری رد خواهند شد.</p></form>
+      <form method="post" action="/import.xlsx" enctype="multipart/form-data" class="search-form"><input type="hidden" name="sheet" value="Products"><label for="products-import-file">ورود کالاها از اکسل (.xlsx)</label><div class="formgrid"><input id="products-import-file" type="file" name="file" accept=".xlsx" required><button>ورود کالاها</button></div><p class="small">کالاهای هم‌نام اضافه نمی‌شوند؛ برای جلوگیری از بازنویسی تصادفی موجودی، ردیف‌های تکراری رد خواهند شد.</p></form>
       <form method="get" action="/products" class="search-form"><label for="product-q">جستجوی کالا</label><div class="formgrid"><input id="product-q" type="search" name="q" value="{esc(query)}" placeholder="نام، کد یا دسته‌بندی"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
       {table(['کالا','دسته‌بندی','کد','موجودی','بهای پایه','قیمت روز پایه','ارزش موجودی','وضعیت','عملیات'],rows,total)}
       {page_nav('products',query,page_num,total,limit)}</div>'''

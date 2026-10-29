@@ -1,4 +1,5 @@
 name: AhanModiriat smoke test and Windows build
+# QA audit: keep Lighthouse/axe checks on the PR branch
 on:
   push:
     branches: [main, "feature/**", "release/**"]
@@ -14,7 +15,7 @@ jobs:
           python-version: "3.12"
       - name: Compile
         working-directory: AhanModiriatBuildKit
-        run: python -m py_compile app.py test_smoke.py test_design_system.py test_cash_ledger.py test_party_ledger.py test_backup_restore.py test_inventory_ledger.py test_transaction_reversals.py test_loan_intervals.py test_purchase_advice.py test_returns.py test_pagination_search.py test_excel_io.py test_profit_reports.py test_local_security.py test_money_schema_migration.py test_accessibility_contrast.py
+        run: python -m py_compile app.py test_smoke.py test_design_system.py test_cash_ledger.py test_party_ledger.py test_backup_restore.py test_inventory_ledger.py test_transaction_reversals.py test_loan_intervals.py test_purchase_advice.py test_returns.py test_pagination_search.py test_excel_io.py test_profit_reports.py test_local_security.py test_money_schema_migration.py test_accessibility_contrast.py test_browser_ui.py test_lighthouse_accessibility.py
       - name: Isolated smoke tests
         working-directory: AhanModiriatBuildKit
         run: |
@@ -36,6 +37,35 @@ jobs:
           python test_accessibility_contrast.py
           node --check static/app.js
           node test_jalali_picker.js
+      - name: Install Playwright for browser acceptance tests
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+      - name: Run browser UI matrix and capture screenshots
+        working-directory: AhanModiriatBuildKit
+        run: python test_browser_ui.py
+      - name: Install Lighthouse and axe-core
+        working-directory: AhanModiriatBuildKit
+        run: npm install --no-save --no-audit --no-fund lighthouse axe-core
+      - name: Run Lighthouse and axe-core accessibility audit
+        working-directory: AhanModiriatBuildKit
+        run: python test_lighthouse_accessibility.py
+      - name: Upload Lighthouse and accessibility reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhanModiriat-Lighthouse-A11y-Reports
+          path: AhanModiriatBuildKit/artifacts/accessibility-lighthouse/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload browser UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhanModiriat-UI-Screenshots
+          path: AhanModiriatBuildKit/artifacts/ui-screenshots/
+          if-no-files-found: warn
+          retention-days: 14
   windows-onedir:
     runs-on: windows-latest
     needs: smoke-test
