@@ -8,6 +8,7 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [ ] Lighthouse: all 10 reports generated; accessibility and best-practice findings reviewed. Scores are diagnostic unless a threshold is explicitly adopted.
 - [ ] Browser route matrix: all 17 routes at both viewport sizes and both themes; no console/page errors, unexpected external requests, or horizontal overflow.
 - [ ] Browser workflows: create a purchase, verify stock/average cost/cash movement; create a sale, verify stock/profit/cash movement; create an expense, verify expense/cash/profit impact; perform a physical inventory count and verify adjustment ledger.
+- [ ] Automated keyboard tab-reachability and simulated 200% zoom proxies on seven core routes (proxies only; do not substitute for manual review).
 - [ ] Negative paths: reject invalid or missing required values; reject sale quantities exceeding available stock if that is the intended business rule; prevent duplicate submission where applicable.
 - [ ] Regression: run the full existing isolated test suite and Windows OneDir build.
 
