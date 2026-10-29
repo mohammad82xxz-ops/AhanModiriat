@@ -2004,7 +2004,7 @@ class Handler(BaseHTTPRequestHandler):
                     product_name=normalize_person(v('name'))
                     pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
                     if not product_name or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
-                    duplicate=c.execute('SELECT id FROM products WHERE TRIM(name)=? COLLATE NOCASE',(product_name,)).fetchone()
+                    duplicate=any(normalize_person(row['name']).casefold()==product_name.casefold() for row in c.execute('SELECT name FROM products'))
                     if duplicate: raise ValueError('این کالا قبلاً ثبت شده است؛ برای تغییر مشخصات، همان کالا را ویرایش کن.')
                     product_cur=c.execute('INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,notes,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(product_name,v('code'),v('unit','کیلوگرم'),num(v('stock')),money_int(v('avg_cost')),money_int(v('market_price')),num(v('min_stock')),v('notes'),v('category','سایر'),v('purchase_unit',v('unit','کیلوگرم')),pf,v('sale_unit',v('unit','کیلوگرم')),sf,num(v('roll_weight')),num(v('sheet_area'))))
                     new_product_id=product_cur.lastrowid
@@ -2015,7 +2015,7 @@ class Handler(BaseHTTPRequestHandler):
                     product_name=normalize_person(v('name'))
                     pf=num(v('purchase_factor')); sf=num(v('sale_factor')); new_stock=num(v('stock'),-1)
                     if not product_name or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
-                    duplicate=c.execute('SELECT id FROM products WHERE TRIM(name)=? COLLATE NOCASE AND id<>?',(product_name,pid)).fetchone()
+                    duplicate=any(normalize_person(row['name']).casefold()==product_name.casefold() for row in c.execute('SELECT name FROM products WHERE id<>?',(pid,)))
                     if duplicate: raise ValueError('نام این کالا با کالای دیگری تکراری است.')
                     has_movement=any(scalar(c,f'SELECT COUNT(*) FROM {table} WHERE product_id=?',(pid,)) for table in ('purchases','sales','inventory_adjustments','purchase_returns','sales_returns'))
                     unit_mapping_changed=(
