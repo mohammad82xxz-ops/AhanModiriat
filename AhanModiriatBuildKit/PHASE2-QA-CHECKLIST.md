@@ -16,6 +16,8 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Negative path: sale submitted with a missing quantity while browser validation is bypassed; server rejection, unchanged stock, and no sale record confirmed in CI run #284.
 - [x] Negative path: expense submitted with blank or zero amount; server rejects it and the regression asserts no expense row and no cash movement. Verified in CI run #295.
 - [x] Negative path: expense submitted with a missing description; server rejects it. Browser regression passed in CI run #297.
+- [x] Negative path: purchase submitted with negative extra cost; server rejects it and the regression confirms no purchase row, stock/average-cost change, or purchase cash movement. Verified in CI run #304.
+- [x] Negative path: sale submitted with negative received amount; server rejects it and the regression confirms no sale row, stock change, or sale cash movement. Verified in CI run #304.
 - [x] Regression: run the full existing isolated test suite and Windows OneDir build.
 - [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 
@@ -23,15 +25,16 @@ Negative-path findings and resolutions:
 - [Run #274](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904421556) caught an empty sale price being converted to zero and accepted. The server guard was tightened from `price < 0` to `price <= 0`; [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed.
 - Missing sale quantity was added as a regression and passed in [Run #284](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668).
 - Blank/zero expense amounts were added as server-side validation and browser regressions; [Run #295](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40909914914) passed.
-- Missing expense description was added as a browser regression; [Run #297](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434) passed both jobs on commit `b50d208522e68077c20d94021e4f477281c83dc4`.
+- Missing expense description was added as a browser regression; [Run #297](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434) passed both jobs.
+- Negative purchase extra cost and negative sale received amount are now covered by browser regressions; [Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609) passed both jobs on commit `d30be1f060a00783a701492b78e9a15130e43868`.
 
 ## Latest automated CI evidence
 
-[Run #297](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434) passed both `smoke-test` and `windows-onedir` on the latest PR head at the time of this update. This includes the 17-route UI matrix, finance/inventory workflow regressions, keyboard/zoom proxies, Lighthouse + axe audit, and Windows OneDir packaging.
+[Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609) passed both `smoke-test` and `windows-onedir` on commit `d30be1f060a00783a701492b78e9a15130e43868`. The PR-triggered validation [Run #305](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913045342) also passed on the same commit. Evidence includes the 17-route UI matrix, finance/inventory workflow regressions, keyboard/zoom proxies, Lighthouse + axe audit, and Windows OneDir packaging.
 
-- [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434/artifacts/12914615109)
-- [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434/artifacts/12913413107)
-- [Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434/artifacts/12913961951)
+- [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609/artifacts/12914293805)
+- [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609/artifacts/12914338645)
+- [Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609/artifacts/12915216647)
 
 ## Manual checks — required before calling the entire phase complete
 
