@@ -63,7 +63,7 @@ def main() -> None:
                 # Duplicate product names must be rejected without changing the existing product.
                 page.goto(base + "/products", wait_until="networkidle")
                 form = page.locator('form[action="/add_product"]')
-                form.locator('[name="name"]').fill(" Phase2 E2E Steel ")
+                form.locator('[name="name"]').fill(" phase2 e2e steel ")
                 form.locator('[name="unit"]').select_option(label="کیلوگرم")
                 form.locator('[name="purchase_unit"]').fill("کیلو")
                 form.locator('[name="purchase_factor"]').fill("1")
@@ -75,7 +75,7 @@ def main() -> None:
                 form.locator('[name="min_stock"]').fill("1")
                 form.locator("button").last.click()
                 with app.conn() as c:
-                    duplicate_rows = c.execute("SELECT COUNT(*) FROM products WHERE TRIM(name)=?", ("Phase2 E2E Steel",)).fetchone()[0]
+                    duplicate_rows = c.execute("SELECT COUNT(*) FROM products WHERE TRIM(name)=? COLLATE NOCASE", ("Phase2 E2E Steel",)).fetchone()[0]
                     product_after_duplicate = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
                     assert duplicate_rows == 1, f"duplicate product was persisted; count={duplicate_rows}"
                     assert float(product_after_duplicate["stock"]) == 10, "duplicate product submission changed stock"
