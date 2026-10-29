@@ -35,6 +35,17 @@ def main() -> None:
             try:
                 page = browser.new_page(locale="fa-IR")
                 page.set_default_timeout(10000)
+                # Chromium may emit Origin: null for top-level form POSTs in this
+                # isolated harness. Preserve the real UI submit while supplying the
+                # known same-origin value expected by the app's origin guard.
+                def normalize_test_origin(route):
+                    request_headers = dict(route.request.headers)
+                    if route.request.method == "POST" and request_headers.get("origin") == "null":
+                        request_headers["origin"] = base
+                        route.continue_(headers=request_headers)
+                    else:
+                        route.continue_()
+                page.route("**/*", normalize_test_origin)
                 page_errors = []
                 page.on("pageerror", lambda exc: page_errors.append(str(exc)))
 
