@@ -30,6 +30,7 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Missing-token regression: direct POSTs to purchase, sale, and expense routes without a one-use submission token are rejected; transaction counts, cash movements, and product stock remain unchanged, and SQLite integrity check passes. Passed in [Run #388 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951540783) and [Run #387 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951531647).
 - [x] Regression: a purchase-form token cannot authorize a sale or expense POST; purchase/sale/expense counts, cash movements, and stock remain unchanged. Extended sale+expense coverage passed in [Run #394 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953431465) and [Run #393 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953422226).
 - [x] Missing-token regression: direct POSTs to purchase-return and sales-return routes without a one-use submission token are rejected; return rows, cash movements, stock, and party balances remain unchanged. Passed in [Run #388 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951540783) and [Run #387 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951531647).
+- [x] Regression: purchase and sale POSTs with a nonexistent product ID or non-numeric quantity are rejected atomically; purchase/sale counts, cash movements, stock, and average cost remain unchanged, with SQLite foreign-key and integrity checks passing. Passed in [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) and [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220).
 - [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
 
 Negative-path findings and resolutions:
@@ -42,6 +43,9 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
+- [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
+- [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
+- [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
 - [Run #394 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953431465) passed both `smoke-test` and `windows-onedir` on commit `7647885b3dc55f9bedd5c589639c8566b3b1fd6f`; includes purchase-token route-binding rejection for both sale and expense POSTs.
 - [Run #393 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953422226) also passed both jobs on the same commit.
 - [Run #392 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40952592378) passed both `smoke-test` and `windows-onedir` on commit `a90ed0dc856313f6a2df46e33e93758d7acd893c`, including transaction-token route-binding regression.
