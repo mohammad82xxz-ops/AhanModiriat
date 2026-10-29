@@ -24,6 +24,8 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: product creation rejects duplicate names after case-folding and collapsing repeated whitespace, without changing existing stock or average cost. Passed in [Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408).
 - [x] Regression: editing a second product to a duplicate normalized name is rejected and leaves both records unchanged. Passed in [Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408).
 - [x] Duplicate-submission regression: replaying the exact successful POST for purchase, sale, or expense is rejected by a one-use server-side token; regression verifies no duplicate transaction, stock change, or duplicate cash movement. Passed in [Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232).
+- [x] Product creation rejects whitespace-only names and negative initial stock; browser regressions assert no product is created. Added in the current QA work; final CI result pending.
+- [x] Product editing now rejects negative stock, average cost, market price, minimum stock, roll weight, and sheet area. Automated CI result pending.
 - [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
 
 Negative-path findings and resolutions:
@@ -36,24 +38,27 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
-- [Run #347 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232) passed both `smoke-test` and `windows-onedir` on commit `976dcc324ce47cc6918652ef6f28bfa9d392a789`. The smoke-test job passed compile, isolated tests, the 17-route browser UI matrix, finance/inventory workflows (including purchase/sale/expense replay rejection), keyboard/zoom accessibility proxies, Lighthouse + axe audit, and report/screenshot uploads. The Windows OneDir job completed packaging and uploaded its artifact.
+- [Run #349 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473) passed both `smoke-test` and `windows-onedir` on commit `90ee40701fd8843bf08d53707893770e4eae5dfa`. This includes the 17-route browser UI matrix, finance/inventory workflows, Lighthouse + axe audit, UI screenshots, and Windows OneDir packaging.
+- [Run #348 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932129198) also passed both jobs on the same commit.
+- Latest code changes add server-side nonnegative validation for product creation and editing, plus browser regressions for whitespace-only product names and negative initial stock. The CI run for these changes is pending.
+- [Run #347 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232) passed both `smoke-test` and `windows-onedir` on commit `976dcc324ce47cc6918652ef6f28bfa9d392a789`; retained as historical evidence.
 - [Run #331 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408) passed on an earlier commit and is retained as historical evidence only.
 - [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed on the older commit `ac12541c99b389e2b187757a3a0aa60746a57185`; they remain historical evidence only.
 
 ### Latest run artifacts
 
-- [Lighthouse + axe-core reports — Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232/artifacts/12922508824)
-- [UI screenshots — Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232/artifacts/12923785640)
-- [Windows OneDir build — Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232/artifacts/12923281747)
+- [Lighthouse + axe-core reports — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12924155523)
+- [UI screenshots — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923611890)
+- [Windows OneDir build — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923920707)
 
 ## Manual checks — required before calling the entire phase complete
 
-- [ ] Keyboard-only navigation through sidebar, forms, dialogs, command palette, and tables; visible focus and logical order.
-- [ ] Screen reader pass on key workflows (at minimum NVDA + Firefox/Chrome on Windows, or a documented equivalent): page title, heading structure, field labels/errors, dialog name/description, status feedback, and table headers.
-- [ ] Narrow viewport / real-device review: sidebar behavior, forms, data tables, dialogs, horizontal scrolling, and touch targets.
-- [ ] Zoom to 200% and verify no loss of core content or operation.
-- [ ] Review each screenshot contact sheet for clipping, overlap, unreadable Persian text, and theme-specific contrast.
-- [ ] Verify build artifact starts in a clean Windows environment and can open the app without developer tools installed.
+- [ ] **Defer to final real-environment pass (user will perform):** keyboard-only navigation through sidebar, forms, dialogs, command palette, and tables; visible focus and logical order.
+- [ ] **Defer to final real-environment pass (user will perform):** screen reader pass on key workflows (at minimum NVDA + Firefox/Chrome on Windows, or a documented equivalent): page title, heading structure, field labels/errors, dialog name/description, status feedback, and table headers.
+- [ ] **Defer to final real-environment pass (user will perform):** narrow viewport / real-device review: sidebar behavior, forms, data tables, dialogs, horizontal scrolling, and touch targets.
+- [ ] **Defer to final real-environment pass (user will perform):** zoom to 200% and verify no loss of core content or operation.
+- [x] Reviewed 68 screenshots via contact sheet and selected full-resolution screens (dashboard, purchases, settings) from Run #347; no systematic clipping/overlap was observed. This does not replace real-device/200%-zoom/screen-reader checks.
+- [ ] **Defer to final real-environment pass (user will perform):** verify build artifact starts in a clean Windows environment and can open the app without developer tools installed.
 
 ## Guardrails
 
