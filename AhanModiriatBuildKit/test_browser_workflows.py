@@ -63,7 +63,7 @@ def main() -> None:
                 # Duplicate product names must be rejected without changing the existing product.
                 page.goto(base + "/products", wait_until="networkidle")
                 form = page.locator('form[action="/add_product"]')
-                form.locator('[name="name"]').fill(" phase2 e2e steel ")
+                form.locator('[name="name"]').fill(" phase2   e2e steel ")
                 form.locator('[name="unit"]').select_option(label="کیلوگرم")
                 form.locator('[name="purchase_unit"]').fill("کیلو")
                 form.locator('[name="purchase_factor"]').fill("1")
@@ -103,7 +103,7 @@ def main() -> None:
                     other_product_id = other_product["id"]
                 page.goto(base + f"/edit_product?id={other_product_id}", wait_until="networkidle")
                 form = page.locator('form[action="/update_product"]')
-                form.locator('[name="name"]').fill(" phase2 e2e steel ")
+                form.locator('[name="name"]').fill(" phase2   e2e steel ")
                 form.locator("button").last.click()
                 with app.conn() as c:
                     other_after_duplicate_edit = c.execute("SELECT name FROM products WHERE id=?", (other_product_id,)).fetchone()
