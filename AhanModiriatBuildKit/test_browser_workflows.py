@@ -73,7 +73,7 @@ def main() -> None:
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
                     purchase = c.execute("SELECT * FROM purchases WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,)).fetchone()
-                    assert purchase is not None, "purchase was not persisted"
+                    assert purchase is not None, f"purchase was not persisted; url={page.url}; body={page.locator('body').inner_text()[:1200]}; security={security_events[-5:]}"
                     assert float(product["stock"]) == 15, product["stock"]
                     assert abs(float(product["avg_cost"]) - (1600 / 15)) < 0.01, product["avg_cost"]
                     assert purchase["supplier_person_id"], "supplier was not linked to the party directory"
