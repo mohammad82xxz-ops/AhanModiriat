@@ -1987,14 +1987,15 @@ class Handler(BaseHTTPRequestHandler):
                             min_stock=num(record.get("min_stock",0),0)
                             pf=num(record.get("purchase_factor",1),1) or 1
                             sf=num(record.get("sale_factor",1),1) or 1
-                            if stock<0 or min_stock<0 or pf<=0 or sf<=0 or avg_cost<0 or market_price<0:
+                            roll_weight=num(record.get("roll_weight",0),0); sheet_area=num(record.get("sheet_area",0),0)
+                            if stock<0 or min_stock<0 or pf<=0 or sf<=0 or avg_cost<0 or market_price<0 or roll_weight<0 or sheet_area<0:
                                 skipped+=1; continue
                             c.execute("""INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area,notes)
                                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                                       (name,str(record.get("code","") or ""),unit,stock,avg_cost,market_price,min_stock,
                                        str(record.get("category","سایر") or "سایر"),str(record.get("purchase_unit") or unit),pf,
-                                       str(record.get("sale_unit") or unit),sf,num(record.get("roll_weight",0),0),
-                                       num(record.get("sheet_area",0),0),str(record.get("notes","") or "")))
+                                       str(record.get("sale_unit") or unit),sf,roll_weight,
+                                       sheet_area,str(record.get("notes","") or "")))
                         else:
                             kind=str(record.get("kind","both") or "both").strip().lower()
                             if kind not in ('customer','supplier','both'): kind='both'
@@ -2087,7 +2088,11 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"sales",sale_id,to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
-                    service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),v('title'),money_int(v('revenue')),money_int(v('cost')),money_int(v('received')),v('customer'),v('notes')))
+                    service_date=to_iso_date(v('date',jalali_today())); title=normalize_person(v('title'))
+                    revenue=money_int(v('revenue'),-1); cost=money_int(v('cost'),-1); received=money_int(v('received'),-1)
+                    if not title or revenue<=0 or cost<0 or received<0:
+                        raise ValueError('شرح خدمت الزامی است؛ درآمد باید بیشتر از صفر و هزینه و دریافتی نباید منفی باشند.')
+                    service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(service_date,title,revenue,cost,received,v('customer'),v('notes')))
                     service_id=service_cur.lastrowid
                     link_party(c,"services","customer_person_id",service_id,v('customer'),'customer')
                     sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
@@ -2106,12 +2111,16 @@ class Handler(BaseHTTPRequestHandler):
                     interval_unit=v('interval_unit','month')
                     if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
                         raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
-                    loan_cur=c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(v('title'),money_int(v('principal')),money_int(v('remaining')),money_int(v('installment')),to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit))
+                    title=normalize_person(v('title')); principal=money_int(v('principal'),-1); remaining=money_int(v('remaining'),-1); installment=money_int(v('installment'),-1)
+                    if not title or principal<=0 or remaining<0 or remaining>principal or installment<=0:
+                        raise ValueError('عنوان وام و قسط باید معتبر باشند؛ اصل و قسط باید مثبت و مانده بین صفر و اصل وام باشد.')
+                    loan_cur=c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(title,principal,remaining,installment,to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit))
                     new_loan_id=loan_cur.lastrowid
                     dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
                     lid=int(v('loan_id')); amount=money_int(v('amount')); principal=money_int(v('principal_part')); interest=money_int(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
+                    if amount<=0 or principal<0 or interest<0: raise ValueError('مبلغ قسط باید مثبت و سهم اصل و سود/کارمزد نباید منفی باشد.')
                     if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
                     if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
                     payment_cur=c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
@@ -2122,6 +2131,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif path=='add_price':
                     pid=int(v('product_id')); price=money_int(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
+                    if price<=0: raise ValueError('قیمت روز باید بیشتر از صفر باشد.')
                     price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')))
                     price_id=price_cur.lastrowid
                     c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
