@@ -47,7 +47,7 @@ def main() -> None:
                 form.locator("button").first.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE name=?", ("Phase2 E2E Steel",)).fetchone()
-                    assert product is not None, "product was not created through the UI"
+                    assert product is not None, f"product was not created through the UI; url={page.url}; body={page.locator('body').inner_text()[:1200]}"
                     product_id = product["id"]
                     assert float(product["stock"]) == 10
                     assert float(product["avg_cost"]) == 100
