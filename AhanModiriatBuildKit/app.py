@@ -1905,7 +1905,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit','returns'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
-                self.send(fn(c,q.get('q',[''])[0],page_num))
+                rendered=fn(c,q.get('q',[''])[0],page_num)
+                if msg:
+                    flash=f'<div class="notice" role="status">{esc(msg)}</div>'
+                    rendered=rendered.replace('<main',flash+'<main',1)
+                self.send(rendered)
             elif path=='prices':
                 try:
                     selected_product_id=int(q.get('product_id',['0'])[0])
