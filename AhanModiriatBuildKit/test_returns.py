@@ -159,7 +159,15 @@ def main():
                 )
             fields["_submission_token"] = token
             post(port, route, fields)
-            post(port, route, fields)
+            with app.conn() as c:
+                after_first = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+            post(port, route, fields)  # replay the same consumed token
             with app.conn() as c:
                 after = (
                     c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
@@ -168,8 +176,7 @@ def main():
                     c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
                     app.party_balances(c),
                 )
-                assert after[:4] == before[:4], (route, before, after)
-                assert after[4] == before[4], (route, before[4], after[4])
+                assert after == after_first, (route, after_first, after)
                 assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         with app.conn() as c:
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
