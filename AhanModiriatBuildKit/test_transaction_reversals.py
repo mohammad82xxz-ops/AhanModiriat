@@ -20,7 +20,8 @@ def post(port, path, fields):
     fields = dict(fields)
     if path in ("add_purchase", "add_sale", "add_expense") and "_submission_token" not in fields:
         with app.conn() as c:
-            fields["_submission_token"] = app.submission_token(c, path)
+            token_markup = app.submission_token(c, path)
+            fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}",
