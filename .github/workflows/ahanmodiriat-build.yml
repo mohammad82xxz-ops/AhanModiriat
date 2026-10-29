@@ -43,6 +43,20 @@ jobs:
       - name: Run browser UI matrix and capture screenshots
         working-directory: AhanModiriatBuildKit
         run: python test_browser_ui.py
+      - name: Install Lighthouse and axe-core
+        working-directory: AhanModiriatBuildKit
+        run: npm install --no-save --no-audit --no-fund lighthouse axe-core
+      - name: Run Lighthouse and axe-core accessibility audit
+        working-directory: AhanModiriatBuildKit
+        run: python test_lighthouse_accessibility.py
+      - name: Upload Lighthouse and accessibility reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhanModiriat-Lighthouse-A11y-Reports
+          path: AhanModiriatBuildKit/artifacts/accessibility-lighthouse/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload browser UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
