@@ -2045,7 +2045,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('UPDATE products SET stock=?,avg_cost=? WHERE id=?',(newstock,newavg,pid)); dest='/purchases';msg=f'خرید ثبت شد؛ {qty:g} {p["purchase_unit"]} معادل {base_qty:g} {p["unit"]} به موجودی اضافه شد.'
                 elif path=='add_sale':
                     pid=int(v('product_id')); qty=num(v('qty')); price=money_int(v('unit_price')); extra=money_int(v('extra_cost')); received=money_int(v('received')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
-                    if not p or qty<=0 or price<0:raise ValueError('کالا، مقدار یا قیمت فروش نامعتبر است.')
+                    if not p or qty<=0 or price<=0:raise ValueError('کالا، مقدار یا قیمت فروش نامعتبر است.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
                     base_price=price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
