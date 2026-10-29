@@ -103,6 +103,26 @@ def main() -> None:
                     assert float(product_after["avg_cost"]) == float(product_before["avg_cost"]), "average cost changed after invalid purchase"
                 assert "کالا، مقدار یا قیمت خرید نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid purchase rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
+                # Negative path: reject a sale with zero quantity even when browser validation is bypassed.
+                page.goto(base + "/sales", wait_until="networkidle")
+                form = page.locator('form[action="/add_sale"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="qty"]').fill("0")
+                form.locator('[name="unit_price"]').fill("200")
+                form.locator('[name="extra_cost"]').fill("0")
+                form.locator('[name="received"]').fill("0")
+                with app.conn() as c:
+                    zero_sales_before = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    zero_sale_stock_before = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    zero_sales_after = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    zero_sale_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
+                assert zero_sales_after == zero_sales_before, "zero-quantity sale was persisted"
+                assert float(zero_sale_stock_after) == float(zero_sale_stock_before), "stock changed after invalid sale"
+                assert "کالا، مقدار یا قیمت فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+
                 # Negative path: reject a sale that exceeds available stock.
                 page.goto(base + "/sales", wait_until="networkidle")
                 form = page.locator('form[action="/add_sale"]')
