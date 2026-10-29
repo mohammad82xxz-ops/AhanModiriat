@@ -81,6 +81,27 @@ def main() -> None:
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase["id"],)).fetchall()
                     assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (300, "withdraw"), [dict(x) for x in postings]
 
+                # Negative path: reject a purchase with zero quantity, even if browser-side validation is bypassed.
+                page.goto(base + "/purchases", wait_until="networkidle")
+                form = page.locator('form[action="/add_purchase"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="qty"]').fill("0")
+                form.locator('[name="unit_cost"]').fill("120")
+                form.locator('[name="extra_cost"]').fill("0")
+                form.locator('[name="paid"]').fill("0")
+                with app.conn() as c:
+                    purchases_before = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
+                    product_before = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
+                # form.submit() bypasses HTML constraint validation so the server-side guard is exercised.
+                form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    purchases_after = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
+                    product_after = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
+                    assert purchases_after == purchases_before, "zero-quantity purchase was persisted"
+                    assert float(product_after["stock"]) == float(product_before["stock"]), "stock changed after invalid purchase"
+                    assert float(product_after["avg_cost"]) == float(product_before["avg_cost"]), "average cost changed after invalid purchase"
+                assert "کالا، مقدار یا قیمت خرید نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"invalid purchase rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+
                 # Negative path: reject a sale that exceeds available stock.
                 page.goto(base + "/sales", wait_until="networkidle")
                 form = page.locator('form[action="/add_sale"]')
