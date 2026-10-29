@@ -83,6 +83,8 @@ def main():
             ("add_sale", {"date":"2026-01-03","product_id":pid + 99999,"qty":"1","unit_price":"20","extra_cost":"0","received":"0","customer":"Invalid product","notes":"reject"}),
             ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"not-a-number","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Invalid quantity","notes":"reject"}),
             ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"not-a-number","unit_price":"20","extra_cost":"0","received":"0","customer":"Invalid quantity","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"-1","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Negative quantity","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"-1","unit_price":"20","extra_cost":"0","received":"0","customer":"Negative quantity","notes":"reject"}),
         ]
         with app.conn() as c:
             before_invalid_input = (
