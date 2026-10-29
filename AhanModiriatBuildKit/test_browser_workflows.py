@@ -175,6 +175,44 @@ def main() -> None:
                     assert guarded_loan_after["remaining"] == guarded_remaining_before, "loan remaining principal changed after rejected payment"
                 assert "سهم اصل قسط از مانده اصل وام بیشتر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"excess principal payment was not rejected; url={page.url}"
 
+                # Additional invalid payment payloads must not mutate loan, payment, or cash ledgers.
+                invalid_payment_cases = [
+                    {
+                        "label": "negative principal portion",
+                        "amount": "10",
+                        "principal": "-1",
+                        "interest": "11",
+                        "message": "سهم اصل و سود/کارمزد نباید منفی باشد",
+                    },
+                    {
+                        "label": "payment total does not match components",
+                        "amount": "110",
+                        "principal": "50",
+                        "interest": "9",
+                        "message": "مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد",
+                    },
+                ]
+                for case in invalid_payment_cases:
+                    page.goto(base + "/loans", wait_until="networkidle")
+                    form = page.locator('form[action="/add_payment"]')
+                    form.locator('[name="loan_id"]').select_option(str(guarded_loan_id))
+                    form.locator('[name="amount"]').fill(case["amount"])
+                    form.locator('[name="principal_part"]').fill(case["principal"])
+                    form.locator('[name="interest_part"]').fill(case["interest"])
+                    with app.conn() as c:
+                        loan_before = c.execute("SELECT remaining,next_date FROM loans WHERE id=?", (guarded_loan_id,)).fetchone()
+                        payments_before = c.execute("SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (guarded_loan_id,)).fetchone()[0]
+                        cash_before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments'").fetchone()[0]
+                    with page.expect_navigation(wait_until="networkidle"):
+                        form.evaluate("(form) => form.submit()")
+                    with app.conn() as c:
+                        loan_after = c.execute("SELECT remaining,next_date FROM loans WHERE id=?", (guarded_loan_id,)).fetchone()
+                        assert c.execute("SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (guarded_loan_id,)).fetchone()[0] == payments_before, f"{case['label']}: invalid payment was persisted"
+                        assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments'").fetchone()[0] == cash_before, f"{case['label']}: cash movement was created"
+                        assert loan_after["remaining"] == loan_before["remaining"], f"{case['label']}: remaining principal changed"
+                        assert loan_after["next_date"] == loan_before["next_date"], f"{case['label']}: next payment date changed"
+                    assert case["message"] in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"{case['label']}: expected validation message missing; url={page.url}"
+
                 # A zero market price must not create price history or overwrite the current price.
                 page.goto(base + "/prices", wait_until="networkidle")
                 form = page.locator('form[action="/add_price"]')
