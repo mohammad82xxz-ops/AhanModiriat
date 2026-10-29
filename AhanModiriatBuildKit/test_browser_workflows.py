@@ -124,6 +124,27 @@ def main() -> None:
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0] == negative_extra_cash_before, "cash movement created for negative purchase extra cost"
                 assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative purchase extra cost rejection message missing; url={page.url}"
 
+                # Negative path: reject a purchase with a negative paid amount.
+                page.goto(base + "/purchases", wait_until="networkidle")
+                form = page.locator('form[action="/add_purchase"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="qty"]').fill("1")
+                form.locator('[name="unit_cost"]').fill("120")
+                form.locator('[name="extra_cost"]').fill("0")
+                form.locator('[name="paid"]').fill("-1")
+                with app.conn() as c:
+                    negative_paid_purchases_before = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
+                    negative_paid_stock_before = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
+                    negative_paid_cash_before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0] == negative_paid_purchases_before, "purchase with negative paid amount was persisted"
+                    negative_paid_stock_after = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
+                    assert tuple(negative_paid_stock_after) == tuple(negative_paid_stock_before), "stock/cost changed after negative purchase paid amount"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0] == negative_paid_cash_before, "cash movement created for negative purchase paid amount"
+                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative purchase paid amount rejection message missing; url={page.url}"
+
                 # Negative path: reject a sale with zero quantity even when browser validation is bypassed.
                 page.goto(base + "/sales", wait_until="networkidle")
                 form = page.locator('form[action="/add_sale"]')
@@ -203,6 +224,26 @@ def main() -> None:
                     assert float(c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]) == float(negative_received_stock_before), "stock changed after negative received amount"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0] == negative_received_cash_before, "cash movement created for negative received amount"
                 assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative received amount rejection message missing; url={page.url}"
+
+                # Negative path: reject a sale with a negative extra cost.
+                page.goto(base + "/sales", wait_until="networkidle")
+                form = page.locator('form[action="/add_sale"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="qty"]').fill("1")
+                form.locator('[name="unit_price"]').fill("200")
+                form.locator('[name="extra_cost"]').fill("-1")
+                form.locator('[name="received"]').fill("0")
+                with app.conn() as c:
+                    negative_extra_sales_before = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    negative_extra_sale_stock_before = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
+                    negative_extra_sale_cash_before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0]
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0] == negative_extra_sales_before, "sale with negative extra cost was persisted"
+                    assert float(c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]) == float(negative_extra_sale_stock_before), "stock changed after negative sale extra cost"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0] == negative_extra_sale_cash_before, "cash movement created for negative sale extra cost"
+                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative sale extra cost rejection message missing; url={page.url}"
 
                 # Negative path: reject a sale that exceeds available stock.
                 page.goto(base + "/sales", wait_until="networkidle")
