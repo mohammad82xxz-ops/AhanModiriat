@@ -93,7 +93,8 @@ def main() -> None:
                     purchases_before = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
                     product_before = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
                 # form.submit() bypasses HTML constraint validation so the server-side guard is exercised.
-                form.evaluate("(form) => form.submit()")
+                with page.expect_navigation(wait_until="networkidle"):
+                    form.evaluate("(form) => form.submit()")
                 with app.conn() as c:
                     purchases_after = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
                     product_after = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
