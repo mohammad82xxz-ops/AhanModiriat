@@ -51,7 +51,7 @@ def main() -> None:
                 form.locator('[name="avg_cost"]').fill("100")
                 form.locator('[name="market_price"]').fill("150")
                 form.locator('[name="min_stock"]').fill("1")
-                form.locator("button").first.click()
+                form.locator("button").last.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE name=?", ("Phase2 E2E Steel",)).fetchone()
                     assert product is not None, f"product was not created through the UI; url={page.url}; body={page.locator('body').inner_text()[:1200]}; security={security_events[-5:]}"
@@ -69,7 +69,7 @@ def main() -> None:
                 form.locator('[name="paid"]').fill("300")
                 form.locator('[name="supplier"]').fill("Phase2 Supplier")
                 form.locator('[name="notes"]').fill("phase two browser purchase")
-                form.locator("button").first.click()
+                form.locator("button").last.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
                     purchase = c.execute("SELECT * FROM purchases WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,)).fetchone()
@@ -90,7 +90,7 @@ def main() -> None:
                 form.locator('[name="received"]').fill("400")
                 form.locator('[name="customer"]').fill("Phase2 Customer")
                 form.locator('[name="notes"]').fill("phase two browser sale")
-                form.locator("button").first.click()
+                form.locator("button").last.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
                     sale = c.execute("SELECT * FROM sales WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,)).fetchone()
@@ -111,7 +111,7 @@ def main() -> None:
                 form.locator('[name="business"]').select_option("1")
                 form.locator('[name="source"]').select_option("سود/درآمد جاری")
                 form.locator('[name="notes"]').fill("phase two browser expense")
-                form.locator("button").first.click()
+                form.locator("button").last.click()
                 with app.conn() as c:
                     expense = c.execute("SELECT * FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()
                     assert expense is not None and expense["amount"] == 50 and expense["business"] == 1
@@ -125,7 +125,7 @@ def main() -> None:
                 form.locator('[name="counted_qty"]').fill("11")
                 form.locator('[name="reason"]').fill("Phase2 physical count")
                 form.locator('[name="notes"]').fill("phase two browser inventory adjustment")
-                form.locator("button").first.click()
+                form.locator("button").last.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
                     adjustment = c.execute("SELECT * FROM inventory_adjustments WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,)).fetchone()
