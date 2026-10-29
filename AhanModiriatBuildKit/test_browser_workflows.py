@@ -82,6 +82,27 @@ def main() -> None:
                     assert float(product_after_duplicate["avg_cost"]) == 100, "duplicate product submission changed average cost"
                 assert "این کالا قبلاً ثبت شده است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"duplicate product rejection message missing; url={page.url}"
 
+                # Editing another product must not allow a case-insensitive duplicate name.
+                form.locator('[name="name"]').fill("Phase2 E2E Other")
+                form.locator('[name="stock"]').fill("0")
+                form.locator('[name="avg_cost"]').fill("0")
+                form.locator('[name="market_price"]').fill("0")
+                form.locator("button").last.click()
+                with app.conn() as c:
+                    other_product = c.execute("SELECT id FROM products WHERE name=?", ("Phase2 E2E Other",)).fetchone()
+                    assert other_product is not None, "second test product was not created"
+                    other_product_id = other_product["id"]
+                page.goto(base + f"/edit_product?id={other_product_id}", wait_until="networkidle")
+                form = page.locator('form[action="/update_product"]')
+                form.locator('[name="name"]').fill(" phase2 e2e steel ")
+                form.locator("button").last.click()
+                with app.conn() as c:
+                    other_after_duplicate_edit = c.execute("SELECT name FROM products WHERE id=?", (other_product_id,)).fetchone()
+                    duplicate_rows = c.execute("SELECT COUNT(*) FROM products WHERE TRIM(name)=? COLLATE NOCASE", ("Phase2 E2E Steel",)).fetchone()[0]
+                    assert other_after_duplicate_edit["name"] == "Phase2 E2E Other", "duplicate-name edit changed the second product"
+                    assert duplicate_rows == 1, f"editing created a duplicate product name; count={duplicate_rows}"
+                assert "نام این کالا با کالای دیگری تکراری است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"duplicate product edit rejection message missing; url={page.url}"
+
                 # Purchase: stock, weighted average cost, supplier link, and cash posting.
                 page.goto(base + "/purchases", wait_until="networkidle")
                 form = page.locator('form[action="/add_purchase"]')
