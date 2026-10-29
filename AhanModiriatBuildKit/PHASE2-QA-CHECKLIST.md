@@ -24,8 +24,9 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: product creation rejects duplicate names after case-folding and collapsing repeated whitespace, without changing existing stock or average cost. Passed in [Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408).
 - [x] Regression: editing a second product to a duplicate normalized name is rejected and leaves both records unchanged. Passed in [Run #331](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408).
 - [x] Duplicate-submission regression: replaying the exact successful POST for purchase, sale, or expense is rejected by a one-use server-side token; regression verifies no duplicate transaction, stock change, or duplicate cash movement. Passed in [Run #347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232).
-- [x] Product creation rejects whitespace-only names and negative initial stock; browser regressions assert no product is created. Added in the current QA work; final CI result pending.
-- [x] Product editing now rejects negative stock, average cost, market price, minimum stock, roll weight, and sheet area. Automated CI result pending.
+- [x] Product creation rejects whitespace-only names and negative initial stock; browser regressions assert no product is created. Passed in [Run #359](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40940718650) and [Run #360](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40940730913).
+- [x] Product editing rejects negative stock, average cost, market price, minimum stock, roll weight, and sheet area; product-creation validation is enforced server-side. CI on commit `d369de9c0a30c564c8b482942cf34278a0ec7598` passed in [Run #355](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40934032513) and [Run #356](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40934040035).
+- [x] Service creation rejects negative revenue and asserts no service row or cash movement is written; loan creation rejects remaining balance above principal and asserts no loan row; zero market price is rejected without history or current-price changes. Passed in [Run #359](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40940718650) and [Run #360](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40940730913).
 - [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
 
 Negative-path findings and resolutions:
@@ -38,9 +39,12 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
+- [Run #360 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40940730913) passed both `smoke-test` and `windows-onedir` on the current browser-regression commit `28b9151eca1f40edca3b1b260128fb95f339eaad`.
+- [Run #359 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40940718650) also passed both jobs on the same commit. These runs include the browser acceptance suite and Windows OneDir packaging.
+- [Run #358 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40936960736) and [Run #357 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40936947971) passed after service, loan, payment, daily-price, and import-related server validation changes.
 - [Run #349 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473) passed both `smoke-test` and `windows-onedir` on commit `90ee40701fd8843bf08d53707893770e4eae5dfa`. This includes the 17-route browser UI matrix, finance/inventory workflows, Lighthouse + axe audit, UI screenshots, and Windows OneDir packaging.
 - [Run #348 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932129198) also passed both jobs on the same commit.
-- Latest code changes add server-side nonnegative validation for product creation and editing, plus browser regressions for whitespace-only product names and negative initial stock. The CI run for these changes is pending.
+- Product and finance validation work has now passed automated CI through Runs #359 and #360. Real-environment manual checks below remain open and must not be inferred from CI.
 - [Run #347 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40931305232) passed both `smoke-test` and `windows-onedir` on commit `976dcc324ce47cc6918652ef6f28bfa9d392a789`; retained as historical evidence.
 - [Run #331 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408) passed on an earlier commit and is retained as historical evidence only.
 - [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed on the older commit `ac12541c99b389e2b187757a3a0aa60746a57185`; they remain historical evidence only.
