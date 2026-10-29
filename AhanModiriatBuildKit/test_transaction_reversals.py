@@ -85,6 +85,7 @@ def main():
                 c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
                 c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
                 c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
                 c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
             )
         post(port, "add_sale", {
@@ -92,11 +93,17 @@ def main():
             "extra_cost":"0","received":"0","customer":"Wrong token action","notes":"reject",
             "_submission_token":purchase_token,
         }, auto_token=False)
+        post(port, "add_expense", {
+            "date":"2026-01-03","category":"wrong token action","amount":"10",
+            "business":"1","source":"نامشخص","notes":"reject",
+            "_submission_token":purchase_token,
+        }, auto_token=False)
         with app.conn() as c:
             after_wrong_action = (
                 c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
                 c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
                 c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
                 c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
             )
             assert after_wrong_action == before_wrong_action, (before_wrong_action, after_wrong_action)
