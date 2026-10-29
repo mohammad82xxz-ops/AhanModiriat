@@ -14,12 +14,24 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Negative path: browser regression submits a zero-quantity sale while bypassing browser constraint validation; server rejection message, unchanged stock, and no sale record confirmed in CI run #266.
 - [x] Negative path: browser validation bypassed and sale submitted with missing unit price; server rejects the request, stock remains unchanged, no sale record is created, and the rejection message is returned. Verified after server fix in CI run #278.
 - [x] Negative path: sale submitted with a missing quantity while browser validation is bypassed; server rejection, unchanged stock, and no sale record confirmed in CI run #284.
-- [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
+- [x] Negative path: expense submitted with blank or zero amount; server rejects it and the regression asserts no expense row and no cash movement. Verified in CI run #295.
+- [x] Negative path: expense submitted with a missing description; server rejects it. Browser regression passed in CI run #297.
 - [x] Regression: run the full existing isolated test suite and Windows OneDir build.
+- [ ] Other invalid/missing-value and duplicate-submission paths are not fully covered yet.
 
-Negative-path finding and resolution: [Run #274](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904421556) caught an empty sale price being converted to zero and accepted. The server guard was tightened from `price < 0` to `price <= 0`. [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed both `smoke-test` and `windows-onedir`, confirming the regression now passes. A further missing-sale-quantity regression was added afterward and passed in CI run #284.
+Negative-path findings and resolutions:
+- [Run #274](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904421556) caught an empty sale price being converted to zero and accepted. The server guard was tightened from `price < 0` to `price <= 0`; [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed.
+- Missing sale quantity was added as a regression and passed in [Run #284](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668).
+- Blank/zero expense amounts were added as server-side validation and browser regressions; [Run #295](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40909914914) passed.
+- Missing expense description was added as a browser regression; [Run #297](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434) passed both jobs on commit `b50d208522e68077c20d94021e4f477281c83dc4`.
 
-CI evidence: [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed both `smoke-test` and `windows-onedir` after the missing-price validation fix. Artifacts: [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903/artifacts/12911580908), [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903/artifacts/12911171635), [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903/artifacts/12912085453). Earlier evidence: [Run #266](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40884504867).
+## Latest automated CI evidence
+
+[Run #297](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434) passed both `smoke-test` and `windows-onedir` on the latest PR head at the time of this update. This includes the 17-route UI matrix, finance/inventory workflow regressions, keyboard/zoom proxies, Lighthouse + axe audit, and Windows OneDir packaging.
+
+- [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434/artifacts/12914615109)
+- [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434/artifacts/12913413107)
+- [Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40910500434/artifacts/12913961951)
 
 ## Manual checks — required before calling the entire phase complete
 
@@ -36,6 +48,3 @@ CI evidence: [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/action
 - Do not merge this QA work into `main` without explicit authorization.
 - Keep phase 2 on `qa/phase2-workflow-accessibility-hardening`; preserve phase 1 branch and its draft PR.
 - Report automated and manual results separately. Do not mark manual items complete based only on CI.
-
-
-Latest CI evidence: [Run #284](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668) passed both `smoke-test` and `windows-onedir` on commit `24487b1821eca6013d1161061530dc31e3c042e1`. This confirms the missing-sale-quantity regression alongside the existing automated gates. Artifacts: [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668/artifacts/12912002508), [68 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668/artifacts/12911747966), [Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40906632668/artifacts/12912905114).
