@@ -80,6 +80,24 @@ def main() -> None:
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase["id"],)).fetchall()
                     assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (300, "withdraw"), [dict(x) for x in postings]
 
+                # Negative path: reject a sale that exceeds available stock.
+                page.goto(base + "/sales", wait_until="networkidle")
+                form = page.locator('form[action="/add_sale"]')
+                form.locator('[name="product_id"]').select_option(str(product_id))
+                form.locator('[name="qty"]').fill("999")
+                form.locator('[name="unit_price"]').fill("200")
+                form.locator('[name="extra_cost"]').fill("0")
+                form.locator('[name="received"]').fill("0")
+                with app.conn() as c:
+                    sales_before = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                form.locator("button").last.click()
+                with app.conn() as c:
+                    rejected_product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
+                    sales_after = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    assert float(rejected_product["stock"]) == 15, rejected_product["stock"]
+                    assert sales_after == sales_before, "oversale was persisted despite insufficient stock"
+                assert "موجودی کافی نیست" in page.locator("body").inner_text(), "oversale rejection message was not shown"
+
                 # Sale: stock reduction, frozen cost basis, profit, and cash receipt.
                 page.goto(base + "/sales", wait_until="networkidle")
                 form = page.locator('form[action="/add_sale"]')
