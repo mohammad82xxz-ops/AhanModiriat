@@ -339,6 +339,7 @@ def main() -> None:
                 form.locator('[name="received"]').fill("400")
                 form.locator('[name="customer"]').fill("Phase2 Customer")
                 form.locator('[name="notes"]').fill("phase two browser sale")
+                sale_payload = form.evaluate("(form) => Object.fromEntries(new FormData(form).entries())")
                 form.locator("button").last.click()
                 with app.conn() as c:
                     product = c.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
@@ -351,6 +352,18 @@ def main() -> None:
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale["id"],)).fetchall()
                     assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (400, "deposit"), [dict(x) for x in postings]
                     assert sale["customer_person_id"], "customer was not linked to the party directory"
+                    sale_count_before_replay = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+                    sale_stock_before_replay = float(product["stock"])
+                    sale_cash_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0]
+
+                replay_response = page.request.post(base + "/add_sale", form=sale_payload)
+                assert replay_response.status == 303, f"sale replay should redirect safely, got {replay_response.status}"
+                replay_message = parse_qs(urlparse(replay_response.headers.get("location", "")).query).get("msg", [""])[0]
+                assert "قبلاً ارسال شده" in replay_message, f"replayed sale was not explicitly rejected: {replay_message}"
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0] == sale_count_before_replay, "replayed sale created a duplicate row"
+                    assert float(c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]) == sale_stock_before_replay, "replayed sale changed stock"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0] == sale_cash_before_replay, "replayed sale created a duplicate cash movement"
 
                 # Negative path: missing expense description must not create expense/cash records.
                 page.goto(base + "/expenses", wait_until="networkidle")
@@ -406,12 +419,23 @@ def main() -> None:
                 form.locator('[name="business"]').select_option("1")
                 form.locator('[name="source"]').select_option("سود/درآمد جاری")
                 form.locator('[name="notes"]').fill("phase two browser expense")
+                expense_payload = form.evaluate("(form) => Object.fromEntries(new FormData(form).entries())")
                 form.locator("button").last.click()
                 with app.conn() as c:
                     expense = c.execute("SELECT * FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()
                     assert expense is not None and expense["amount"] == 50 and expense["business"] == 1
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense["id"],)).fetchall()
                     assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (50, "withdraw"), [dict(x) for x in postings]
+                    expense_count_before_replay = c.execute("SELECT COUNT(*) FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()[0]
+                    expense_cash_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0]
+
+                replay_response = page.request.post(base + "/add_expense", form=expense_payload)
+                assert replay_response.status == 303, f"expense replay should redirect safely, got {replay_response.status}"
+                replay_message = parse_qs(urlparse(replay_response.headers.get("location", "")).query).get("msg", [""])[0]
+                assert "قبلاً ارسال شده" in replay_message, f"replayed expense was not explicitly rejected: {replay_message}"
+                with app.conn() as c:
+                    assert c.execute("SELECT COUNT(*) FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()[0] == expense_count_before_replay, "replayed expense created a duplicate row"
+                    assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0] == expense_cash_before_replay, "replayed expense created a duplicate cash movement"
 
                 # Physical count: apply only the difference and preserve average cost.
                 page.goto(base + "/inventory", wait_until="networkidle")
