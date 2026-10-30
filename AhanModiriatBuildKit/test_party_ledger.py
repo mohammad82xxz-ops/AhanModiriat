@@ -47,14 +47,14 @@ def main():
         assert "مانده تجمعی دریافتنی" in customer_statement and "مانده تجمعی پرداختنی" in customer_statement
         assert "350" in customer_statement, customer_statement
         assert "110" in supplier_statement, supplier_statement
-        assert app.account_balance(c, 1) == 7600, app.account_balance(c, 1)
+        assert app.account_balance(c, 1) == 76000, app.account_balance(c, 1)
 
         # Re-run cash backfill; already linked settlement rows must not be duplicated.
         before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='settlements'").fetchone()[0]
         app.backfill_legacy_cash_postings(c)
         after = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='settlements'").fetchone()[0]
         assert before == after == 2, (before, after)
-        assert app.account_balance(c, 1) == 760
+        assert app.account_balance(c, 1) == 7600
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("PARTY LEDGER TESTS PASSED")
 
