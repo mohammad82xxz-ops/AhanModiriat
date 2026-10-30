@@ -22,6 +22,7 @@ def post(port: int, path: str, fields: dict[str, object], auto_token: bool = Tru
     protected = {
         "add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return",
         "add_service", "add_loan", "add_payment", "add_price", "add_settlement", "add_cash_movement",
+        "inventory_adjust",
     }
     if auto_token and path in protected and "_submission_token" not in fields:
         with app.conn() as c:
@@ -264,6 +265,10 @@ def main() -> None:
             ("add_cash_movement", {
                 "date": "2026-01-05", "kind": "deposit",
                 "to_account_id": "1", "amount": "10", "party": "Replay guard",
+            }),
+            ("inventory_adjust", {
+                "date": "2026-01-05", "product_id": product_id,
+                "counted_qty": "11", "reason": "replay guard count",
             }),
         ]
         for route, fields in replay_cases:
