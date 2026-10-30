@@ -183,6 +183,32 @@ def main():
                 if col in info:
                     assert info[col]=="INTEGER",(table,col,info[col])
         assert live.execute("PRAGMA foreign_key_check").fetchall()==[]
+    # A bad value late in the scale pass must roll back every earlier row update
+    # and must not leave the database marked as migrated.
+    rollback_cases = (
+        ("settlements", "amount", "NaN", "غیرمتناهی"),
+        ("products", "avg_cost", "9000000000000000000", "ظرفیت عدد صحیح ریال"),
+    )
+    for index, (table, column, bad_value, message_fragment) in enumerate(rollback_cases, start=1):
+        rollback_db = create_legacy_db(Path(TMP.name) / f"rollback_{index}.db")
+        try:
+            rollback_db.execute(f'UPDATE "{table}" SET "{column}"=? WHERE id=1', (bad_value,))
+            rollback_db.commit()
+            rollback_db.execute("PRAGMA foreign_keys=OFF")
+            try:
+                with rollback_db:
+                    app.migrate_money_units_to_rial(rollback_db)
+            except RuntimeError as exc:
+                assert message_fragment in str(exc), str(exc)
+            else:
+                raise AssertionError(f"invalid legacy value was accepted: {table}.{column}={bad_value}")
+            assert rollback_db.execute("SELECT avg_cost FROM products WHERE id=1").fetchone()[0] == 12.7
+            assert rollback_db.execute("SELECT unit_cost FROM purchases WHERE id=1").fetchone()[0] == 100.6
+            assert rollback_db.execute(
+                "SELECT value FROM settings WHERE key=?", (app.RIAL_UNIT_SETTING,)
+            ).fetchone() is None
+        finally:
+            rollback_db.close()
     print("INTEGER RIAL SCHEMA MIGRATION TESTS PASSED")
 
 
