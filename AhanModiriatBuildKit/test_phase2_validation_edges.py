@@ -150,6 +150,20 @@ def main() -> None:
                 "category": "edited invalid expense", "amount": "nan",
                 "business": "1", "source": "Validation source",
             }),
+            ("update_product", {
+                "product_id": product_id, "name": "phase2 validation steel",
+                "code": "", "unit": "kg", "stock": "10", "avg_cost": "",
+                "market_price": "20", "min_stock": "0", "notes": "",
+                "category": "سایر", "purchase_unit": "kg", "purchase_factor": "1",
+                "sale_unit": "kg", "sale_factor": "1", "roll_weight": "0", "sheet_area": "0",
+            }),
+            ("update_product", {
+                "product_id": product_id, "name": "phase2 validation steel",
+                "code": "", "unit": "kg", "stock": "10", "avg_cost": "5",
+                "market_price": "", "min_stock": "0", "notes": "",
+                "category": "سایر", "purchase_unit": "kg", "purchase_factor": "1",
+                "sale_unit": "kg", "sale_factor": "1", "roll_weight": "0", "sheet_area": "0",
+            }),
         ]
         for route, fields in invalid_updates:
             post(port, route, fields)
@@ -180,6 +194,21 @@ def main() -> None:
         # Every remaining numeric financial route must reject NaN/Infinity before
         # writing a document, stock movement, cash posting, or audit event.
         invalid_route_cases = [
+            ("add_product", {
+                "name": "blank required stock", "unit": "kg", "purchase_unit": "kg",
+                "purchase_factor": "1", "sale_unit": "kg", "sale_factor": "1",
+                "stock": "", "avg_cost": "5", "market_price": "20",
+            }),
+            ("add_product", {
+                "name": "blank required average cost", "unit": "kg", "purchase_unit": "kg",
+                "purchase_factor": "1", "sale_unit": "kg", "sale_factor": "1",
+                "stock": "0", "avg_cost": "", "market_price": "20",
+            }),
+            ("add_product", {
+                "name": "blank required market price", "unit": "kg", "purchase_unit": "kg",
+                "purchase_factor": "1", "sale_unit": "kg", "sale_factor": "1",
+                "stock": "0", "avg_cost": "5", "market_price": "",
+            }),
             ("add_purchase", {
                 "date": "2026-01-04", "product_id": product_id, "qty": "1",
                 "unit_cost": "", "extra_cost": "0", "paid": "0",
