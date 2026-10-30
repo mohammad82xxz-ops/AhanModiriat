@@ -53,13 +53,16 @@ def fingerprint():
 
 def main() -> None:
     # Monetary validation must inspect the sign before integer rounding.
-    for tiny_negative in ("-0.4", "-0.49", "-0.01"):
-        try:
-            app.strict_money_int(tiny_negative, "negative regression")
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f"negative monetary input was rounded into acceptance: {tiny_negative}")
+    for tiny_negative in ("-0.4", "-0.49", "-0.01", "-1e-10000"):
+        for parser in (app.strict_number, app.strict_money_int):
+            try:
+                parser(tiny_negative, "negative regression")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(
+                    f"negative numeric input was accepted by {parser.__name__}: {tiny_negative}"
+                )
     app.init()
     with app.conn() as c:
         c.execute(
