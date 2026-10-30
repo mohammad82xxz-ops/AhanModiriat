@@ -443,7 +443,7 @@ def main() -> None:
                     missing_price_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
                 assert missing_price_sales_after == missing_price_sales_before, "sale with missing unit price was persisted"
                 assert float(missing_price_stock_after) == float(missing_price_stock_before), "stock changed after sale with missing unit price"
-                assert "کالا، مقدار یا قیمت/هزینه فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+                assert "قیمت فروش الزامی است و باید عدد معتبر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Negative path: reject a sale with a negative received amount.
                 page.goto(base + "/sales", wait_until="networkidle")
