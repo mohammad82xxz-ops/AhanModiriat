@@ -722,7 +722,13 @@ def money_int(v, default=0):
         amount = Decimal(str(default))
     if not amount.is_finite():
         raise ValueError("مبلغ باید عدد متناهی باشد.")
-    return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    try:
+        rounded = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, OverflowError) as exc:
+        raise ValueError("مبلغ از ظرفیت عدد صحیح ریال خارج است.") from exc
+    if rounded < -(2**63) or rounded > 2**63-1:
+        raise ValueError("مبلغ از ظرفیت عدد صحیح ریال خارج است.")
+    return rounded
 def money_line_total(quantity, unit_price):
     """Round one quantity × integer-rial unit-price line using Decimal half-up."""
     try:
