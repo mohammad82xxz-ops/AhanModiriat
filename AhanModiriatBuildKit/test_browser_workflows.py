@@ -520,7 +520,7 @@ def main() -> None:
                     sale = c.execute("SELECT * FROM sales WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,)).fetchone()
                     assert sale is not None, "sale was not persisted"
                     assert float(product["stock"]) == 12, product["stock"]
-                    assert abs(float(sale["cost_basis"]) - (1600 / 15)) < 0.01, sale["cost_basis"]
+                    assert abs(float(sale["cost_basis"]) - (16000 / 15)) < 0.01, sale["cost_basis"]
                     expected_profit = 3 * (2000 - float(sale["cost_basis"])) - 100
                     assert abs(expected_profit - (3 * 2000 - 16000 / 15 * 3 - 100)) < 0.01
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale["id"],)).fetchall()
@@ -627,7 +627,7 @@ def main() -> None:
                     assert float(adjustment["expected_qty"]) == 12
                     assert float(adjustment["counted_qty"]) == 11
                     assert float(adjustment["delta_qty"]) == -1
-                    assert abs(float(product["avg_cost"]) - (1600 / 15)) < 0.01, product["avg_cost"]
+                    assert abs(float(product["avg_cost"]) - (16000 / 15)) < 0.01, product["avg_cost"]
                     assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
                     assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
