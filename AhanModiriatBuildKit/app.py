@@ -138,6 +138,7 @@ def conn():
     c=sqlite3.connect(DB, timeout=20)
     c.row_factory=sqlite3.Row
     c.execute('PRAGMA foreign_keys=ON')
+    c.create_function("money_line_total", 2, money_line_total, deterministic=True)
     c.execute('PRAGMA journal_mode=WAL')
     c.execute('PRAGMA synchronous=NORMAL')
     return c
@@ -722,6 +723,17 @@ def money_int(v, default=0):
     if not amount.is_finite():
         raise ValueError("مبلغ باید عدد متناهی باشد.")
     return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+def money_line_total(quantity, unit_price):
+    """Round one quantity × integer-rial unit-price line using Decimal half-up."""
+    try:
+        qty = Decimal(str(quantity if quantity is not None else 0))
+        price = Decimal(str(unit_price if unit_price is not None else 0))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError("مقدار یا قیمت سطر نامعتبر است.")
+    if not qty.is_finite() or not price.is_finite():
+        raise ValueError("مقدار یا قیمت سطر باید عدد متناهی باشد.")
+    return money_int(qty * price)
+
 def strict_number(v, label, allow_blank=False):
     """Parse finite numeric input and reject malformed values rather than coercing them to zero."""
     cleaned = str(v if v is not None else "").translate(DIGIT_TRANSLATION).replace(',', '').replace('٬', '').replace(' ', '').strip()
