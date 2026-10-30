@@ -182,7 +182,7 @@ def main() -> None:
                         "amount": "10",
                         "principal": "-1",
                         "interest": "11",
-                        "message": "سهم اصل و سود/کارمزد نباید منفی باشد",
+                        "message": "سهم اصل قسط نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "payment total does not match components",
@@ -196,7 +196,7 @@ def main() -> None:
                         "amount": "10",
                         "principal": "11",
                         "interest": "-1",
-                        "message": "سهم اصل و سود/کارمزد نباید منفی باشد",
+                        "message": "سهم سود/کارمزد قسط نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "zero payment amount",
