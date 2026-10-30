@@ -57,6 +57,19 @@ def main():
         assert 'data-unit="تومان"' in amount_field
         assert app.strict_money_int("123.4", "test amount") == 1234
         assert app.strict_money_int("0.05", "half rial") == 1
+        # Each document line is rounded independently in integer rial, half-up.
+        assert app.money_line_total("0.0005", "1000") == 1
+        assert app.money_line_total("0.0004", "1000") == 0
+        assert app.money_line_total("1.234", "1000") == 1234
+        assert app.money_line_total("0.0005", "1000") + app.money_line_total("0.0005", "1000") == 2
+        assert app.money_average(1000, 15) == 67
+        assert c.execute("SELECT money_line_total(0.0005,1000)").fetchone()[0] == 1
+        try:
+            app.money_line_total("NaN", "1000")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("non-finite line amount was accepted")
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("MONEY UNIT UI TESTS PASSED")
 
