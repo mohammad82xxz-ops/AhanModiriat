@@ -47,6 +47,15 @@ def create_legacy_db(path):
         id INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT '', action TEXT NOT NULL,
         details TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE purchase_returns(
+        id INTEGER PRIMARY KEY, return_value REAL NOT NULL, cash_refund INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE sales_returns(
+        id INTEGER PRIMARY KEY, return_value REAL NOT NULL, cost_basis REAL NOT NULL,
+        extra_reversed REAL NOT NULL DEFAULT 0, refund_amount INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE cash_accounts(id INTEGER PRIMARY KEY, opening_balance INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE cash_movements(id INTEGER PRIMARY KEY, amount INTEGER NOT NULL);
     CREATE TRIGGER trg_products_test_insert AFTER INSERT ON products
     BEGIN UPDATE products SET notes='trigger-preserved' WHERE id=NEW.id; END;
     """)
@@ -54,6 +63,10 @@ def create_legacy_db(path):
     c.execute("INSERT INTO purchases(id,date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(4,'2026-01-01',1,2,100.6,4.6,'Vendor',50.5,'purchase')")
     c.execute("INSERT INTO sales(id,date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(8,'2026-01-02',1,1,200.5,5.5,'Customer',80.6,'sale',100.8)")
     c.execute("INSERT INTO expenses(id,date,category,amount,source,business,notes) VALUES(9,'2026-01-03','fee',1.6,'cash',1,'expense')")
+    c.execute("INSERT INTO purchase_returns(id,return_value,cash_refund) VALUES(10,3.4,2)")
+    c.execute("INSERT INTO sales_returns(id,return_value,cost_basis,extra_reversed,refund_amount) VALUES(11,5.4,2.2,0.6,4)")
+    c.execute("INSERT INTO cash_accounts(id,opening_balance) VALUES(1,7)")
+    c.execute("INSERT INTO cash_movements(id,amount) VALUES(1,8)")
     c.commit()
     return c
 
@@ -64,14 +77,16 @@ def main():
     c=create_legacy_db(legacy_path)
     try:
         converted=app.migrate_money_columns_to_integer(c)
-        assert converted==10, converted
+        assert converted==14, converted
+        scaled_rows=app.migrate_money_units_to_rial(c)
+        assert scaled_rows==8, scaled_rows
         c.commit()
 
         expected={
-            "products":{"avg_cost":13,"market_price":19},
-            "purchases":{"unit_cost":101,"extra_cost":5,"paid":51},
-            "sales":{"unit_price":201,"extra_cost":6,"received":81,"cost_basis":101},
-            "expenses":{"amount":2},
+            "products":{"avg_cost":130,"market_price":190},
+            "purchases":{"unit_cost":1010,"extra_cost":50,"paid":510},
+            "sales":{"unit_price":2010,"extra_cost":60,"received":810,"cost_basis":1010},
+            "expenses":{"amount":20},
         }
         for table,columns in expected.items():
             schema={r["name"]:r["type"].upper() for r in c.execute(f'PRAGMA table_info("{table}")')}
@@ -80,6 +95,21 @@ def main():
                 actual=c.execute(f'SELECT "{col}",typeof("{col}") FROM "{table}" LIMIT 1').fetchone()
                 assert actual[0]==value,(table,col,actual[0],value)
                 assert actual[1]=="integer",(table,col,actual[1])
+        additional_expected = {
+            "purchase_returns": {"return_value":30,"cash_refund":20},
+            "sales_returns": {"return_value":50,"cost_basis":20,"extra_reversed":10,"refund_amount":40},
+            "cash_accounts": {"opening_balance":70},
+            "cash_movements": {"amount":80},
+        }
+        for table, columns in additional_expected.items():
+            for column, value in columns.items():
+                actual=c.execute(f'SELECT "{column}" FROM "{table}" LIMIT 1').fetchone()[0]
+                assert actual==value,(table,column,actual,value)
+        assert app.migrate_money_units_to_rial(c)==0,"rial unit migration must be idempotent"
+        assert app.money(1234)=="123.4"
+        assert app.money_input(1234)=="123.4"
+        assert app.strict_money_int("123.4","money test")==1234
+        assert app.strict_money_int("0.05","half rial test")==1
         # Non-money quantity columns keep their decimal type.
         product_schema={r["name"]:r["type"].upper() for r in c.execute("PRAGMA table_info(products)")}
         assert product_schema["stock"]=="REAL"
@@ -106,7 +136,7 @@ def main():
                 if col in info:
                     assert info[col]=="INTEGER",(table,col,info[col])
         assert live.execute("PRAGMA foreign_key_check").fetchall()==[]
-    print("INTEGER TOMAN SCHEMA MIGRATION TESTS PASSED")
+    print("INTEGER RIAL SCHEMA MIGRATION TESTS PASSED")
 
 
 if __name__ == "__main__":
