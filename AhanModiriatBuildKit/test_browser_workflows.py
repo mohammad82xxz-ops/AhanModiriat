@@ -569,7 +569,7 @@ def main() -> None:
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM expenses WHERE category='Phase2 invalid expense'").fetchone()[0] == invalid_expenses_before, "expense with missing amount was persisted"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0] == invalid_cash_before, "cash movement created for expense with missing amount"
-                assert "مبلغ باید بیشتر از صفر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-amount expense rejection message missing; url={page.url}"
+                assert "مبلغ هزینه الزامی است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-amount expense rejection message missing; url={page.url}"
 
                 page.goto(base + "/expenses", wait_until="networkidle")
                 form = page.locator('form[action="/add_expense"]')
