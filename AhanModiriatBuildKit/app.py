@@ -321,7 +321,7 @@ def restore_database_from_file(source_path):
 MONEY_INTEGER_COLUMNS = {
     "products": ("avg_cost","market_price"),
     "purchases": ("unit_cost","extra_cost","paid"),
-    "sales": ("unit_price","extra_cost","received","cost_basis"),
+    "sales": ("unit_price","line_total","extra_cost","received","cost_basis"),
     "services": ("revenue","cost","received"),
     "expenses": ("amount",),
     "loans": ("principal","remaining","installment"),
@@ -399,7 +399,7 @@ RIAL_UNIT_SETTING = "money_unit_version"
 RIAL_SCALE_COLUMNS = {
     "products": ("avg_cost","market_price"),
     "purchases": ("unit_cost","extra_cost","paid"),
-    "sales": ("unit_price","extra_cost","received","cost_basis"),
+    "sales": ("unit_price","line_total","extra_cost","received","cost_basis"),
     "services": ("revenue","cost","received"),
     "expenses": ("amount",),
     "loans": ("principal","remaining","installment"),
@@ -475,7 +475,7 @@ def init():
         c.executescript('''
         CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT DEFAULT '', unit TEXT NOT NULL DEFAULT 'کیلوگرم', stock REAL NOT NULL DEFAULT 0, avg_cost REAL NOT NULL DEFAULT 0, market_price REAL NOT NULL DEFAULT 0, min_stock REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS purchases(id INTEGER PRIMARY KEY, date TEXT NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id), qty REAL NOT NULL, unit_cost REAL NOT NULL, extra_cost REAL NOT NULL DEFAULT 0, supplier TEXT DEFAULT '', paid REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '');
-        CREATE TABLE IF NOT EXISTS sales(id INTEGER PRIMARY KEY, date TEXT NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id), qty REAL NOT NULL, unit_price REAL NOT NULL, extra_cost REAL NOT NULL DEFAULT 0, customer TEXT DEFAULT '', received REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '', cost_basis REAL NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS sales(id INTEGER PRIMARY KEY, date TEXT NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id), qty REAL NOT NULL, unit_price REAL NOT NULL, line_total INTEGER NOT NULL DEFAULT 0, extra_cost REAL NOT NULL DEFAULT 0, customer TEXT DEFAULT '', received REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '', cost_basis REAL NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS services(id INTEGER PRIMARY KEY, date TEXT NOT NULL, title TEXT NOT NULL, revenue REAL NOT NULL, cost REAL NOT NULL DEFAULT 0, received REAL NOT NULL DEFAULT 0, customer TEXT DEFAULT '', notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY, date TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, source TEXT NOT NULL DEFAULT 'نامشخص', business INTEGER NOT NULL DEFAULT 1, notes TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS loans(id INTEGER PRIMARY KEY, title TEXT NOT NULL, principal REAL NOT NULL, remaining REAL NOT NULL, installment REAL NOT NULL, next_date TEXT DEFAULT '', rate_note TEXT DEFAULT '', notes TEXT DEFAULT '', interval_value INTEGER NOT NULL DEFAULT 1, interval_unit TEXT NOT NULL DEFAULT 'month');
@@ -587,6 +587,9 @@ def init():
                 c.execute(f"ALTER TABLE products ADD COLUMN {name} {decl}")
         c.execute("UPDATE products SET purchase_unit=unit WHERE purchase_unit=''")
         c.execute("UPDATE products SET sale_unit=unit WHERE sale_unit=''")
+        sales_cols = {row["name"] for row in c.execute("PRAGMA table_info(sales)")}
+        if "line_total" not in sales_cols:
+            c.execute("ALTER TABLE sales ADD COLUMN line_total INTEGER NOT NULL DEFAULT 0")
         loan_cols = {row["name"] for row in c.execute("PRAGMA table_info(loans)")}
         for name, decl in {
             "interval_value": "INTEGER NOT NULL DEFAULT 1",
@@ -698,6 +701,10 @@ def init():
         # otherwise fractional toman data would be rounded away before the ×10 rial conversion.
         migrate_money_units_to_rial(c)
         converted_money_columns=migrate_money_columns_to_integer(c)
+        # Backfill exact integer-rial totals for legacy sales after unit conversion.
+        # Older versions stored normalized base-unit price; this preserves their historical total.
+        c.execute("""UPDATE sales SET line_total=money_line_total(qty,unit_price)
+                     WHERE line_total=0 AND qty>0 AND unit_price>0""")
         # The opening balance and legacy cash postings are rebuilt only after all source
         # documents have been converted to rial, preventing a second rounding at backfill.
         opening = scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0
@@ -745,6 +752,20 @@ def money_line_total(quantity, unit_price):
     if not qty.is_finite() or not price.is_finite():
         raise ValueError("مقدار یا قیمت سطر باید عدد متناهی باشد.")
     return money_int(qty * price)
+
+def money_proportion(total_value, part_quantity, whole_quantity):
+    """Allocate an integer-rial total proportionally, rounding once with Decimal half-up."""
+    try:
+        total = Decimal(str(total_value if total_value is not None else 0))
+        part = Decimal(str(part_quantity if part_quantity is not None else 0))
+        whole = Decimal(str(whole_quantity if whole_quantity is not None else 0))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError("مبلغ یا مقدار تخصیص نامعتبر است.")
+    if not total.is_finite() or not part.is_finite() or not whole.is_finite():
+        raise ValueError("مبلغ یا مقدار تخصیص باید متناهی باشد.")
+    if whole <= 0 or part <= 0:
+        return 0
+    return money_int(total * part / whole)
 
 def money_average(total_value, quantity):
     """Return an integer-rial per-unit average using Decimal division and half-up rounding."""
@@ -1067,7 +1088,7 @@ def party_balances(c):
         name = normalize_person(name) or "(بدون نام)"
         item = balances.setdefault(name, {"receivable": 0, "payable": 0})
         item[key] += int(amount or 0)
-    for row in c.execute("SELECT TRIM(customer) name,SUM(money_line_total(qty,unit_price)-received) amount FROM sales GROUP BY TRIM(customer)"):
+    for row in c.execute("SELECT TRIM(customer) name,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))-received) amount FROM sales GROUP BY TRIM(customer)"):
         add(row["name"],"receivable",row["amount"])
     for row in c.execute("SELECT TRIM(customer) name,SUM(revenue-received) amount FROM services GROUP BY TRIM(customer)"):
         add(row["name"],"receivable",row["amount"])
@@ -1120,8 +1141,8 @@ def parties_page(c, selected="", search="", page_num=1, statement_page=1):
     if selected:
         stmt_limit,stmt_offset,statement_page=page_window(statement_page,50)
         statement_sql="""SELECT id,date,'فروش کالا' AS kind,
-                                  money_line_total(qty,unit_price) AS total,received AS settled,notes,'sales' AS source_type,
-                                  money_line_total(qty,unit_price)-received AS receivable_delta,0 AS payable_delta
+                                  COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price)) AS total,received AS settled,notes,'sales' AS source_type,
+                                  COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))-received AS receivable_delta,0 AS payable_delta
                            FROM sales WHERE TRIM(customer)=:person
                            UNION ALL
                            SELECT id,date,'خدمات',revenue,received,notes,'services',
@@ -1179,7 +1200,7 @@ def calc(c, start=None, end=None):
     if start and end: where=' WHERE date BETWEEN ? AND ?'; args=[start,end]
     elif start: where=' WHERE date >= ?'; args=[start]
     elif end: where=' WHERE date <= ?'; args=[end]
-    sales_rev=scalar(c,'SELECT COALESCE(SUM(money_line_total(qty,unit_price)),0) FROM sales'+where,args)
+    sales_rev=scalar(c,'SELECT COALESCE(SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))),0) FROM sales'+where,args)
     sales_cost=scalar(c,'SELECT COALESCE(SUM(money_line_total(qty,cost_basis)),0) FROM sales'+where,args)
     sales_extra=scalar(c,'SELECT COALESCE(SUM(extra_cost),0) FROM sales'+where,args)
     sales_return_where=where.replace("date","date")
@@ -1214,7 +1235,7 @@ def dashboard_sales_chart(c, month_limit=6):
                 continue
             b=buckets.setdefault((jy,jm),{"sales":0.0,"services":0.0})
             b[key]+=sign*float(row["value"] or 0)
-    add("SELECT date,SUM(money_line_total(qty,unit_price)) value FROM sales GROUP BY date","sales")
+    add("SELECT date,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))) value FROM sales GROUP BY date","sales")
     add("SELECT date,SUM(return_value) value FROM sales_returns GROUP BY date","sales",-1)
     add("SELECT date,SUM(revenue) value FROM services GROUP BY date","services")
     latest=sorted(buckets.items(),key=lambda item:item[0],reverse=True)[:max(1,min(12,int(month_limit)))]
@@ -1666,7 +1687,7 @@ def sales(c, search='', page_num=1):
     query=str(search or '').strip(); pattern='%'+query+'%'
     total=scalar(c,"SELECT COUNT(*) FROM sales s JOIN products p ON p.id=s.product_id WHERE p.name LIKE ? OR s.customer LIKE ? OR s.notes LIKE ?",(pattern,pattern,pattern))
     body=f'''<h1>ثبت فروش کالا</h1><div class="card section"><form method="post" action="/add_sale">{submission_token(c,'add_sale')}<div class="formgrid">{field('تاریخ فروش','date','date',TODAY,True)}{selectfield('کالا','product_id',options_products(c))}{field('مقدار فروش','qty','number','1',True,'0.001')}{field('قیمت فروش هر واحد (تومان)','unit_price','number','0',True,'0.01')}{field('هزینه مستقیم فروش','extra_cost','number','0',False,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت فروش و کسر موجودی</button></div></form><p class="small">بهای تمام‌شده از میانگین بهای خرید ثبت‌شده در همان لحظه ذخیره می‌شود تا گزارش سود فروش تاریخی با خریدهای بعدی تغییر نکند.</p></div>'''
-    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_price']),money(r['cost_basis']),money(money_line_total(r['qty'],r['unit_price'])-money_line_total(r['qty'],r['cost_basis'])-r['extra_cost']),esc(r['customer']),money(r['received']),record_actions(r['id'],'edit_sale','delete_sale','فروش')] for r in c.execute('SELECT s.*,p.name FROM sales s JOIN products p ON p.id=s.product_id WHERE p.name LIKE ? OR s.customer LIKE ? OR s.notes LIKE ? ORDER BY s.date DESC,s.id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
+    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_price']),money(r['cost_basis']),money((r['line_total'] or money_line_total(r['qty'],r['unit_price']))-money_line_total(r['qty'],r['cost_basis'])-r['extra_cost']),esc(r['customer']),money(r['received']),record_actions(r['id'],'edit_sale','delete_sale','فروش')] for r in c.execute('SELECT s.*,p.name FROM sales s JOIN products p ON p.id=s.product_id WHERE p.name LIKE ? OR s.customer LIKE ? OR s.notes LIKE ? ORDER BY s.date DESC,s.id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>فروش‌ها</h2><form method="get" action="/sales" class="search-form"><label>جستجوی فروش</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، مشتری یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","کالا","مقدار","قیمت فروش","بهای تمام‌شده","سود معامله پس از هزینه مستقیم","مشتری","دریافت‌شده","عملیات"],rows,total)}{page_nav("sales",query,page_num,total,limit)}</div>'
     return page('فروش',body,'sales')
 def services(c, search='', page_num=1):
@@ -1764,7 +1785,7 @@ def report_detail_sections(c):
         COALESCE(s.rev,0) AS sold_rev, COALESCE(s.cost,0) AS sold_cost, COALESCE(s.extra,0) AS sold_extra,
         COALESCE(sr.rev,0) AS return_rev, COALESCE(sr.cost,0) AS return_cost, COALESCE(sr.extra,0) AS return_extra
         FROM products p
-        LEFT JOIN (SELECT product_id,SUM(money_line_total(qty,unit_price)) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY product_id) s ON s.product_id=p.id
+        LEFT JOIN (SELECT product_id,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY product_id) s ON s.product_id=p.id
         LEFT JOIN (SELECT product_id,SUM(return_value) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_reversed) extra FROM sales_returns GROUP BY product_id) sr ON sr.product_id=p.id
         WHERE COALESCE(s.rev,0)>0 OR COALESCE(sr.rev,0)>0"""):
         revenue=int(r["sold_rev"] or 0)-int(r["return_rev"] or 0)
@@ -2018,7 +2039,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=='export.csv':
                 import csv, io
                 out=io.StringIO(); w=csv.writer(out); w.writerow(['نوع','تاریخ','شرح','مبلغ/درآمد','هزینه/اصل','یادداشت'])
-                for r in c.execute('SELECT date, name, money_line_total(qty,unit_price), money_line_total(qty,cost_basis)+extra_cost, notes FROM sales JOIN products ON products.id=sales.product_id'):w.writerow(['فروش کالا',r[0],r[1],money(r[2]),money(r[3]),r[4]])
+                for r in c.execute('SELECT date, name, COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price)), money_line_total(qty,cost_basis)+extra_cost, notes FROM sales JOIN products ON products.id=sales.product_id'):w.writerow(['فروش کالا',r[0],r[1],money(r[2]),money(r[3]),r[4]])
                 for r in c.execute('SELECT date,title,revenue,cost,notes FROM services'):w.writerow(['خدمت',r[0],r[1],money(r[2]),money(r[3]),r[4]])
                 for r in c.execute('SELECT date,category,amount,business,notes FROM expenses'):w.writerow(['پرداخت',r[0],r[1],money(r[2]),'هزینه کسب‌وکار' if r[3] else 'برداشت شخصی',r[4]])
                 self.send('\ufeff'+out.getvalue(),'text/csv; charset=utf-8'); return
@@ -2285,8 +2306,9 @@ class Handler(BaseHTTPRequestHandler):
                     if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
-                    base_price=money_int(Decimal(str(price))/Decimal(str(num(p['sale_factor'] if 'sale_factor' in p.keys() else 1))))
-                    sale_cur=c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
+                    sale_factor=num(p['sale_factor'] if 'sale_factor' in p.keys() else 1); base_price=money_int(Decimal(str(price))/Decimal(str(sale_factor)))
+                    line_total=money_line_total(qty,price)
+                    sale_cur=c.execute('INSERT INTO sales(date,product_id,qty,unit_price,line_total,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,line_total,extra,v('customer'),received,v('notes'),p['avg_cost']))
                     sale_id=sale_cur.lastrowid
                     link_party(c,"sales","customer_person_id",sale_id,v('customer'),'customer')
                     sync_cash_posting(c,"sales",sale_id,to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت فروش")
@@ -2409,8 +2431,10 @@ class Handler(BaseHTTPRequestHandler):
                     if qty<=0 or price<=0 or extra<0 or received<0: raise ValueError('مقدار باید مثبت، قیمت فروش بیشتر از صفر و هزینه و دریافتی غیرمنفی باشند.')
                     new_stock=float(product["stock"] or 0)+float(row["qty"])-qty
                     if new_stock < -0.000001: raise ValueError('اصلاح مقدار فروش موجودی منفی ایجاد می‌کند.')
-                    c.execute("UPDATE sales SET qty=?,unit_price=?,extra_cost=?,received=?,customer=?,notes=? WHERE id=?",
-                              (qty,price,extra,received,v("customer"),v("notes"),rid))
+                    original_line_total=int(row["line_total"] or money_line_total(row["qty"],row["unit_price"]))
+                    edited_line_total=original_line_total if float(qty)==float(row["qty"]) and int(price)==int(row["unit_price"]) else money_line_total(qty,price)
+                    c.execute("UPDATE sales SET qty=?,unit_price=?,line_total=?,extra_cost=?,received=?,customer=?,notes=? WHERE id=?",
+                              (qty,price,edited_line_total,extra,received,v("customer"),v("notes"),rid))
                     c.execute("UPDATE products SET stock=? WHERE id=?",(max(new_stock,0.0),row["product_id"]))
                     link_party(c,"sales","customer_person_id",rid,v("customer"),"customer")
                     sync_cash_posting(c,"sales",rid,row["date"],received,"in",v("customer"),v("notes") or "اصلاح دریافت فروش")
@@ -2453,11 +2477,16 @@ class Handler(BaseHTTPRequestHandler):
                     already=float(scalar(c,"SELECT COALESCE(SUM(qty),0) FROM sales_returns WHERE sale_id=?",(sale_id,)) or 0)
                     remaining=float(sale["qty"])-already
                     if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از ماندهٔ قابل برگشت بیشتر است؛ مانده {remaining:g} {sale['unit']} است.")
-                    return_value=money_line_total(qty,sale["unit_price"])
+                    already_returned_value=int(scalar(c,"SELECT COALESCE(SUM(return_value),0) FROM sales_returns WHERE sale_id=?",(sale_id,)) or 0)
+                    already_reversed_extra=int(scalar(c,"SELECT COALESCE(SUM(extra_reversed),0) FROM sales_returns WHERE sale_id=?",(sale_id,)) or 0)
+                    remaining_qty=max(0.0,float(sale["qty"])-already)
+                    remaining_line_value=max(0,int(sale["line_total"] or money_line_total(sale["qty"],sale["unit_price"]))-already_returned_value)
+                    remaining_extra=max(0,int(sale["extra_cost"] or 0)-already_reversed_extra)
+                    return_value=remaining_line_value if qty>=remaining_qty-0.000001 else money_proportion(remaining_line_value,qty,remaining_qty)
                     if refund>return_value:
                         raise ValueError("وجه برگشتی از ارزش فروش مرجوع‌شده بیشتر است؛ مبلغ اضافه را جداگانه به‌عنوان هزینه ثبت کن.")
                     cost_value=money_line_total(qty,sale["cost_basis"])
-                    extra_reversed=money_int(Decimal(str(sale["extra_cost"] or 0))*Decimal(str(qty))/Decimal(str(sale["qty"])))
+                    extra_reversed=remaining_extra if qty>=remaining_qty-0.000001 else money_proportion(remaining_extra,qty,remaining_qty)
                     c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
                                  VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                               (to_iso_date(v("date",jalali_today())),sale_id,sale["product_id"],sale["customer"] or "",qty,return_value,int(sale["cost_basis"] or 0),extra_reversed,refund,reason,v("notes")))
