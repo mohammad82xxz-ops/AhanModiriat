@@ -146,7 +146,8 @@ def main():
         for table, columns in app.MONEY_INTEGER_COLUMNS.items():
             schema={r["name"]:r["type"].upper() for r in c.execute(f'PRAGMA table_info("{table}")')}
             for column in columns:
-                assert schema[column]=="INTEGER",(table,column,schema[column])
+                if column in schema:  # New additive columns are verified against init() below.
+                    assert schema[column]=="INTEGER",(table,column,schema[column])
         assert app.migrate_money_units_to_rial(c)==0,"rial unit migration must be idempotent"
         assert app.money(1234)=="123.4"
         assert app.money_input(1234)=="123.4"
@@ -182,6 +183,8 @@ def main():
             for col in columns:
                 if col in info:
                     assert info[col]=="INTEGER",(table,col,info[col])
+        live_sales_schema={r["name"]:r["type"].upper() for r in live.execute("PRAGMA table_info(sales)")}
+        assert live_sales_schema.get("line_total")=="INTEGER",live_sales_schema
         assert live.execute("PRAGMA foreign_key_check").fetchall()==[]
     # A bad value late in the scale pass must roll back every earlier row update
     # and must not leave the database marked as migrated.
