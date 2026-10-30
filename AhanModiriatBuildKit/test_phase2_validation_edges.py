@@ -52,6 +52,14 @@ def fingerprint():
 
 
 def main() -> None:
+    # Monetary validation must inspect the sign before integer rounding.
+    for tiny_negative in ("-0.4", "-0.49", "-0.01"):
+        try:
+            app.strict_money_int(tiny_negative, "negative regression")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"negative monetary input was rounded into acceptance: {tiny_negative}")
     app.init()
     with app.conn() as c:
         c.execute(
@@ -145,7 +153,7 @@ def main() -> None:
 
         # Opening capital is a non-negative monetary balance and malformed/blank
         # values must not silently coerce to zero.
-        for invalid_amount in ("-1", "not-a-number", ""):
+        for invalid_amount in ("-1", "-0.4", "not-a-number", ""):
             post(port, "save_capital", {
                 "amount": invalid_amount, "date": "2026-01-03",
             })
