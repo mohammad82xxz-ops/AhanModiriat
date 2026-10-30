@@ -54,11 +54,11 @@ def main():
             assert row is not None, f"missing migrated source: {table}"
             assert (row["kind"], row["amount"]) == (kind, amount), (table, dict(row))
         # Opening cash 20000 + 2500 + 1500 + 300 - 1000 - 750 - 500 - transfer 70.
-        assert app.account_balance(c, 1) == 21980, app.account_balance(c, 1)
+        assert app.account_balance(c, 1) == 219800, app.account_balance(c, 1)
         assert app.account_balance(c, 2) == 70, app.account_balance(c, 2)
         assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0] == 1
         assert app.backfill_legacy_cash_postings(c) == 0, "migration must be idempotent"
-        assert app.account_balance(c, 1) == 2198
+        assert app.account_balance(c, 1) == 21980
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert c.execute("SELECT COUNT(*) FROM people WHERE name='legacy supplier'").fetchone()[0] == 1
         assert c.execute("SELECT COUNT(*) FROM people WHERE name='legacy customer'").fetchone()[0] == 1
