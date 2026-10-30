@@ -118,7 +118,7 @@ def main():
     with app.conn() as c:
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
                      purchase_unit,purchase_factor,sale_unit,sale_factor)
-                     VALUES('reversal steel','kg',10,5,10,0,'kg',1,'kg',1)""")
+                     VALUES('reversal steel','kg',10,50,100,0,'kg',1,'kg',1)""")
         pid = c.execute("SELECT id FROM products WHERE name='reversal steel'").fetchone()[0]
 
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
@@ -232,9 +232,9 @@ def main():
             purchase_id = purchase["id"]
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             assert p["stock"] == 15
-            assert abs(p["avg_cost"] - (100/15)) < 0.000001
+            assert abs(p["avg_cost"] - (1000/15)) < 0.000001
             linked = c.execute("SELECT * FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchall()
-            assert len(linked) == 1 and linked[0]["amount"] == 25, [dict(x) for x in linked]
+            assert len(linked) == 1 and linked[0]["amount"] == 250, [dict(x) for x in linked]
             assert purchase["created_at"] and purchase["updated_at"]
             assert purchase["supplier_person_id"]
             assert c.execute("SELECT name FROM people WHERE id=?", (purchase["supplier_person_id"],)).fetchone()[0] == "Supplier A"
@@ -250,15 +250,15 @@ def main():
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             purchase = c.execute("SELECT * FROM purchases WHERE id=?", (purchase_id,)).fetchone()
-            assert p["stock"] == 14 and abs(p["avg_cost"] - (82/14)) < 0.000001
-            assert purchase["qty"] == 4 and purchase["unit_cost"] == 8
+            assert p["stock"] == 14 and abs(p["avg_cost"] - (820/14)) < 0.000001
+            assert purchase["qty"] == 4 and purchase["unit_cost"] == 80
             assert purchase["updated_at"]
-            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchone()[0] == 20
+            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchone()[0] == 200
 
         post(port, "delete_purchase", {"record_id":purchase_id})
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 10 and abs(p["avg_cost"] - 5) < 0.000001
+            assert p["stock"] == 10 and abs(p["avg_cost"] - 50) < 0.000001
             assert c.execute("SELECT COUNT(*) FROM purchases WHERE id=?", (purchase_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchone()[0] == 0
 
@@ -291,8 +291,8 @@ def main():
         assert "reversal steel" in protected_page
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 8 and p["avg_cost"] == 5 and p["purchase_factor"] == 1
-            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 40
+            assert p["stock"] == 8 and p["avg_cost"] == 50 and p["purchase_factor"] == 1
+            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 400
 
         post(port, "delete_sale", {"record_id":sale_id})
         with app.conn() as c:
@@ -316,9 +316,9 @@ def main():
         })
         with app.conn() as c:
             expense = c.execute("SELECT * FROM expenses WHERE id=?", (expense_id,)).fetchone()
-            assert expense["amount"] == 81 and expense["business"] == 0 and expense["date"] == "2026-01-06"
+            assert expense["amount"] == 806 and expense["business"] == 0 and expense["date"] == "2026-01-06"
             assert expense["created_at"] and expense["updated_at"]
-            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 81
+            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense_id,)).fetchone()[0] == 806
         post(port, "delete_expense", {"record_id":expense_id})
         post(port,"add_cash_movement",{
             "date":"2026-01-07","kind":"deposit","to_account_id":"1",
