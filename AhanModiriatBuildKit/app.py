@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar, io, zipfile, re, secrets, math, xml.etree.ElementTree as ET
 from email.parser import BytesParser
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from email.policy import default as email_policy
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
@@ -326,8 +326,10 @@ MONEY_INTEGER_COLUMNS = {
     "price_history": ("market_price",),
     "opening_capital": ("amount",),
     "settlements": ("amount",),
-    "purchase_returns": ("return_value",),
-    "sales_returns": ("return_value","cost_basis","extra_reversed"),
+    "purchase_returns": ("return_value","cash_refund"),
+    "sales_returns": ("return_value","cost_basis","extra_reversed","refund_amount"),
+    "cash_accounts": ("opening_balance",),
+    "cash_movements": ("amount",),
 }
 
 def migrate_money_columns_to_integer(c):
@@ -378,6 +380,78 @@ def migrate_money_columns_to_integer(c):
             c.execute(obj["sql"])
         migrated+=len(to_convert)
     return migrated
+
+RIAL_UNIT_VERSION = "rial-v1"
+RIAL_UNIT_SETTING = "money_unit_version"
+RIAL_SCALE_COLUMNS = {
+    "products": ("avg_cost","market_price"),
+    "purchases": ("unit_cost","extra_cost","paid"),
+    "sales": ("unit_price","extra_cost","received","cost_basis"),
+    "services": ("revenue","cost","received"),
+    "expenses": ("amount",),
+    "loans": ("principal","remaining","installment"),
+    "loan_payments": ("amount","principal_part","interest_part"),
+    "cash_events": ("amount",),
+    "price_history": ("market_price",),
+    "opening_capital": ("amount",),
+    "settlements": ("amount",),
+    "purchase_returns": ("return_value","cash_refund"),
+    "sales_returns": ("return_value","cost_basis","extra_reversed","refund_amount"),
+    "cash_accounts": ("opening_balance",),
+    "cash_movements": ("amount",),
+}
+
+def migrate_money_units_to_rial(c):
+    \"\"\"One-time, atomic scale migration from legacy toman values to integer rial.\"\"\"
+    c.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    marker = c.execute("SELECT value FROM settings WHERE key=?", (RIAL_UNIT_SETTING,)).fetchone()
+    if marker:
+        if marker["value"] != RIAL_UNIT_VERSION:
+            raise RuntimeError("نسخه واحد پول پایگاه داده ناشناخته است؛ مهاجرت خودکار متوقف شد.")
+        return 0
+    scaled_rows = 0
+    int_min, int_max = -(2**63), 2**63-1
+    for table, columns in RIAL_SCALE_COLUMNS.items():
+        table_exists = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+        if not table_exists:
+            continue
+        info = c.execute(f'PRAGMA table_info("{table}")').fetchall()
+        available = {row["name"] for row in info}
+        selected = [name for name in columns if name in available]
+        if not selected:
+            continue
+        pk = next((row["name"] for row in info if int(row["pk"] or 0) > 0), None)
+        if not pk:
+            raise RuntimeError(f"جدول {table} کلید اصلی قابل مهاجرت ندارد.")
+        quoted_pk = '"' + pk.replace('"','""') + '"'
+        quoted_cols = ['"' + name.replace('"','""') + '"' for name in selected]
+        rows = c.execute(f'SELECT {quoted_pk},{",".join(quoted_cols)} FROM "{table}"').fetchall()
+        for row in rows:
+            updates = []
+            values = []
+            for name in selected:
+                value = row[name]
+                if value is None:
+                    continue
+                try:
+                    amount = Decimal(str(value)) * Decimal(10)
+                except (InvalidOperation, ValueError, TypeError) as exc:
+                    raise RuntimeError(f"مقدار پولی نامعتبر در {table}.{name}؛ مهاجرت لغو شد.") from exc
+                if not amount.is_finite():
+                    raise RuntimeError(f"مقدار غیرمتناهی در {table}.{name}؛ مهاجرت لغو شد.")
+                rial = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+                if rial < int_min or rial > int_max:
+                    raise RuntimeError(f"مقدار {table}.{name} از ظرفیت عدد صحیح ریال خارج است.")
+                updates.append('"' + name.replace('"','""') + '"=?')
+                values.append(rial)
+            if updates:
+                c.execute(f'UPDATE "{table}" SET {",".join(updates)} WHERE {quoted_pk}=?', (*values,row[pk]))
+                scaled_rows += 1
+    c.execute("INSERT INTO settings(key,value) VALUES(?,?)", (RIAL_UNIT_SETTING,RIAL_UNIT_VERSION))
+    c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)", (
+        "migrate_money_to_rial", json.dumps({"version":RIAL_UNIT_VERSION,"scale":10,"rows":scaled_rows},ensure_ascii=False)
+    ))
+    return scaled_rows
 
 def init():
     create_startup_backup()
@@ -604,7 +678,7 @@ def init():
                     UPDATE {table_name} SET updated_at=datetime('now','localtime') WHERE id=NEW.id;
                 END""")
         # A legacy opening-capital setting is an opening balance, not a transaction.
-        opening = money_int(float(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0))
+        opening = money_int(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)
         current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
         # A manual transfer must not prevent migration of the legacy opening cash balance.
         if opening and not current:
@@ -615,6 +689,7 @@ def init():
                       ("بازسازی گردش صندوق از اسناد قدیمی", json.dumps({"rows": migrated}, ensure_ascii=False)))
         fk_before=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
         converted_money_columns=migrate_money_columns_to_integer(c)
+        migrate_money_units_to_rial(c)
         fk_after=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
         if fk_after!=fk_before:
             raise RuntimeError("مهاجرت ستون‌های پولی باعث تغییر وضعیت کلیدهای خارجی شد؛ عملیات لغو شد.")
@@ -629,9 +704,13 @@ def num(v, default=0):
     except (ValueError, TypeError):
         return float(default)
 def money_int(v, default=0):
-    amount=num(v,default)
-    # Round half away from zero consistently with SQLite ROUND() in the schema migration.
-    return int(amount+0.5) if amount>=0 else int(amount-0.5)
+    try:
+        amount = Decimal(str(v if v is not None else default).replace(",", "").replace("٬", "").strip() or str(default))
+    except (InvalidOperation, ValueError, TypeError):
+        amount = Decimal(str(default))
+    if not amount.is_finite():
+        raise ValueError("مبلغ باید عدد متناهی باشد.")
+    return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 def strict_number(v, label, allow_blank=False):
     """Parse finite numeric input and reject malformed values rather than coercing them to zero."""
     cleaned = str(v if v is not None else "").translate(DIGIT_TRANSLATION).replace(',', '').replace('٬', '').replace(' ', '').strip()
@@ -658,16 +737,31 @@ def strict_money_int(v, label, allow_blank=False):
             return 0
         raise ValueError(f"{label} الزامی است و باید عدد معتبر باشد.")
     try:
-        amount = float(cleaned)
         exact_amount = Decimal(cleaned)
     except (ValueError, TypeError, InvalidOperation):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
-    if not math.isfinite(amount) or not exact_amount.is_finite():
+    if not exact_amount.is_finite():
         raise ValueError(f"{label} باید عدد معتبر باشد.")
     if exact_amount < 0:
         raise ValueError(f"{label} نمی‌تواند منفی باشد.")
-    return money_int(amount)
-def money(v): return f'{v:,.0f}'
+    # UI amounts are entered in toman; the database stores integer rial.
+    return money_int(exact_amount * Decimal(10))
+def money(v):
+    try:
+        toman = Decimal(str(v if v is not None else 0)) / Decimal(10)
+    except (InvalidOperation, ValueError, TypeError):
+        toman = Decimal(0)
+    rendered = f"{toman:,.1f}"
+    return rendered[:-2] if rendered.endswith(".0") else rendered
+def money_input(v):
+    try:
+        toman = Decimal(str(v if v is not None else 0)) / Decimal(10)
+    except (InvalidOperation, ValueError, TypeError):
+        toman = Decimal(0)
+    rendered = format(toman, "f")
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
+    return rendered or "0"
 def esc(v): return html.escape(str(v if v is not None else ''))
 def fval(row,key,default=''):
     try:return row[key]
@@ -691,7 +785,7 @@ def account_balance(c, account_id):
 def sync_cash_posting(c, source_table, source_id, date, amount, direction, party="", note=""):
     """Idempotently mirror explicit paid/received cash amounts into the cash ledger."""
     c.execute("DELETE FROM cash_movements WHERE source_table=? AND source_id=?", (source_table, source_id))
-    amount = money_int(float(amount or 0))
+    amount = money_int(amount or 0)
     if amount <= 0:
         return
     if direction == "in":
@@ -1137,7 +1231,7 @@ def design_page(c=None):
 MONEY_FIELDS = {'unit_cost','unit_price','extra_cost','paid','received','revenue','cost','amount','principal','remaining','installment','principal_part','interest_part','market_price','avg_cost','capital','refund_amount','cash_refund'}
 def field(label,name,typ='text',value='',required=False,step=None,placeholder=''):
     req='required' if required else ''
-    st=f' step="{step}"' if step and typ != 'date' else ''
+    st=' step="0.1"' if name in MONEY_FIELDS and typ == 'number' else (f' step="{step}"' if step and typ != 'date' else '')
     attrs=''
     if typ == 'date':
         typ = 'text'
@@ -1408,7 +1502,8 @@ def product_editor(c, pid):
     units=[('کیلوگرم','کیلوگرم'),('تن','تن'),('شاخه','شاخه'),('متر','متر'),('مترمربع','مترمربع'),('عدد','عدد'),('ورق','ورق')]
     cats=[('رابیتس','رابیتس'),('طلق','طلق'),('سیم مفتول','سیم مفتول'),('پروفیل','پروفیل'),('ورق','ورق'),('سایر','سایر')]
     def inp(label,name,value,typ='text',step=None):
-        return field(label,name,typ,str(value if value is not None else ''),name in ('name','unit','purchase_unit','purchase_factor','sale_unit','sale_factor'),step)
+        display_value = money_input(value) if name in MONEY_FIELDS else value
+        return field(label,name,typ,str(display_value if display_value is not None else ''),name in ('name','unit','purchase_unit','purchase_factor','sale_unit','sale_factor'),step)
     def sel(label,name,opts,value):
         out=''.join(f'<option value="{esc(v)}" {"selected" if str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
         return f'<div class="field"><label>{label}</label><select name="{name}" required>{out}</select></div>'
@@ -1436,9 +1531,9 @@ def purchase_editor(c, record_id):
     <p class="small">تاریخ و کالا ثابت نگه داشته می‌شوند. واحد خرید: {esc(r["purchase_unit"])}؛ واحد پایه: {esc(r["unit"])}.</p>
     <form method="post" action="/update_purchase"><input type="hidden" name="record_id" value="{r["id"]}">
     <div class="formgrid">{field("مقدار خرید","qty","number",str(r["qty"]),True,"0.001")}
-    {field("قیمت خرید هر واحد خرید","unit_cost","number",str(r["unit_cost"]),True,"0.01")}
-    {field("هزینه جانبی کل","extra_cost","number",str(r["extra_cost"]),False,"0.01")}
-    {field("مبلغ پرداخت‌شده","paid","number",str(r["paid"]),True,"0.01")}
+    {field("قیمت خرید هر واحد خرید","unit_cost","number",money_input(r["unit_cost"]),True,"0.1")}
+    {field("هزینه جانبی کل","extra_cost","number",money_input(r["extra_cost"]),False,"0.1")}
+    {field("مبلغ پرداخت‌شده","paid","number",money_input(r["paid"]),True,"0.1")}
     {field("فروشنده","supplier",value=str(r["supplier"] or ""))}
     {field("یادداشت","notes",value=str(r["notes"] or ""))}</div>
     <div class="actions"><button>ذخیره اصلاح خرید</button><a class="btn secondary" href="/purchases">انصراف</a></div></form></div>'''
@@ -1452,9 +1547,9 @@ def sale_editor(c, record_id):
     <div class="notice">مقدار و قیمت در واحد پایهٔ کالا ثبت شده‌اند. ویرایش فقط وقتی مجاز است که بعد از این تاریخ، خرید یا تعدیل موجودی برای این کالا ثبت نشده باشد.</div>
     <form method="post" action="/update_sale"><input type="hidden" name="record_id" value="{r["id"]}">
     <div class="formgrid">{field("مقدار فروش در واحد پایه","qty","number",str(r["qty"]),True,"0.001")}
-    {field("قیمت فروش هر واحد پایه","unit_price","number",str(r["unit_price"]),True,"0.01")}
-    {field("هزینه مستقیم فروش","extra_cost","number",str(r["extra_cost"]),False,"0.01")}
-    {field("وجه دریافت‌شده","received","number",str(r["received"]),True,"0.01")}
+    {field("قیمت فروش هر واحد پایه","unit_price","number",money_input(r["unit_price"]),True,"0.1")}
+    {field("هزینه مستقیم فروش","extra_cost","number",money_input(r["extra_cost"]),False,"0.1")}
+    {field("وجه دریافت‌شده","received","number",money_input(r["received"]),True,"0.1")}
     {field("مشتری","customer",value=str(r["customer"] or ""))}
     {field("یادداشت","notes",value=str(r["notes"] or ""))}</div>
     <div class="actions"><button>ذخیره اصلاح فروش</button><a class="btn secondary" href="/sales">انصراف</a></div></form></div>'''
@@ -1468,7 +1563,7 @@ def expense_editor(c, record_id):
     <input type="hidden" name="record_id" value="{r["id"]}"><div class="formgrid">
     {field("تاریخ","date","date",show_date(r["date"]),True)}
     {field("شرح/دسته هزینه","category",value=str(r["category"] or ""),required=True)}
-    {field("مبلغ (تومان)","amount","number",str(r["amount"]),True,"0.01")}
+    {field("مبلغ (تومان)","amount","number",money_input(r["amount"]),True,"0.1")}
     {selectfield("نوع","business",[("1","هزینه کسب‌وکار"),("0","برداشت شخصی/خانوادگی")],value=str(r["business"]))}
     {field("منبع پرداخت","source",value=str(r["source"] or ""))}
     {field("توضیحات","notes",value=str(r["notes"] or ""))}</div>
@@ -1746,7 +1841,7 @@ def audit_page(c, search='', page_num=1):
 
 def settings(c):
     capital=c.execute('SELECT * FROM opening_capital WHERE id=1').fetchone()
-    body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',str(capital['amount']),True,'0.01')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>پشتیبان خودکار پیش از شروع برنامه ساخته می‌شود و ۷ نسخه آخر در پوشه <code>data/backups</code> می‌ماند. برای نگهداری خارج از دستگاه، فایل پشتیبان را نیز جداگانه کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div><p class="small">دیتابیس با حالت WAL اجرا می‌شود. هنگام بازیابی، ابتدا از دیتابیس فعلی یک پشتیبان جداگانه ساخته می‌شود.</p>
+    body=f'''<h1>تنظیمات و سرمایه اولیه</h1><div class="card section"><h2>ثبت سرمایه و وجه نقد آغاز دوره</h2><form method="post" action="/save_capital"><div class="formgrid">{field('سرمایه/وجه نقد آغاز دوره (تومان)','amount','number',money_input(capital['amount']),True,'0.1')}{field('تاریخ آغاز دوره','date','date',capital['date'],True)}</div><div class="actions"><button>ذخیره تنظیمات</button></div></form><p class="small">این مقدار برای شروع ثبت سوابق استفاده می‌شود؛ سرمایه اولیه با سود سالانه یکی نیست. برای محاسبه دقیق «چقدر از سرمایه خرج شده»، موجودی نقد، مطالبات، بدهی‌ها و موجودی کالا نیز باید کامل و درست ثبت شوند.</p></div><div class="card section"><h2>پشتیبان‌گیری</h2><p>پشتیبان خودکار پیش از شروع برنامه ساخته می‌شود و ۷ نسخه آخر در پوشه <code>data/backups</code> می‌ماند. برای نگهداری خارج از دستگاه، فایل پشتیبان را نیز جداگانه کپی کن.</p><div class="actions"><a class="btn" href="/backup">دریافت نسخه پشتیبان پایگاه داده</a></div><p class="small">دیتابیس با حالت WAL اجرا می‌شود. هنگام بازیابی، ابتدا از دیتابیس فعلی یک پشتیبان جداگانه ساخته می‌شود.</p>
     <form method="post" action="/restore_backup" enctype="multipart/form-data" data-confirm-submit="1" data-confirm-message="با بازیابی، داده‌های فعلی جایگزین می‌شوند. ادامه می‌دهی؟">
       <div class="formgrid"><label>انتخاب فایل پشتیبان (.db)<input type="file" name="backup_file" accept=".db,application/octet-stream" required></label></div>
       <div class="actions"><button class="danger" type="submit">اعتبارسنجی و بازیابی پشتیبان</button></div>
@@ -1857,7 +1952,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     product_rows=[["name","code","unit","stock","avg_cost","market_price","min_stock","category","purchase_unit","purchase_factor","sale_unit","sale_factor","roll_weight","sheet_area","notes"]]
                     for r in c.execute("""SELECT name,code,unit,stock,avg_cost,market_price,min_stock,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area,notes FROM products ORDER BY name"""):
-                        product_rows.append([r[k] for k in ("name","code","unit","stock","avg_cost","market_price","min_stock","category","purchase_unit","purchase_factor","sale_unit","sale_factor","roll_weight","sheet_area","notes")])
+                        product_rows.append([r["name"],r["code"],r["unit"],r["stock"],money_input(r["avg_cost"]),money_input(r["market_price"]),r["min_stock"],r["category"],r["purchase_unit"],r["purchase_factor"],r["sale_unit"],r["sale_factor"],r["roll_weight"],r["sheet_area"],r["notes"]])
                     people_rows=[["name","kind","phone","notes"]]
                     for r in c.execute("SELECT name,kind,phone,notes FROM people ORDER BY name"):
                         people_rows.append([r[k] for k in ("name","kind","phone","notes")])
@@ -1875,9 +1970,9 @@ class Handler(BaseHTTPRequestHandler):
             if path=='export.csv':
                 import csv, io
                 out=io.StringIO(); w=csv.writer(out); w.writerow(['نوع','تاریخ','شرح','مبلغ/درآمد','هزینه/اصل','یادداشت'])
-                for r in c.execute('SELECT date, name, qty*unit_price, qty*cost_basis+extra_cost, notes FROM sales JOIN products ON products.id=sales.product_id'):w.writerow(['فروش کالا',*r])
-                for r in c.execute('SELECT date,title,revenue,cost,notes FROM services'):w.writerow(['خدمت',*r])
-                for r in c.execute('SELECT date,category,amount,business,notes FROM expenses'):w.writerow(['پرداخت',*r])
+                for r in c.execute('SELECT date, name, qty*unit_price, qty*cost_basis+extra_cost, notes FROM sales JOIN products ON products.id=sales.product_id'):w.writerow(['فروش کالا',r[0],r[1],money(r[2]),money(r[3]),r[4]])
+                for r in c.execute('SELECT date,title,revenue,cost,notes FROM services'):w.writerow(['خدمت',r[0],r[1],money(r[2]),money(r[3]),r[4]])
+                for r in c.execute('SELECT date,category,amount,business,notes FROM expenses'):w.writerow(['پرداخت',r[0],r[1],money(r[2]),'هزینه کسب‌وکار' if r[3] else 'برداشت شخصی',r[4]])
                 self.send('\ufeff'+out.getvalue(),'text/csv; charset=utf-8'); return
             if path=='reports':
                 start=to_iso_date(q.get('start',[show_date(jalali_month_start_iso())])[0]); end=to_iso_date(q.get('end',[show_date(TODAY)])[0])
