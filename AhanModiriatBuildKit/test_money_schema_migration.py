@@ -104,16 +104,16 @@ def main():
         scaled_rows=app.migrate_money_units_to_rial(c)
         assert scaled_rows==15, scaled_rows
         converted=app.migrate_money_columns_to_integer(c)
-        assert converted==23, converted
+        assert converted==27, converted
         assert c.execute("PRAGMA foreign_key_check").fetchall()==[]
         assert c.execute("PRAGMA legacy_alter_table").fetchone()[0] == 0
         c.commit()
         c.execute("PRAGMA foreign_keys=ON")
 
         expected={
-            "products":{"market_price":186},
+            "products":{"avg_cost":127,"market_price":186},
             "purchases":{"unit_cost":1006,"extra_cost":46,"paid":505},
-            "sales":{"extra_cost":55,"received":806},
+            "sales":{"unit_price":2005,"extra_cost":55,"received":806,"cost_basis":1008},
             "expenses":{"amount":16},
         }
         for table,columns in expected.items():
@@ -123,23 +123,9 @@ def main():
                 actual=c.execute(f'SELECT "{col}",typeof("{col}") FROM "{table}" LIMIT 1').fetchone()
                 assert actual[0]==value,(table,col,actual[0],value)
                 assert actual[1]=="integer",(table,col,actual[1])
-        # Per-unit rates are scaled to rial but stay REAL to preserve fractional-rial
-        # weighted averages and unit prices; they are not transaction totals.
-        rate_expected = {
-            "products": {"avg_cost":127},
-            "sales": {"unit_price":2005,"cost_basis":1008},
-            "sales_returns": {"cost_basis":22},
-        }
-        for table, columns in rate_expected.items():
-            schema={r["name"]:r["type"].upper() for r in c.execute(f'PRAGMA table_info("{table}")')}
-            for column, value in columns.items():
-                assert schema[column]=="REAL",(table,column,schema[column])
-                actual=c.execute(f'SELECT "{column}",typeof("{column}") FROM "{table}" LIMIT 1').fetchone()
-                assert actual[0]==value,(table,column,actual[0],value)
-                assert actual[1]=="real",(table,column,actual[1])
         additional_expected = {
             "purchase_returns": {"return_value":34,"cash_refund":20},
-            "sales_returns": {"return_value":54,"extra_reversed":6,"refund_amount":40},
+            "sales_returns": {"return_value":54,"cost_basis":22,"extra_reversed":6,"refund_amount":40},
             "cash_accounts": {"opening_balance":70},
             "cash_movements": {"amount":80},
             "services": {"revenue":11,"cost":22,"received":33},
