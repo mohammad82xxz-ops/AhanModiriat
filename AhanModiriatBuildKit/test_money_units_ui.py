@@ -63,6 +63,13 @@ def main():
         assert app.money_line_total("1.234", "1000") == 1234
         assert app.money_line_total("0.0005", "1000") + app.money_line_total("0.0005", "1000") == 2
         assert app.money_average(1000, 15) == 67
+        # Partial returns allocate the original rounded line total without creating
+        # or losing a rial across multiple return documents.
+        first_return_value = app.money_proportion(1005, 1, 2)
+        remaining_return_value = 1005 - first_return_value
+        assert first_return_value == 503
+        assert app.money_proportion(remaining_return_value, 1, 1) == 502
+        assert first_return_value + remaining_return_value == 1005
         assert c.execute("SELECT money_line_total(0.0005,1000)").fetchone()[0] == 1
         before = app.calc(c)
         c.execute(
