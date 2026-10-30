@@ -2146,7 +2146,9 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"expenses",expense_id,date,amount,"out",source,v('notes') or "پرداخت هزینه")
                     dest='/expenses';msg='پرداخت هزینه ثبت شد.'
                 elif path=='add_loan':
-                    interval_value=int(strict_number(v('interval_value',1),'فاصله سررسید'))
+                    interval_number=strict_number(v('interval_value',1),'فاصله سررسید')
+                    if not interval_number.is_integer(): raise ValueError('فاصله سررسید باید عدد صحیح باشد.')
+                    interval_value=int(interval_number)
                     interval_unit=v('interval_unit','month')
                     if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
                         raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
