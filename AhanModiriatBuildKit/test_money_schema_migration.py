@@ -82,6 +82,9 @@ def create_legacy_db(path):
     c.execute("INSERT INTO opening_capital(id,amount) VALUES(1,9.9)")
     c.execute("INSERT INTO settlements(id,amount) VALUES(1,8.8)")
     c.commit()
+    # Exercise the same FK-enforced connection mode used by the application.
+    c.execute("PRAGMA foreign_keys=ON")
+    assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 1
     return c
 
 
@@ -159,6 +162,7 @@ def main():
         assert c.execute("SELECT COUNT(*) FROM purchases WHERE id=4").fetchone()[0]==1
         assert c.execute("SELECT COUNT(*) FROM sales WHERE id=8").fetchone()[0]==1
         assert c.execute("PRAGMA foreign_key_check").fetchall()==[]
+        assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert app.migrate_money_columns_to_integer(c)==0,"money migration must be idempotent"
         assert c.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
     finally:
