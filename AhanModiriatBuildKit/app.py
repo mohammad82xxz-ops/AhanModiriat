@@ -2079,7 +2079,7 @@ class Handler(BaseHTTPRequestHandler):
                     product_name=normalize_person(v('name'))
                     pf=strict_number(v('purchase_factor',1),'ضریب تبدیل خرید'); sf=strict_number(v('sale_factor',1),'ضریب تبدیل فروش')
                     if not product_name or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
-                    stock=strict_number(v('stock'),'موجودی',True); avg_cost=strict_money_int(v('avg_cost'),'بهای خرید',True); market_price=strict_money_int(v('market_price'),'قیمت روز',True); min_stock=strict_number(v('min_stock'),'حداقل موجودی',True)
+                    stock=strict_number(v('stock'),'موجودی'); avg_cost=strict_money_int(v('avg_cost'),'بهای خرید'); market_price=strict_money_int(v('market_price'),'قیمت روز'); min_stock=strict_number(v('min_stock'),'حداقل موجودی',True)
                     roll_weight=strict_number(v('roll_weight'),'وزن رول',True); sheet_area=strict_number(v('sheet_area'),'مساحت ورق',True)
                     if stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
                         raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
@@ -2106,7 +2106,7 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if has_movement and unit_mapping_changed:
                         raise ValueError('این کالا سابقهٔ گردش دارد؛ تغییر واحد پایه، واحد خرید/فروش یا ضریب تبدیل مسدود است تا مانده‌های تاریخی خراب نشوند.')
-                    avg_cost=strict_money_int(v('avg_cost'),'بهای خرید',True); market_price=strict_money_int(v('market_price'),'قیمت روز',True); min_stock=strict_number(v('min_stock'),'حداقل موجودی',True)
+                    avg_cost=strict_money_int(v('avg_cost'),'بهای خرید'); market_price=strict_money_int(v('market_price'),'قیمت روز'); min_stock=strict_number(v('min_stock'),'حداقل موجودی',True)
                     roll_weight=strict_number(v('roll_weight'),'وزن رول',True); sheet_area=strict_number(v('sheet_area'),'مساحت ورق',True)
                     if new_stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
                         raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
