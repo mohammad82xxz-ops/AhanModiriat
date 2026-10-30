@@ -734,6 +734,19 @@ def money_line_total(quantity, unit_price):
         raise ValueError("مقدار یا قیمت سطر باید عدد متناهی باشد.")
     return money_int(qty * price)
 
+def money_average(total_value, quantity):
+    """Return an integer-rial per-unit average using Decimal division and half-up rounding."""
+    try:
+        total = Decimal(str(total_value if total_value is not None else 0))
+        qty = Decimal(str(quantity if quantity is not None else 0))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError("ارزش یا مقدار موجودی نامعتبر است.")
+    if not total.is_finite() or not qty.is_finite():
+        raise ValueError("ارزش یا مقدار موجودی باید عدد متناهی باشد.")
+    if qty <= 0:
+        return 0
+    return money_int(total / qty)
+
 def strict_number(v, label, allow_blank=False):
     """Parse finite numeric input and reject malformed values rather than coercing them to zero."""
     cleaned = str(v if v is not None else "").translate(DIGIT_TRANSLATION).replace(',', '').replace('٬', '').replace(' ', '').strip()
@@ -2246,7 +2259,7 @@ class Handler(BaseHTTPRequestHandler):
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
                     base_qty=qty*factor
-                    newstock=p['stock']+base_qty; oldvalue=money_line_total(p['stock'],p['avg_cost']); purchase_value=money_line_total(qty,cost)+extra; newavg=money_int((oldvalue+purchase_value)/newstock) if newstock else 0
+                    newstock=p['stock']+base_qty; oldvalue=money_line_total(p['stock'],p['avg_cost']); purchase_value=money_line_total(qty,cost)+extra; newavg=money_average(oldvalue+purchase_value,newstock) if newstock else 0
                     purchase_cur=c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
                     purchase_id=purchase_cur.lastrowid
                     link_party(c,"purchases","supplier_person_id",purchase_id,v('supplier'),'supplier')
@@ -2351,7 +2364,7 @@ class Handler(BaseHTTPRequestHandler):
                     value_before=max(value_before,0.0)
                     new_stock=stock_before+qty*factor
                     new_value=value_before+money_line_total(qty,cost)+extra
-                    new_avg=money_int(new_value/new_stock) if new_stock>0.000001 else 0
+                    new_avg=money_average(new_value,new_stock) if new_stock>0.000001 else 0
                     c.execute("UPDATE purchases SET qty=?,unit_cost=?,extra_cost=?,paid=?,supplier=?,notes=? WHERE id=?",
                               (qty,cost,extra,paid,v("supplier"),v("notes"),rid))
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,row["product_id"]))
@@ -2439,7 +2452,7 @@ class Handler(BaseHTTPRequestHandler):
                     return_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(sale["product_id"],)).fetchone()
                     old_stock=float(product["stock"] or 0); old_value=money_line_total(old_stock,product["avg_cost"] or 0)
-                    new_stock=old_stock+qty; new_avg=money_int((old_value+cost_value)/new_stock) if new_stock>0 else 0
+                    new_stock=old_stock+qty; new_avg=money_average(old_value+cost_value,new_stock) if new_stock>0 else 0
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,sale["product_id"]))
                     link_party(c,"sales_returns","customer_person_id",return_id,sale["customer"],"customer")
                     sync_cash_posting(c,"sales_returns",return_id,to_iso_date(v("date",jalali_today())),refund,"out",sale["customer"],reason)
