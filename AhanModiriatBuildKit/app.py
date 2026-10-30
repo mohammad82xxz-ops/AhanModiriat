@@ -2150,7 +2150,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
                     service_date=to_iso_date(v('date',jalali_today())); title=normalize_person(v('title'))
-                    revenue=strict_money_int(v('revenue'),'درآمد خدمت'); cost=strict_money_int(v('cost'),'هزینه خدمت',True); received=strict_money_int(v('received'),'مبلغ دریافتی',True)
+                    revenue=strict_money_int(v('revenue'),'درآمد خدمت'); cost=strict_money_int(v('cost'),'هزینه خدمت'); received=strict_money_int(v('received'),'مبلغ دریافتی')
                     if not title or revenue<=0 or cost<0 or received<0:
                         raise ValueError('شرح خدمت الزامی است؛ درآمد باید بیشتر از صفر و هزینه و دریافتی نباید منفی باشند.')
                     service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(service_date,title,revenue,cost,received,v('customer'),v('notes')))
