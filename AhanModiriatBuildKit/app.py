@@ -874,7 +874,7 @@ def cash_page(c, search='', page_num=1):
     body = f'''<h1>صندوق و حساب‌های بانکی</h1>
     <div class="grid section">{metrics}</div>
     <div class="card section"><h2>ثبت گردش دستی</h2>
-      <form method="post" action="/add_cash_movement">
+      <form method="post" action="/add_cash_movement">{submission_token(c,'add_cash_movement')}
         <div class="formgrid">{field("تاریخ","date","date",TODAY,True)}
           {selectfield("نوع گردش","kind",[("deposit","واریز به حساب"),("withdraw","برداشت از حساب"),("transfer","انتقال بین حساب‌ها")])}
           <label>حساب مبدأ<select name="from_account_id"><option value="">— انتخاب حساب —</option>{opts}</select></label>
@@ -965,7 +965,7 @@ def parties_page(c, selected="", search="", page_num=1, statement_page=1):
     {selectfield("نوع طرف حساب","kind",[("customer","مشتری"),("supplier","فروشنده"),("both","هر دو")])}
     {field("شماره تماس","phone")}{field("یادداشت","notes")}
     </div><div class="actions"><button>ثبت طرف حساب</button></div></form></div>
-    <div class="card section"><h2>ثبت تسویه با شخص</h2><form method="post" action="/add_settlement"><div class="formgrid">
+    <div class="card section"><h2>ثبت تسویه با شخص</h2><form method="post" action="/add_settlement">{submission_token(c,'add_settlement')}<div class="formgrid">
     {selectfield("طرف حساب","party",person_opts)}{selectfield("نوع تسویه","kind",[("receive","دریافت از مشتری"),("pay","پرداخت به فروشنده")])}
     {field("تاریخ","date","date",TODAY,True)}{field("مبلغ تسویه (تومان)","amount","number","0",True,"1")}
     {field("شرح/یادداشت","notes")}
@@ -1530,7 +1530,7 @@ def services(c, search='', page_num=1):
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total=scalar(c,"SELECT COUNT(*) FROM services WHERE title LIKE ? OR customer LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
-    body=f'''<h1>درآمد خدماتی</h1><div class="card section"><form method="post" action="/add_service"><div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح خدمت','title',required=True)}{field('درآمد خدمت (تومان)','revenue','number','0',True,'0.01')}{field('هزینه اجرای خدمت','cost','number','0',True,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خدمت</button></div></form></div>'''
+    body=f'''<h1>درآمد خدماتی</h1><div class="card section"><form method="post" action="/add_service">{submission_token(c,'add_service')}<div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح خدمت','title',required=True)}{field('درآمد خدمت (تومان)','revenue','number','0',True,'0.01')}{field('هزینه اجرای خدمت','cost','number','0',True,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خدمت</button></div></form></div>'''
     rows=[[show_date(r['date']),esc(r['title']),money(r['revenue']),money(r['cost']),money(r['revenue']-r['cost']),money(r['received']),esc(r['customer'])] for r in c.execute('SELECT * FROM services WHERE title LIKE ? OR customer LIKE ? OR notes LIKE ? ORDER BY date DESC,id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>خدمات ثبت‌شده</h2><form method="get" action="/services" class="search-form"><label>جستجوی خدمت</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، مشتری یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","خدمت","درآمد","هزینه اجرا","سود خدمت","دریافتی","مشتری"],rows,total)}{page_nav("services",query,page_num,total,limit)}</div>'
     return page('خدمات',body,'services')
@@ -1543,7 +1543,7 @@ def expenses(c, search='', page_num=1):
     body+=f'<div class="card section"><h2>پرداخت‌ها و برداشت‌ها</h2><form method="get" action="/expenses" class="search-form"><label>جستجوی هزینه</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، منبع یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows,total)}{page_nav("expenses",query,page_num,total,limit)}</div>'
     return page('هزینه‌ها',body,'expenses')
 def loans(c, search='', page_num=1):
-    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
+    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan">{submission_token(c,'add_loan')}<div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment">{submission_token(c,'add_payment')}<div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total_loans=scalar(c,"SELECT COUNT(*) FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
@@ -1606,7 +1606,7 @@ def prices(c, selected_product_id=0, search='', page_num=1):
     total_prices=scalar(c,"SELECT COUNT(*) FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ?",(pattern,pattern))
     history_rows=c.execute("SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ? ORDER BY h.date DESC,h.id DESC LIMIT ? OFFSET ?",(pattern,pattern,limit,offset)).fetchall()
     body=f'''<h1>قیمت روز بازار</h1>
-    <div class="card section"><form method="post" action="/add_price"><div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
+    <div class="card section"><form method="post" action="/add_price">{submission_token(c,'add_price')}<div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
     <p class="small">ثبت قیمت جدید، قیمت روز فعلی کالا را به‌روزرسانی می‌کند ولی سود تحقق‌یافته معاملات قبلی را تغییر نمی‌دهد.</p></div>
     <div class="card section"><h2>انتخاب کالا برای نمودار قیمت</h2><form method="get" action="/prices"><div class="formgrid">{selectfield('کالا','product_id',product_options,value=selected_product_id)}<button>نمایش روند قیمت</button></div></form></div>
     {chart}
@@ -2061,7 +2061,11 @@ class Handler(BaseHTTPRequestHandler):
         def v(k,default=''):return d.get(k,default).strip()
         try:
             with LOCK, conn() as c:
-                if path in ('add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return'):
+                protected_financial_posts = {
+                    'add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return',
+                    'add_service','add_loan','add_payment','add_price','add_settlement','add_cash_movement',
+                }
+                if path in protected_financial_posts:
                     submission=d.get('_submission_token','').strip()
                     if not submission:
                         raise ValueError('فرم ثبت تراکنش شناسهٔ معتبر ندارد؛ صفحه را تازه‌سازی کن و دوباره ثبت کن.')
