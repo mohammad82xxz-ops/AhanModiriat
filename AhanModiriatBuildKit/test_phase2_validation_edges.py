@@ -17,9 +17,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import app  # noqa: E402
 
 
-def post(port: int, path: str, fields: dict[str, object]) -> None:
+def post(port: int, path: str, fields: dict[str, object], auto_token: bool = True) -> None:
     fields = dict(fields)
-    if path in {"add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return"}:
+    protected = {
+        "add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return",
+        "add_service", "add_loan", "add_payment", "add_price", "add_settlement", "add_cash_movement",
+    }
+    if auto_token and path in protected and "_submission_token" not in fields:
         with app.conn() as c:
             markup = app.submission_token(c, path)
             fields["_submission_token"] = markup.split('value="', 1)[1].split('"', 1)[0]
@@ -233,6 +237,45 @@ def main() -> None:
             after = fingerprint()
             assert after == before, (
                 f"{route} accepted non-finite numeric input or caused side effects: {fields}"
+            )
+
+        # One-use tokens cover every financial create route, not just inventory sales/purchases.
+        replay_cases = [
+            ("add_service", {
+                "date": "2026-01-05", "title": "replay service", "revenue": "100",
+                "cost": "10", "received": "50", "customer": "Validation customer",
+            }),
+            ("add_loan", {
+                "title": "replay loan", "principal": "100", "remaining": "100",
+                "installment": "20", "next_date": "2026-03-01",
+                "interval_value": "1", "interval_unit": "month",
+            }),
+            ("add_payment", {
+                "loan_id": loan_id, "date": "2026-01-05", "amount": "20",
+                "principal_part": "20", "interest_part": "0",
+            }),
+            ("add_price", {
+                "product_id": product_id, "date": "2026-01-05", "market_price": "21",
+            }),
+            ("add_settlement", {
+                "party": "Validation customer", "kind": "receive",
+                "date": "2026-01-05", "amount": "10",
+            }),
+            ("add_cash_movement", {
+                "date": "2026-01-05", "kind": "deposit",
+                "to_account_id": "1", "amount": "10", "party": "Replay guard",
+            }),
+        ]
+        for route, fields in replay_cases:
+            with app.conn() as c:
+                markup = app.submission_token(c, route)
+                token = markup.split('value="', 1)[1].split('"', 1)[0]
+            fields["_submission_token"] = token
+            post(port, route, fields)
+            after_first = fingerprint()
+            post(port, route, fields)  # same token: second financial event must be rejected
+            assert fingerprint() == after_first, (
+                f"{route} replayed a consumed submission token"
             )
 
         with app.conn() as c:
