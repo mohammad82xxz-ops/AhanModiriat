@@ -688,8 +688,10 @@ def init():
             c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",
                       ("بازسازی گردش صندوق از اسناد قدیمی", json.dumps({"rows": migrated}, ensure_ascii=False)))
         fk_before=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
-        converted_money_columns=migrate_money_columns_to_integer(c)
+        # Scale legacy toman values before converting REAL declarations to INTEGER;
+        # otherwise fractional toman data would be rounded away before the ×10 rial conversion.
         migrate_money_units_to_rial(c)
+        converted_money_columns=migrate_money_columns_to_integer(c)
         fk_after=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
         if fk_after!=fk_before:
             raise RuntimeError("مهاجرت ستون‌های پولی باعث تغییر وضعیت کلیدهای خارجی شد؛ عملیات لغو شد.")
