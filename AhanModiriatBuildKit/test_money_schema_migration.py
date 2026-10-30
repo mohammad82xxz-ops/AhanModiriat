@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Test rebuild of legacy REAL monetary columns into INTEGER without losing schema/data."""
+"""Test rial migration: integer transaction totals and precise per-unit rates."""
 import os
 import sqlite3
 import sys
@@ -93,7 +93,7 @@ def main():
         scaled_rows=app.migrate_money_units_to_rial(c)
         assert scaled_rows==15, scaled_rows
         converted=app.migrate_money_columns_to_integer(c)
-        assert converted==24, converted
+        assert converted==23, converted
         c.commit()
 
         expected={
