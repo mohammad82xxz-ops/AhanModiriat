@@ -196,7 +196,7 @@ def main() -> None:
                         "amount": "10",
                         "principal": "11",
                         "interest": "-1",
-                        "message": "سهم سود/کارمزد قسط نمی‌تواند منفی باشد.",
+                        "message": "سهم سود/کارمزد نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "zero payment amount",
