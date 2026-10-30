@@ -111,6 +111,11 @@ def main() -> None:
                VALUES('validation loan',100,100,20,'2026-02-01',1,'month')"""
         )
         loan_id = loan_cur.lastrowid
+        expense_cur = c.execute(
+            """INSERT INTO expenses(date,category,amount,source,business,notes)
+               VALUES('2026-01-02','baseline expense',5,'Validation source',1,'baseline expense')"""
+        )
+        expense_id = expense_cur.lastrowid
         app.sync_cash_posting(
             c, "purchases", purchase_id, "2026-01-01", 5,
             "out", "Validation supplier", "baseline purchase",
@@ -118,6 +123,10 @@ def main() -> None:
         app.sync_cash_posting(
             c, "sales", sale_id, "2026-01-02", 20,
             "in", "Validation customer", "baseline sale",
+        )
+        app.sync_cash_posting(
+            c, "expenses", expense_id, "2026-01-02", 5,
+            "out", "Validation source", "baseline expense",
         )
         c.execute("UPDATE opening_capital SET amount=100,date='2026-01-01' WHERE id=1")
         c.execute("UPDATE cash_accounts SET opening_balance=100 WHERE id=1")
@@ -143,6 +152,11 @@ def main() -> None:
             ("update_sale", {
                 "record_id": sale_id, "qty": "inf", "unit_price": "20",
                 "extra_cost": "0", "received": "20", "customer": "Validation customer",
+            }),
+            ("update_expense", {
+                "record_id": expense_id, "date": "2026-01-03",
+                "category": "edited invalid expense", "amount": "nan",
+                "business": "1", "source": "Validation source",
             }),
         ]
         for route, fields in invalid_updates:
