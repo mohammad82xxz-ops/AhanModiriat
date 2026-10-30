@@ -133,9 +133,17 @@ def main() -> None:
                 "record_id": purchase_id, "qty": "2", "unit_cost": "inf",
                 "extra_cost": "0", "paid": "5", "supplier": "Validation supplier",
             }),
+            ("update_purchase", {
+                "record_id": purchase_id, "qty": "2", "unit_cost": "5",
+                "extra_cost": "0", "paid": "", "supplier": "Validation supplier",
+            }),
             ("update_sale", {
                 "record_id": sale_id, "qty": "inf", "unit_price": "20",
                 "extra_cost": "0", "received": "20", "customer": "Validation customer",
+            }),
+            ("update_sale", {
+                "record_id": sale_id, "qty": "2", "unit_price": "20",
+                "extra_cost": "0", "received": "", "customer": "Validation customer",
             }),
             ("update_expense", {
                 "record_id": expense_id, "date": "2026-01-03",
@@ -172,6 +180,22 @@ def main() -> None:
         # Every remaining numeric financial route must reject NaN/Infinity before
         # writing a document, stock movement, cash posting, or audit event.
         invalid_route_cases = [
+            ("add_purchase", {
+                "date": "2026-01-04", "product_id": product_id, "qty": "1",
+                "unit_cost": "", "extra_cost": "0", "paid": "0",
+            }),
+            ("add_purchase", {
+                "date": "2026-01-04", "product_id": product_id, "qty": "1",
+                "unit_cost": "5", "extra_cost": "0", "paid": "",
+            }),
+            ("add_sale", {
+                "date": "2026-01-04", "product_id": product_id, "qty": "1",
+                "unit_price": "", "extra_cost": "0", "received": "0",
+            }),
+            ("add_sale", {
+                "date": "2026-01-04", "product_id": product_id, "qty": "1",
+                "unit_price": "20", "extra_cost": "0", "received": "",
+            }),
             ("add_product", {
                 "name": "invalid nonfinite product", "unit": "kg", "stock": "nan",
                 "avg_cost": "0", "market_price": "0", "min_stock": "0",
