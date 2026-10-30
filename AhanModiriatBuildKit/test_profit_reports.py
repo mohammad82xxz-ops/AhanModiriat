@@ -16,23 +16,23 @@ def main():
     app.init()
     with app.conn() as c:
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
-                     VALUES('profit product','kg',4,40,100,0)""")
+                     VALUES('profit product','kg',4,400,1000,0)""")
         pid = c.execute("SELECT id FROM products WHERE name='profit product'").fetchone()[0]
         c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
-                     VALUES('2026-05-01',?,10,100,100,'Customer Profit',800,'sale before return',40)""", (pid,))
+                     VALUES('2026-05-01',?,10,1000,1000,'Customer Profit',8000,'sale before return',400)""", (pid,))
         sale_id = c.execute("SELECT id FROM sales WHERE product_id=?", (pid,)).fetchone()[0]
         c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
-                     VALUES('2026-05-15',?,?,'Customer Profit',2,200,40,20,150,'return','test return')""", (sale_id,pid))
+                     VALUES('2026-05-15',?,?,'Customer Profit',2,2000,400,200,1500,'return','test return')""", (sale_id,pid))
         c.execute("""INSERT INTO services(date,title,revenue,cost,received,customer,notes)
-                     VALUES('2026-05-10','service profit',300,50,100,'Customer Profit','service test')""")
+                     VALUES('2026-05-10','service profit',3000,500,1000,'Customer Profit','service test')""")
         c.execute("""INSERT INTO expenses(date,category,amount,source,business,notes)
-                     VALUES('2026-05-12','business expense',80,'cash',1,'expense test')""")
-        c.execute("INSERT INTO loans(title,principal,remaining,installment) VALUES('report loan',100,100,10)")
+                     VALUES('2026-05-12','business expense',800,'cash',1,'expense test')""")
+        c.execute("INSERT INTO loans(title,principal,remaining,installment) VALUES('report loan',1000,1000,100)")
         loan_id = c.execute("SELECT id FROM loans WHERE title='report loan'").fetchone()[0]
         c.execute("""INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes)
-                     VALUES(?,'2026-05-13',10,0,10,'cash','interest test')""", (loan_id,))
-        c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-01',?,90,'first price')",(pid,))
-        c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-15',?,110,'second price')",(pid,))
+                     VALUES(?,'2026-05-13',100,0,100,'cash','interest test')""", (loan_id,))
+        c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-01',?,900,'first price')",(pid,))
+        c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-15',?,1100,'second price')",(pid,))
         html = app.report_detail_sections(c)
         assert "profit product" in html
         assert "Customer Profit" in html
