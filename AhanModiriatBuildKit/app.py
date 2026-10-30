@@ -2014,13 +2014,17 @@ class Handler(BaseHTTPRequestHandler):
                             skipped+=1; continue
                         if target_page=='/products':
                             unit=str(record.get("unit") or "کیلوگرم").strip()
-                            stock=num(record.get("stock",0),0)
-                            avg_cost=money_int(record.get("avg_cost",0),0)
-                            market_price=money_int(record.get("market_price",0),0)
-                            min_stock=num(record.get("min_stock",0),0)
-                            pf=num(record.get("purchase_factor",1),1) or 1
-                            sf=num(record.get("sale_factor",1),1) or 1
-                            roll_weight=num(record.get("roll_weight",0),0); sheet_area=num(record.get("sheet_area",0),0)
+                            try:
+                                stock=strict_number(record.get("stock",0) or 0,"موجودی",True)
+                                avg_cost=strict_money_int(record.get("avg_cost",0) or 0,"بهای خرید",True)
+                                market_price=strict_money_int(record.get("market_price",0) or 0,"قیمت روز",True)
+                                min_stock=strict_number(record.get("min_stock",0) or 0,"حداقل موجودی",True)
+                                pf=strict_number(record.get("purchase_factor",1) or 1,"ضریب تبدیل خرید",True) or 1
+                                sf=strict_number(record.get("sale_factor",1) or 1,"ضریب تبدیل فروش",True) or 1
+                                roll_weight=strict_number(record.get("roll_weight",0) or 0,"وزن رول",True)
+                                sheet_area=strict_number(record.get("sheet_area",0) or 0,"مساحت ورق",True)
+                            except ValueError:
+                                skipped+=1; continue
                             if stock<0 or min_stock<0 or pf<=0 or sf<=0 or avg_cost<0 or market_price<0 or roll_weight<0 or sheet_area<0:
                                 skipped+=1; continue
                             c.execute("""INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area,notes)
