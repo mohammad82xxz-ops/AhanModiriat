@@ -15,6 +15,8 @@ import app
 def main():
     app.init()
     with app.conn() as c:
+        sales_schema = {row["name"]: row["type"].upper() for row in c.execute("PRAGMA table_info(sales)")}
+        assert sales_schema.get("line_total") == "INTEGER", sales_schema
         pid = c.execute(
             """INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
                        purchase_unit,purchase_factor,sale_unit,sale_factor)
