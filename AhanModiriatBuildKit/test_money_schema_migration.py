@@ -92,8 +92,31 @@ def create_legacy_db(path):
     return c
 
 
+def test_large_rial_precision():
+    """Large integer rials must not round when legacy REAL columns are rebuilt."""
+    path = Path(TMP.name) / "large_rial_precision.db"
+    c = create_legacy_db(path)
+    try:
+        # This source REAL is exactly representable as binary64. Multiplying by ten
+        # yields an odd integer above 2**53, which binary64 cannot represent.
+        c.execute("UPDATE products SET avg_cost=? WHERE id=1", (900719925474099.5,))
+        c.commit()
+        c.execute("PRAGMA foreign_keys=OFF")
+        app.migrate_money_units_to_rial(c)
+        app.migrate_money_columns_to_integer(c)
+        actual = c.execute("SELECT avg_cost,typeof(avg_cost) FROM products WHERE id=1").fetchone()
+        assert actual[0] == 9007199254740995, actual[0]
+        assert actual[1] == "integer", actual[1]
+        assert c.execute("SELECT 1 FROM sqlite_temp_master WHERE name='__rial_exact_values'").fetchone() is None
+        assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+        c.commit()
+    finally:
+        c.close()
+
+
 def main():
     app.init()
+    test_large_rial_precision()
     legacy_path=Path(TMP.name)/"legacy.db"
     c=create_legacy_db(legacy_path)
     try:
