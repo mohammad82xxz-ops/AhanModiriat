@@ -48,11 +48,15 @@ def create_legacy_db(path):
         details TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE purchase_returns(
-        id INTEGER PRIMARY KEY, return_value REAL NOT NULL, cash_refund INTEGER NOT NULL DEFAULT 0
+        id INTEGER PRIMARY KEY, purchase_id INTEGER REFERENCES purchases(id),
+        product_id INTEGER REFERENCES products(id), return_value REAL NOT NULL,
+        cash_refund INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE sales_returns(
-        id INTEGER PRIMARY KEY, return_value REAL NOT NULL, cost_basis REAL NOT NULL,
-        extra_reversed REAL NOT NULL DEFAULT 0, refund_amount INTEGER NOT NULL DEFAULT 0
+        id INTEGER PRIMARY KEY, sale_id INTEGER REFERENCES sales(id),
+        product_id INTEGER REFERENCES products(id), return_value REAL NOT NULL,
+        cost_basis REAL NOT NULL, extra_reversed REAL NOT NULL DEFAULT 0,
+        refund_amount INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE cash_accounts(id INTEGER PRIMARY KEY, opening_balance INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE cash_movements(id INTEGER PRIMARY KEY, amount INTEGER NOT NULL);
