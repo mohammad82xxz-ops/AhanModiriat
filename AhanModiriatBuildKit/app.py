@@ -1730,6 +1730,8 @@ def audit_page(c, search='', page_num=1):
             "add_sale":"ثبت فروش","update_sale":"اصلاح فروش","delete_sale":"حذف فروش",
             "add_expense":"ثبت هزینه","update_expense":"اصلاح هزینه","delete_expense":"حذف هزینه",
             "add_person":"ثبت طرف حساب","add_settlement":"ثبت تسویه",
+            "add_service":"ثبت درآمد خدماتی","add_loan":"ثبت وام","add_payment":"ثبت پرداخت قسط",
+            "add_price":"ثبت قیمت روز","save_capital":"اصلاح سرمایه اولیه",
             "add_sales_return":"مرجوعی فروش","add_purchase_return":"مرجوعی خرید",
             "add_cash_movement":"گردش دستی صندوق","inventory_adjust":"انبارگردانی",
             "restore_backup":"بازیابی پشتیبان","import.xlsx":"ورود اکسل",
