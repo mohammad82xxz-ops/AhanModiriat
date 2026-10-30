@@ -15,7 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import app
 
 
-def post(port, path, fields):
+def post(port, path, fields, auto_token=True):
+    fields = dict(fields)
+    protected = {"add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return"}
+    if auto_token and path in protected and "_submission_token" not in fields:
+        with app.conn() as c:
+            token_markup = app.submission_token(c, path)
+            fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}", data=data,
@@ -110,6 +116,94 @@ def main():
         with app.conn() as c:
             assert c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0] == 1
             assert c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0] == 6
+        # Invalid returns must leave ledgers, stock, and party balances unchanged.
+        invalid_return_cases = [
+            ("add_sales_return", {"sale_id":sale_id,"date":"2026-01-05","qty":"0","refund_amount":"0","reason":"zero quantity","notes":"reject"}, "sales_returns"),
+            ("add_sales_return", {"sale_id":sale_id,"date":"2026-01-05","qty":"0.5","refund_amount":"21","reason":"over-refund","notes":"reject"}, "sales_returns"),
+            ("add_sales_return", {"sale_id":sale_id,"date":"2026-01-05","qty":"4","refund_amount":"0","reason":"oversized return","notes":"reject"}, "sales_returns"),
+            ("add_purchase_return", {"purchase_id":purchase_id,"date":"2026-01-05","qty":"0","cash_refund":"0","reason":"zero quantity","notes":"reject"}, "purchase_returns"),
+            ("add_purchase_return", {"purchase_id":purchase_id,"date":"2026-01-05","qty":"1","cash_refund":"6","reason":"over-refund","notes":"reject"}, "purchase_returns"),
+            ("add_purchase_return", {"purchase_id":purchase_id,"date":"2026-01-05","qty":"20","cash_refund":"0","reason":"oversized return","notes":"reject"}, "purchase_returns"),
+        ]
+        for route, fields, _table in invalid_return_cases:
+            with app.conn() as c:
+                stock_before = c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0]
+                sales_returns_before = c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0]
+                purchase_returns_before = c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0]
+                cash_before = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0]
+                sales_total_before = app.calc(c)["sales_rev"]
+                balances_before = app.party_balances(c)
+            post(port, route, fields)
+            with app.conn() as c:
+                assert c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0] == sales_returns_before, (route, fields)
+                assert c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0] == purchase_returns_before, (route, fields)
+                assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0] == cash_before, (route, fields)
+                assert c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0] == stock_before, (route, fields)
+                assert app.calc(c)["sales_rev"] == sales_total_before, (route, fields)
+                assert app.party_balances(c) == balances_before, (route, fields)
+                assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        # A protected return POST without a server-issued token must have no side effects.
+        for route, fields in [
+            ("add_sales_return", {"sale_id":sale_id,"date":"2026-01-06","qty":"0.25","refund_amount":"1","reason":"missing token","notes":"must reject"}),
+            ("add_purchase_return", {"purchase_id":purchase_id,"date":"2026-01-06","qty":"0.25","cash_refund":"1","reason":"missing token","notes":"must reject"}),
+        ]:
+            with app.conn() as c:
+                before = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+            post(port, route, fields, auto_token=False)
+            with app.conn() as c:
+                after = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+                assert after == before, (route, before, after)
+                assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+        # Replaying a consumed return form token must not create a second financial event.
+        for route, fields in [
+            ("add_sales_return", {"sale_id":sale_id,"date":"2026-01-06","qty":"0.25","refund_amount":"1","reason":"replay guard","notes":"one-use token"}),
+            ("add_purchase_return", {"purchase_id":purchase_id,"date":"2026-01-06","qty":"0.25","cash_refund":"1","reason":"replay guard","notes":"one-use token"}),
+        ]:
+            with app.conn() as c:
+                token_markup = app.submission_token(c, route)
+                token = token_markup.split('value="', 1)[1].split('"', 1)[0]
+                before = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+            fields["_submission_token"] = token
+            post(port, route, fields)
+            with app.conn() as c:
+                after_first = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+            post(port, route, fields)  # replay the same consumed token
+            with app.conn() as c:
+                after = (
+                    c.execute("SELECT COUNT(*) FROM sales_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM purchase_returns").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table IN ('sales_returns','purchase_returns')").fetchone()[0],
+                    c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                    app.party_balances(c),
+                )
+                assert after == after_first, (route, after_first, after)
+                assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        with app.conn() as c:
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         server.shutdown()

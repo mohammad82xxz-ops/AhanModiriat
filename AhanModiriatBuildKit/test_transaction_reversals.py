@@ -16,7 +16,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import app
 
 
-def post(port, path, fields):
+def post(port, path, fields, auto_token=True):
+    fields = dict(fields)
+    if auto_token and path in ("add_purchase", "add_sale", "add_expense") and "_submission_token" not in fields:
+        with app.conn() as c:
+            token_markup = app.submission_token(c, path)
+            fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}",
@@ -45,6 +50,103 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        # The server must reject direct protected POSTs that omit a form token.
+        missing_token_cases = [
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Missing token","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_price":"20","extra_cost":"0","received":"0","customer":"Missing token","notes":"reject"}),
+            ("add_expense", {"date":"2026-01-03","category":"missing token","amount":"10","business":"1","source":"نامشخص","notes":"reject"}),
+        ]
+        with app.conn() as c:
+            before_missing_token = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+        for route, fields in missing_token_cases:
+            post(port, route, fields, auto_token=False)
+        with app.conn() as c:
+            after_missing_token = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+            assert after_missing_token == before_missing_token, (before_missing_token, after_missing_token)
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+        # Invalid product references and malformed quantities must fail atomically.
+        invalid_input_cases = [
+            ("add_purchase", {"date":"2026-01-03","product_id":pid + 99999,"qty":"1","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Invalid product","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid + 99999,"qty":"1","unit_price":"20","extra_cost":"0","received":"0","customer":"Invalid product","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"not-a-number","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Invalid quantity","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"not-a-number","unit_price":"20","extra_cost":"0","received":"0","customer":"Invalid quantity","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"-1","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"Negative quantity","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"-1","unit_price":"20","extra_cost":"0","received":"0","customer":"Negative quantity","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"nan","unit_cost":"10","extra_cost":"0","paid":"0","supplier":"NaN quantity","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"inf","unit_price":"20","extra_cost":"0","received":"0","customer":"Infinite quantity","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_cost":"not-a-number","extra_cost":"0","paid":"0","supplier":"Invalid unit cost","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_cost":"10","extra_cost":"not-a-number","paid":"0","supplier":"Invalid extra cost","notes":"reject"}),
+            ("add_purchase", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_cost":"10","extra_cost":"0","paid":"not-a-number","supplier":"Invalid paid amount","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_price":"20","extra_cost":"not-a-number","received":"0","customer":"Invalid sale extra cost","notes":"reject"}),
+            ("add_sale", {"date":"2026-01-03","product_id":pid,"qty":"1","unit_price":"20","extra_cost":"0","received":"not-a-number","customer":"Invalid received amount","notes":"reject"}),
+        ]
+        with app.conn() as c:
+            before_invalid_input = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                c.execute("SELECT avg_cost FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+        for route, fields in invalid_input_cases:
+            post(port, route, fields)
+        with app.conn() as c:
+            after_invalid_input = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+                c.execute("SELECT avg_cost FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+            assert after_invalid_input == before_invalid_input, (before_invalid_input, after_invalid_input)
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+        # A valid token is scoped to its intended route and cannot authorize another transaction type.
+        with app.conn() as c:
+            purchase_token_markup = app.submission_token(c, "add_purchase")
+            purchase_token = purchase_token_markup.split('value="', 1)[1].split('"', 1)[0]
+            before_wrong_action = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+        post(port, "add_sale", {
+            "date":"2026-01-03","product_id":pid,"qty":"1","unit_price":"20",
+            "extra_cost":"0","received":"0","customer":"Wrong token action","notes":"reject",
+            "_submission_token":purchase_token,
+        }, auto_token=False)
+        post(port, "add_expense", {
+            "date":"2026-01-03","category":"wrong token action","amount":"10",
+            "business":"1","source":"نامشخص","notes":"reject",
+            "_submission_token":purchase_token,
+        }, auto_token=False)
+        with app.conn() as c:
+            after_wrong_action = (
+                c.execute("SELECT COUNT(*) FROM purchases").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM sales").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM expenses").fetchone()[0],
+                c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0],
+            )
+            assert after_wrong_action == before_wrong_action, (before_wrong_action, after_wrong_action)
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
         post(port, "add_purchase", {
             "date":"2026-01-03","product_id":pid,"qty":"5","unit_cost":"10",
             "extra_cost":"0","paid":"25","supplier":"Supplier A","notes":"initial purchase"

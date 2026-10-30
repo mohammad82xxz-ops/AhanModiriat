@@ -61,9 +61,14 @@ def main():
                           };
                         }""")
                         axe_results.append(result)
+                        # Phase 2 gate: every axe-core violation blocks CI, including moderate/minor.
+                        # The previous report had zero violations on every audited route, so this
+                        # tightens the acceptance rule without suppressing known current findings.
                         for v in result["violations"]:
-                            if v["impact"] in ("critical", "serious"):
-                                failures.append(f"axe: {route} {v['impact']} {v['id']} ({len(v['nodes'])} affected nodes)")
+                            failures.append(
+                                f"axe: {route} {v['impact']} {v['id']} "
+                                f"({len(v['nodes'])} affected nodes)"
+                            )
                     except Exception as exc:
                         failures.append(f"axe: {route} {type(exc).__name__}: {exc}")
                     finally:
@@ -104,10 +109,11 @@ def main():
         for row in lighthouse_rows:
             s = row["scores"]
             lines.append(f"| {row['route']} | {row['mode']} | {s.get('performance', 'n/a')} | {s.get('accessibility', 'n/a')} | {s.get('best-practices', 'n/a')} | {s.get('seo', 'n/a')} |")
-        lines += ["", "## axe-core results", "", "| Page | Passes | Violations | Serious/critical |", "|---|---:|---:|---:|"]
+        lines += ["", "## axe-core results", "", "| Page | Passes | Violations | Critical/serious | Moderate/minor |", "|---|---:|---:|---:|---:|"]
         for row in axe_results:
             serious = sum(v["impact"] in ("critical", "serious") for v in row["violations"])
-            lines.append(f"| {row['url']} | {row['passes']} | {len(row['violations'])} | {serious} |")
+            lower = sum(v["impact"] in ("moderate", "minor") for v in row["violations"])
+            lines.append(f"| {row['url']} | {row['passes']} | {len(row['violations'])} | {serious} | {lower} |")
         lines += ["", "## Gate failures", ""] + ([f"- {x}" for x in failures] if failures else ["None."])
         (ARTIFACTS / "audit-summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"AXE AUDIT: {len(axe_results)}/{len(AXE_ROUTES)} routes audited.")
@@ -118,7 +124,7 @@ def main():
             print("ACCESSIBILITY/LIGHTHOUSE AUDIT FAILED:")
             for failure in failures: print(" - " + failure)
             raise SystemExit(1)
-        print("ACCESSIBILITY/LIGHTHOUSE AUDIT PASSED: no serious/critical axe violations; reports complete.")
+        print("ACCESSIBILITY/LIGHTHOUSE AUDIT PASSED: zero axe-core violations at every impact level; reports complete.")
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5); TMP.cleanup()
 if __name__ == "__main__": main()
