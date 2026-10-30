@@ -329,7 +329,7 @@ MONEY_INTEGER_COLUMNS = {
     "opening_capital": ("amount",),
     "settlements": ("amount",),
     "purchase_returns": ("return_value","cash_refund"),
-    "sales_returns": ("return_value","cost_basis","extra_reversed","refund_amount"),
+    "sales_returns": ("return_value","extra_reversed","refund_amount"),
     "cash_accounts": ("opening_balance",),
     "cash_movements": ("amount",),
 }
