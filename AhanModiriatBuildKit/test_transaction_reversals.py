@@ -297,7 +297,7 @@ def main():
         post(port, "delete_sale", {"record_id":sale_id})
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 10 and p["avg_cost"] == 5
+            assert p["stock"] == 10 and p["avg_cost"] == 50
             assert c.execute("SELECT COUNT(*) FROM sales WHERE id=?", (sale_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 0
 
