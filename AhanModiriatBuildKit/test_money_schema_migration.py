@@ -137,9 +137,16 @@ def main():
             "settlements": {"amount":88},
         }
         for table, columns in additional_expected.items():
+            schema={r["name"]:r["type"].upper() for r in c.execute(f'PRAGMA table_info("{table}")')}
             for column, value in columns.items():
-                actual=c.execute(f'SELECT "{column}" FROM "{table}" LIMIT 1').fetchone()[0]
-                assert actual==value,(table,column,actual,value)
+                assert schema[column]=="INTEGER",(table,column,schema[column])
+                actual=c.execute(f'SELECT "{column}",typeof("{column}") FROM "{table}" LIMIT 1').fetchone()
+                assert actual[0]==value,(table,column,actual[0],value)
+                assert actual[1]=="integer",(table,column,actual[1])
+        for table, columns in app.MONEY_INTEGER_COLUMNS.items():
+            schema={r["name"]:r["type"].upper() for r in c.execute(f'PRAGMA table_info("{table}")')}
+            for column in columns:
+                assert schema[column]=="INTEGER",(table,column,schema[column])
         assert app.migrate_money_units_to_rial(c)==0,"rial unit migration must be idempotent"
         assert app.money(1234)=="123.4"
         assert app.money_input(1234)=="123.4"
