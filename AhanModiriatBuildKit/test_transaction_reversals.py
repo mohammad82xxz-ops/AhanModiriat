@@ -288,7 +288,20 @@ def main():
             "category":"سایر","purchase_unit":"kg","purchase_factor":"2",
             "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
         })
-        assert "reversal steel" in protected_page
+        assert "تغییر واحد پایه، واحد خرید/فروش یا ضریب تبدیل مسدود است" in protected_page
+        with app.conn() as c:
+            p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
+            # A rejected conversion change must reject the entire update atomically.
+            assert p["stock"] == 7 and p["avg_cost"] == 50 and p["purchase_factor"] == 1
+
+        # A stock-only correction remains allowed and must be recorded as its own movement.
+        stock_page=post(port,"update_product",{
+            "product_id":pid,"name":"reversal steel","code":"","unit":"kg","stock":"8",
+            "avg_cost":"5","market_price":"10","min_stock":"0","notes":"",
+            "category":"سایر","purchase_unit":"kg","purchase_factor":"1",
+            "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
+        })
+        assert "مشخصات کالا به‌روزرسانی شد" in stock_page
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             assert p["stock"] == 8 and p["avg_cost"] == 50 and p["purchase_factor"] == 1
