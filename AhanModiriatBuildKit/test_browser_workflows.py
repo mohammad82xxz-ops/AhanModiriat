@@ -58,7 +58,7 @@ def main() -> None:
                     assert product is not None, f"product was not created through the UI; url={page.url}; body={page.locator('body').inner_text()[:1200]}; security={security_events[-5:]}"
                     product_id = product["id"]
                     assert float(product["stock"]) == 10
-                    assert float(product["avg_cost"]) == 100
+                    assert float(product["avg_cost"]) == 1000
 
                 # Duplicate product names must be rejected without changing the existing product.
                 page.goto(base + "/products", wait_until="networkidle")
@@ -79,7 +79,7 @@ def main() -> None:
                     product_after_duplicate = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
                     assert duplicate_rows == 1, f"duplicate product was persisted; count={duplicate_rows}"
                     assert float(product_after_duplicate["stock"]) == 10, "duplicate product submission changed stock"
-                    assert float(product_after_duplicate["avg_cost"]) == 100, "duplicate product submission changed average cost"
+                    assert float(product_after_duplicate["avg_cost"]) == 1000, "duplicate product submission changed average cost"
                 assert "این کالا قبلاً ثبت شده است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"duplicate product rejection message missing; url={page.url}"
 
                 # Whitespace-only product names must be rejected server-side.
@@ -303,10 +303,10 @@ def main() -> None:
                     purchase = c.execute("SELECT * FROM purchases WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,)).fetchone()
                     assert purchase is not None, f"purchase was not persisted; url={page.url}; body={page.locator('body').inner_text()[:1200]}; security={security_events[-5:]}"
                     assert float(product["stock"]) == 15, product["stock"]
-                    assert abs(float(product["avg_cost"]) - (1600 / 15)) < 0.01, product["avg_cost"]
+                    assert abs(float(product["avg_cost"]) - (16000 / 15)) < 0.01, product["avg_cost"]
                     assert purchase["supplier_person_id"], "supplier was not linked to the party directory"
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase["id"],)).fetchall()
-                    assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (300, "withdraw"), [dict(x) for x in postings]
+                    assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (3000, "withdraw"), [dict(x) for x in postings]
                     purchase_count_before_replay = c.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0]
                     stock_before_replay = float(product["stock"])
                     cash_count_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0]
@@ -521,10 +521,10 @@ def main() -> None:
                     assert sale is not None, "sale was not persisted"
                     assert float(product["stock"]) == 12, product["stock"]
                     assert abs(float(sale["cost_basis"]) - (1600 / 15)) < 0.01, sale["cost_basis"]
-                    expected_profit = 3 * (200 - float(sale["cost_basis"])) - 10
-                    assert abs(expected_profit - (3 * 200 - 1600 / 15 * 3 - 10)) < 0.01
+                    expected_profit = 3 * (2000 - float(sale["cost_basis"])) - 100
+                    assert abs(expected_profit - (3 * 2000 - 16000 / 15 * 3 - 100)) < 0.01
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale["id"],)).fetchall()
-                    assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (400, "deposit"), [dict(x) for x in postings]
+                    assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (4000, "deposit"), [dict(x) for x in postings]
                     assert sale["customer_person_id"], "customer was not linked to the party directory"
                     sale_count_before_replay = c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
                     sale_stock_before_replay = float(product["stock"])
@@ -597,9 +597,9 @@ def main() -> None:
                 form.locator("button").last.click()
                 with app.conn() as c:
                     expense = c.execute("SELECT * FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()
-                    assert expense is not None and expense["amount"] == 50 and expense["business"] == 1
+                    assert expense is not None and expense["amount"] == 500 and expense["business"] == 1
                     postings = c.execute("SELECT amount,kind FROM cash_movements WHERE source_table='expenses' AND source_id=?", (expense["id"],)).fetchall()
-                    assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (50, "withdraw"), [dict(x) for x in postings]
+                    assert len(postings) == 1 and (postings[0]["amount"], postings[0]["kind"]) == (500, "withdraw"), [dict(x) for x in postings]
                     expense_count_before_replay = c.execute("SELECT COUNT(*) FROM expenses WHERE category=?", ("Phase2 test expense",)).fetchone()[0]
                     expense_cash_before_replay = c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0]
 
