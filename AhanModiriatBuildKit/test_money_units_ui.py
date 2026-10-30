@@ -106,6 +106,23 @@ def main():
             else:
                 raise AssertionError("out-of-range integer rial amount was accepted")
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+    # Simulate a pre-feature database: remove the additive column, insert a legacy
+    # base-unit sale, and verify startup adds/backfills the exact integer-rial total.
+    with app.conn() as legacy:
+        legacy.execute("ALTER TABLE sales DROP COLUMN line_total")
+        legacy_sale_id = legacy.execute(
+            """INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+               VALUES('2026-01-06',?,2,503,0,'legacy line total customer',0,'legacy additive migration',1000)""",
+            (pid,),
+        ).lastrowid
+    app.init()
+    with app.conn() as migrated:
+        legacy_sale = migrated.execute("SELECT line_total FROM sales WHERE id=?", (legacy_sale_id,)).fetchone()
+        assert legacy_sale["line_total"] == 1006, dict(legacy_sale)
+        sales_schema = {row["name"]: row["type"].upper() for row in migrated.execute("PRAGMA table_info(sales)")}
+        assert sales_schema["line_total"] == "INTEGER"
+        assert migrated.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("MONEY UNIT UI TESTS PASSED")
 
 
