@@ -1,3 +1,5 @@
+> **توضیح مهم درباره دامنه:** این چک‌لیست فقط شواهد QA فنی، رابط کاربری، امنیت فرم‌ها و CI شاخه قبلی را ثبت می‌کند؛ تیک‌خوردن موارد آن به معنی تأیید منطق حسابداری آهن‌فروشی یا تکمیل نیازمندی‌های T01 تا T28 نیست. مرجع ممیزی و فازبندی حسابداری از این پس [نقشه بازطراحی منطق حسابداری](ACCOUNTING-REBUILD-ROADMAP-FA.md) است. هیچ فاز حسابداری بدون معیار پذیرش و تست‌های مستقل آن تأیید نمی‌شود.
+
 # Phase 2 QA checklist — AhanModiriat
 
 This checklist is deliberately separate from automated CI. An unchecked item is not considered passed.
