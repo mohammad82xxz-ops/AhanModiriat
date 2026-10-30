@@ -292,7 +292,7 @@ def main():
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             # A rejected conversion change must reject the entire update atomically.
-            assert p["stock"] == 8 and p["avg_cost"] == 50 and p["purchase_factor"] == 1
+            assert (p["stock"], p["avg_cost"], p["purchase_factor"]) == (8, 50, 1), (p["stock"], p["avg_cost"], p["purchase_factor"])
 
         # A stock-only correction remains allowed and must be recorded as its own movement.
         stock_page=post(port,"update_product",{
