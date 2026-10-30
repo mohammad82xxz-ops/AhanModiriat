@@ -267,6 +267,11 @@ def main() -> None:
             }),
         ]
         for route, fields in replay_cases:
+            before_missing_token = fingerprint()
+            post(port, route, fields, auto_token=False)
+            assert fingerprint() == before_missing_token, (
+                f"{route} accepted a financial POST without a server-issued token"
+            )
             with app.conn() as c:
                 markup = app.submission_token(c, route)
                 token = markup.split('value="', 1)[1].split('"', 1)[0]
