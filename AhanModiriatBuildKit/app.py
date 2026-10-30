@@ -677,21 +677,21 @@ def init():
                 BEGIN
                     UPDATE {table_name} SET updated_at=datetime('now','localtime') WHERE id=NEW.id;
                 END""")
-        # A legacy opening-capital setting is an opening balance, not a transaction.
-        opening = money_int(scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0)
+        fk_before=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
+        # Scale legacy toman values before converting REAL declarations to INTEGER;
+        # otherwise fractional toman data would be rounded away before the ×10 rial conversion.
+        migrate_money_units_to_rial(c)
+        converted_money_columns=migrate_money_columns_to_integer(c)
+        # The opening balance and legacy cash postings are rebuilt only after all source
+        # documents have been converted to rial, preventing a second rounding at backfill.
+        opening = scalar(c, "SELECT amount FROM opening_capital WHERE id=1") or 0
         current = scalar(c, "SELECT opening_balance FROM cash_accounts WHERE id=1")
-        # A manual transfer must not prevent migration of the legacy opening cash balance.
         if opening and not current:
             c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1", (opening,))
         migrated = backfill_legacy_cash_postings(c)
         if migrated:
             c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)",
                       ("بازسازی گردش صندوق از اسناد قدیمی", json.dumps({"rows": migrated}, ensure_ascii=False)))
-        fk_before=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
-        # Scale legacy toman values before converting REAL declarations to INTEGER;
-        # otherwise fractional toman data would be rounded away before the ×10 rial conversion.
-        migrate_money_units_to_rial(c)
-        converted_money_columns=migrate_money_columns_to_integer(c)
         fk_after=[tuple(row) for row in c.execute("PRAGMA foreign_key_check").fetchall()]
         if fk_after!=fk_before:
             raise RuntimeError("مهاجرت ستون‌های پولی باعث تغییر وضعیت کلیدهای خارجی شد؛ عملیات لغو شد.")
