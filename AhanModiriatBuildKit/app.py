@@ -1800,7 +1800,7 @@ def report_detail_sections(c):
     def customer_bucket(name):
         name=normalize_person(name) or "(بدون نام)"
         return customer_stats.setdefault(name,{"sales_rev":0,"sales_cost":0,"sales_extra":0,"service_rev":0,"service_cost":0})
-    for r in c.execute("SELECT TRIM(customer) customer,SUM(money_line_total(qty,unit_price)) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY TRIM(customer)"):
+    for r in c.execute("SELECT TRIM(customer) customer,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY TRIM(customer)"):
         b=customer_bucket(r["customer"])
         b["sales_rev"]+=int(r["rev"] or 0); b["sales_cost"]+=int(r["cost"] or 0); b["sales_extra"]+=int(r["extra"] or 0)
     for r in c.execute("SELECT TRIM(customer) customer,SUM(return_value) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_reversed) extra FROM sales_returns GROUP BY TRIM(customer)"):
@@ -1836,7 +1836,7 @@ def report_detail_sections(c):
             month_key=(jy,jm)
             month_bucket(month_key)[key]+=sign*int(row["value"] or 0)
     monthly_queries=[
-        ("SELECT date,SUM(money_line_total(qty,unit_price)) value FROM sales GROUP BY date","sales_rev",1),
+        ("SELECT date,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))) value FROM sales GROUP BY date","sales_rev",1),
         ("SELECT date,SUM(money_line_total(qty,cost_basis)) value FROM sales GROUP BY date","sales_cost",1),
         ("SELECT date,SUM(extra_cost) value FROM sales GROUP BY date","sales_extra",1),
         ("SELECT date,SUM(return_value) value FROM sales_returns GROUP BY date","sales_rev",-1),
