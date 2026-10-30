@@ -284,6 +284,14 @@ def main() -> None:
             )
 
         with app.conn() as c:
+            audit_html = app.audit_page(c)
+            for localized_action in (
+                "ثبت درآمد خدماتی", "ثبت وام", "ثبت پرداخت قسط",
+                "ثبت قیمت روز", "ثبت تسویه", "گردش دستی صندوق",
+            ):
+                assert localized_action in audit_html, (
+                    f"financial audit action label is not localized: {localized_action}"
+                )
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
