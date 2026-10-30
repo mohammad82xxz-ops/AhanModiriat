@@ -64,6 +64,22 @@ def main():
         assert app.money_line_total("0.0005", "1000") + app.money_line_total("0.0005", "1000") == 2
         assert app.money_average(1000, 15) == 67
         assert c.execute("SELECT money_line_total(0.0005,1000)").fetchone()[0] == 1
+        before = app.calc(c)
+        c.execute(
+            """INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+               VALUES('2026-01-04',?,0.0005,1000,0,'fractional line customer',0,'rounding test',0)""",
+            (pid,),
+        )
+        c.execute(
+            """INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+               VALUES('2026-01-05',?,0.0005,1000,0,'fractional line supplier',0,'rounding test')""",
+            (pid,),
+        )
+        after = app.calc(c)
+        assert after["sales_rev"] - before["sales_rev"] == 1
+        balances = app.party_balances(c)
+        assert balances["fractional line customer"]["receivable"] == 1
+        assert balances["fractional line supplier"]["payable"] == 1
         try:
             app.money_line_total("NaN", "1000")
         except ValueError:
