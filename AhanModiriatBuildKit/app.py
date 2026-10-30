@@ -1646,7 +1646,7 @@ def purchases(c, search='', page_num=1):
     total=scalar(c,"SELECT COUNT(*) FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE pr.name LIKE ? OR p.supplier LIKE ? OR p.notes LIKE ?",(pattern,pattern,pattern))
     prods=options_products(c); opt=[(v,t) for v,t in prods]
     body=f'''<h1>ثبت خرید</h1><div class="card section"><form method="post" action="/add_purchase">{submission_token(c,'add_purchase')}<div class="formgrid">{field('تاریخ خرید','date','date',TODAY,True)}{selectfield('کالا','product_id',opt)}{field('مقدار خرید','qty','number','1',True,'0.001')}{field('قیمت خرید هر واحد (تومان)','unit_cost','number','0',True,'0.01')}{field('هزینه جانبی کل (حمل/تخلیه)','extra_cost','number','0',False,'0.01')}{field('مبلغ پرداخت‌شده','paid','number','0',True,'0.01')}{field('فروشنده','supplier')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خرید و افزایش موجودی</button></div></form><p class="small">پس از ثبت خرید، موجودی و میانگین موزون بهای خرید به‌روزرسانی می‌شود. هزینه جانبی به بهای تمام‌شده خرید اضافه می‌شود.</p></div>'''
-    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(r['qty']*r['unit_cost']+r['extra_cost']),esc(r['supplier']),money(r['paid']),record_actions(r['id'],'edit_purchase','delete_purchase','خرید')] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE pr.name LIKE ? OR p.supplier LIKE ? OR p.notes LIKE ? ORDER BY p.date DESC,p.id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
+    rows=[[show_date(r['date']),esc(r['name']),f"{r['qty']:g}",money(r['unit_cost']),money(r['extra_cost']),money(money_line_total(r['qty'],r['unit_cost'])+r['extra_cost']),esc(r['supplier']),money(r['paid']),record_actions(r['id'],'edit_purchase','delete_purchase','خرید')] for r in c.execute('SELECT p.*,pr.name FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE pr.name LIKE ? OR p.supplier LIKE ? OR p.notes LIKE ? ORDER BY p.date DESC,p.id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>خریدها</h2><form method="get" action="/purchases" class="search-form"><label>جستجوی خرید</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="کالا، فروشنده یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","کالا","مقدار","قیمت واحد","هزینه جانبی","جمع بهای خرید","فروشنده","پرداخت‌شده","عملیات"],rows,total)}{page_nav("purchases",query,page_num,total,limit)}</div>'
     return page('خرید',body,'purchases')
 def sales(c, search='', page_num=1):
@@ -1755,9 +1755,9 @@ def report_detail_sections(c):
         LEFT JOIN (SELECT product_id,SUM(money_line_total(qty,unit_price)) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY product_id) s ON s.product_id=p.id
         LEFT JOIN (SELECT product_id,SUM(return_value) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_reversed) extra FROM sales_returns GROUP BY product_id) sr ON sr.product_id=p.id
         WHERE COALESCE(s.rev,0)>0 OR COALESCE(sr.rev,0)>0"""):
-        revenue=float(r["sold_rev"] or 0)-float(r["return_rev"] or 0)
-        cost=float(r["sold_cost"] or 0)-float(r["return_cost"] or 0)
-        extra=float(r["sold_extra"] or 0)-float(r["return_extra"] or 0)
+        revenue=int(r["sold_rev"] or 0)-int(r["return_rev"] or 0)
+        cost=int(r["sold_cost"] or 0)-int(r["return_cost"] or 0)
+        extra=int(r["sold_extra"] or 0)-int(r["return_extra"] or 0)
         product_metrics.append({"name":r["name"],"revenue":revenue,"cost":cost,"extra":extra,"profit":revenue-cost-extra})
     product_metrics.sort(key=lambda item:item["profit"],reverse=True)
     product_rows=[[esc(r["name"]),money(r["revenue"]),money(r["cost"]),money(r["extra"]),money(r["profit"])] for r in product_metrics]
@@ -1766,16 +1766,16 @@ def report_detail_sections(c):
     customer_stats={}
     def customer_bucket(name):
         name=normalize_person(name) or "(بدون نام)"
-        return customer_stats.setdefault(name,{"sales_rev":0.0,"sales_cost":0.0,"sales_extra":0.0,"service_rev":0.0,"service_cost":0.0})
+        return customer_stats.setdefault(name,{"sales_rev":0,"sales_cost":0,"sales_extra":0,"service_rev":0,"service_cost":0})
     for r in c.execute("SELECT TRIM(customer) customer,SUM(money_line_total(qty,unit_price)) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY TRIM(customer)"):
         b=customer_bucket(r["customer"])
-        b["sales_rev"]+=float(r["rev"] or 0); b["sales_cost"]+=float(r["cost"] or 0); b["sales_extra"]+=float(r["extra"] or 0)
+        b["sales_rev"]+=int(r["rev"] or 0); b["sales_cost"]+=int(r["cost"] or 0); b["sales_extra"]+=int(r["extra"] or 0)
     for r in c.execute("SELECT TRIM(customer) customer,SUM(return_value) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_reversed) extra FROM sales_returns GROUP BY TRIM(customer)"):
         b=customer_bucket(r["customer"])
-        b["sales_rev"]-=float(r["rev"] or 0); b["sales_cost"]-=float(r["cost"] or 0); b["sales_extra"]-=float(r["extra"] or 0)
+        b["sales_rev"]-=int(r["rev"] or 0); b["sales_cost"]-=int(r["cost"] or 0); b["sales_extra"]-=int(r["extra"] or 0)
     for r in c.execute("SELECT TRIM(customer) customer,SUM(revenue) rev,SUM(cost) cost FROM services GROUP BY TRIM(customer)"):
         b=customer_bucket(r["customer"])
-        b["service_rev"]+=float(r["rev"] or 0); b["service_cost"]+=float(r["cost"] or 0)
+        b["service_rev"]+=int(r["rev"] or 0); b["service_cost"]+=int(r["cost"] or 0)
     customer_metrics=[]
     for name,b in customer_stats.items():
         sales_profit=b["sales_rev"]-b["sales_cost"]-b["sales_extra"]
@@ -1789,8 +1789,8 @@ def report_detail_sections(c):
     # Aggregate by Jalali month, converting stored Gregorian ISO dates at the boundary.
     months={}
     def month_bucket(key):
-        return months.setdefault(key,{"sales_rev":0.0,"sales_cost":0.0,"sales_extra":0.0,
-                                      "service_rev":0.0,"service_cost":0.0,"expenses":0.0,"interest":0.0})
+        return months.setdefault(key,{"sales_rev":0,"sales_cost":0,"sales_extra":0,
+                                      "service_rev":0,"service_cost":0,"expenses":0,"interest":0})
     def add_monthly(sql, key, sign=1):
         for row in c.execute(sql):
             if not row["date"]:
@@ -1801,7 +1801,7 @@ def report_detail_sections(c):
             except (TypeError,ValueError):
                 continue
             month_key=(jy,jm)
-            month_bucket(month_key)[key]+=sign*float(row["value"] or 0)
+            month_bucket(month_key)[key]+=sign*int(row["value"] or 0)
     monthly_queries=[
         ("SELECT date,SUM(money_line_total(qty,unit_price)) value FROM sales GROUP BY date","sales_rev",1),
         ("SELECT date,SUM(money_line_total(qty,cost_basis)) value FROM sales GROUP BY date","sales_cost",1),
