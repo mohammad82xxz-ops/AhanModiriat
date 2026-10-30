@@ -37,38 +37,6 @@ def post(port: int, path: str, fields: dict[str, object]) -> None:
         assert response.status == 200
 
 
-def snapshot(product_id: int, purchase_id: int, sale_id: int):
-    with app.conn() as c:
-        product = c.execute(
-            "SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)
-        ).fetchone()
-        purchase = c.execute(
-            "SELECT qty,unit_cost,extra_cost,paid FROM purchases WHERE id=?",
-            (purchase_id,),
-        ).fetchone()
-        sale = c.execute(
-            "SELECT qty,unit_price,extra_cost,received FROM sales WHERE id=?",
-            (sale_id,),
-        ).fetchone()
-        cash = c.execute(
-            "SELECT source_table,source_id,kind,amount FROM cash_movements ORDER BY id"
-        ).fetchall()
-        capital = c.execute(
-            "SELECT amount,date FROM opening_capital WHERE id=1"
-        ).fetchone()
-        account = c.execute(
-            "SELECT opening_balance FROM cash_accounts WHERE id=1"
-        ).fetchone()
-        return (
-            tuple(product),
-            tuple(purchase),
-            tuple(sale),
-            tuple(tuple(row) for row in cash),
-            tuple(capital) if capital else None,
-            tuple(account) if account else None,
-        )
-
-
 def fingerprint():
     tables = (
         "products", "purchases", "sales", "services", "expenses", "loans",
@@ -136,7 +104,7 @@ def main() -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        baseline = snapshot(product_id, purchase_id, sale_id)
+        baseline = fingerprint()
 
         # Update routes must reject NaN/Infinity rather than allowing non-finite
         # values to flow into inventory or weighted-average-cost calculations.
@@ -161,7 +129,7 @@ def main() -> None:
         ]
         for route, fields in invalid_updates:
             post(port, route, fields)
-            assert snapshot(product_id, purchase_id, sale_id) == baseline, (
+            assert fingerprint() == baseline, (
                 f"{route} accepted malformed numeric input: {fields}"
             )
 
@@ -171,7 +139,7 @@ def main() -> None:
             "record_id": sale_id, "qty": "2", "unit_price": "0",
             "extra_cost": "0", "received": "0", "customer": "Validation customer",
         })
-        assert snapshot(product_id, purchase_id, sale_id) == baseline, (
+        assert fingerprint() == baseline, (
             "zero-price sale edit was accepted or caused side effects"
         )
 
@@ -181,7 +149,7 @@ def main() -> None:
             post(port, "save_capital", {
                 "amount": invalid_amount, "date": "2026-01-03",
             })
-            assert snapshot(product_id, purchase_id, sale_id) == baseline, (
+            assert fingerprint() == baseline, (
                 f"invalid opening capital was persisted: {invalid_amount!r}"
             )
 
