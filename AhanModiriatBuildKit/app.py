@@ -390,6 +390,22 @@ def migrate_money_columns_to_integer(c):
                 c.execute(obj["sql"])
             migrated+=len(to_convert)
 
+        staged_table = c.execute("""SELECT 1 FROM sqlite_temp_master
+                                    WHERE type='table' AND name='__rial_exact_values'""").fetchone()
+        if staged_table:
+            staged = c.execute("""SELECT table_name,row_id,column_name,amount
+                                  FROM __rial_exact_values
+                                  ORDER BY table_name,row_id,column_name""").fetchall()
+            for item in staged:
+                table_name, column_name = item["table_name"], item["column_name"]
+                if table_name not in MONEY_INTEGER_COLUMNS or column_name not in MONEY_INTEGER_COLUMNS[table_name]:
+                    raise RuntimeError("مقدار موقت مهاجرت ریال به ستون مجاز تعلق ندارد.")
+                c.execute(f'UPDATE "{table_name}" SET "{column_name}"=? WHERE id=?',
+                          (item["amount"], item["row_id"]))
+                if c.execute("SELECT changes()").fetchone()[0] != 1:
+                    raise RuntimeError(f"بازیابی مقدار دقیق ریال در {table_name}.{column_name} ناموفق بود.")
+            c.execute("DROP TABLE __rial_exact_values")
+
     finally:
         c.execute(f"PRAGMA legacy_alter_table={1 if legacy_alter else 0}")
     return migrated
@@ -436,12 +452,19 @@ def migrate_money_units_to_rial(c):
         pk = next((row["name"] for row in info if int(row["pk"] or 0) > 0), None)
         if not pk:
             raise RuntimeError(f"جدول {table} کلید اصلی قابل مهاجرت ندارد.")
+        column_types = {row["name"]: str(row["type"] or "").strip().upper() for row in info}
         quoted_pk = '"' + pk.replace('"','""') + '"'
         quoted_cols = ['"' + name.replace('"','""') + '"' for name in selected]
         rows = c.execute(f'SELECT {quoted_pk},{",".join(quoted_cols)} FROM "{table}"').fetchall()
+        c.execute("""CREATE TEMP TABLE IF NOT EXISTS __rial_exact_values(
+            table_name TEXT NOT NULL, row_id INTEGER NOT NULL,
+            column_name TEXT NOT NULL, amount INTEGER NOT NULL,
+            PRIMARY KEY(table_name,row_id,column_name)
+        )""")
         for row in rows:
             updates = []
             values = []
+            staged = False
             for name in selected:
                 value = row[name]
                 if value is None:
@@ -458,10 +481,17 @@ def migrate_money_units_to_rial(c):
                     raise RuntimeError(f"مقدار {table}.{name} از ظرفیت عدد صحیح ریال خارج است.") from exc
                 if rial < int_min or rial > int_max:
                     raise RuntimeError(f"مقدار {table}.{name} از ظرفیت عدد صحیح ریال خارج است.")
-                updates.append('"' + name.replace('"','""') + '"=?')
-                values.append(rial)
+                if column_types.get(name) in ("REAL", "FLOAT", "DOUBLE", "NUMERIC", "DECIMAL"):
+                    # Keep exact integer rials out of REAL-affinity columns until they are rebuilt.
+                    c.execute("""INSERT INTO __rial_exact_values(table_name,row_id,column_name,amount)
+                                 VALUES(?,?,?,?)""", (table, row[pk], name, rial))
+                    staged = True
+                else:
+                    updates.append('"' + name.replace('"','""') + '"=?')
+                    values.append(rial)
             if updates:
                 c.execute(f'UPDATE "{table}" SET {",".join(updates)} WHERE {quoted_pk}=?', (*values,row[pk]))
+            if updates or staged:
                 scaled_rows += 1
     c.execute("INSERT INTO settings(key,value) VALUES(?,?)", (RIAL_UNIT_SETTING,RIAL_UNIT_VERSION))
     c.execute("INSERT INTO audit_log(action,details) VALUES(?,?)", (
