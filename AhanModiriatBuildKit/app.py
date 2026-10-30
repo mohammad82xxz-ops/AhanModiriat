@@ -755,7 +755,7 @@ def inventory_page(c, search='', page_num=1):
     products = options_products(c)
     body = f'''<h1>انبارگردانی و تعدیل موجودی</h1>
     <div class="card section"><h2>ثبت شمارش فیزیکی</h2>
-      <form method="post" action="/inventory_adjust">
+      <form method="post" action="/inventory_adjust">{submission_token(c,'inventory_adjust')}
         <div class="formgrid">{field("تاریخ شمارش","date","date",TODAY,True)}
           {selectfield("کالا","product_id",products)}
           {field("موجودی شمارش‌شده به واحد پایه","counted_qty","number","0",True,"0.001")}
@@ -2066,6 +2066,7 @@ class Handler(BaseHTTPRequestHandler):
                 protected_financial_posts = {
                     'add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return',
                     'add_service','add_loan','add_payment','add_price','add_settlement','add_cash_movement',
+                    'inventory_adjust',
                 }
                 if path in protected_financial_posts:
                     submission=d.get('_submission_token','').strip()
