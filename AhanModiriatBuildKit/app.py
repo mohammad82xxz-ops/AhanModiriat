@@ -336,6 +336,9 @@ MONEY_INTEGER_COLUMNS = {
 
 def migrate_money_columns_to_integer(c):
     """Safely rebuild tables where legacy monetary columns use REAL; preserve all schema objects."""
+    # Parent tables such as products are referenced by transaction tables. Defer
+    # FK checks until the replacement table has been renamed back to its original name.
+    c.execute("PRAGMA defer_foreign_keys=ON")
     migrated=0
     for table, candidates in MONEY_INTEGER_COLUMNS.items():
         table_row=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone()
