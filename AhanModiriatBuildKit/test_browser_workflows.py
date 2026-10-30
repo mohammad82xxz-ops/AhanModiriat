@@ -110,7 +110,7 @@ def main() -> None:
                     form.evaluate("(form) => form.submit()")
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM products WHERE name='Phase2 Negative Stock'").fetchone()[0] == negative_stock_count_before, "product with negative initial stock was persisted"
-                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative initial stock was not rejected; url={page.url}"
+                assert "نمی‌تواند منفی باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative initial stock was not rejected; url={page.url}"
 
                 # Service validation must reject negative revenue without ledger or cash side effects.
                 page.goto(base + "/services", wait_until="networkidle")
@@ -127,7 +127,7 @@ def main() -> None:
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM services WHERE title='Phase2 Invalid Service'").fetchone()[0] == service_count_before, "service with negative revenue was persisted"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0] == service_cash_before, "cash movement created for rejected service"
-                assert "درآمد باید بیشتر از صفر" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative service revenue was not rejected; url={page.url}"
+                assert "نمی‌تواند منفی باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative service revenue was not rejected; url={page.url}"
 
                 # Loan validation must reject a remaining balance greater than principal.
                 page.goto(base + "/loans", wait_until="networkidle")
@@ -182,7 +182,7 @@ def main() -> None:
                         "amount": "10",
                         "principal": "-1",
                         "interest": "11",
-                        "message": "سهم اصل و سود/کارمزد نباید منفی باشد",
+                        "message": "سهم اصل قسط نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "payment total does not match components",
@@ -196,7 +196,7 @@ def main() -> None:
                         "amount": "10",
                         "principal": "11",
                         "interest": "-1",
-                        "message": "سهم اصل و سود/کارمزد نباید منفی باشد",
+                        "message": "سهم سود/کارمزد نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "zero payment amount",
@@ -210,14 +210,14 @@ def main() -> None:
                         "amount": "-1",
                         "principal": "0",
                         "interest": "0",
-                        "message": "مبلغ قسط باید مثبت",
+                        "message": "مبلغ قسط نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "missing payment amount",
                         "amount": "",
                         "principal": "0",
                         "interest": "0",
-                        "message": "مبلغ قسط باید مثبت",
+                        "message": "مبلغ قسط",
                     },
                 ]
                 for case in invalid_payment_cases:
@@ -362,7 +362,7 @@ def main() -> None:
                     negative_extra_stock_after = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
                     assert tuple(negative_extra_stock_after) == tuple(negative_extra_stock_before), "stock/cost changed after negative purchase extra cost"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0] == negative_extra_cash_before, "cash movement created for negative purchase extra cost"
-                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative purchase extra cost rejection message missing; url={page.url}"
+                assert "نمی‌تواند منفی باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative purchase extra cost rejection message missing; url={page.url}"
 
                 # Negative path: reject a purchase with a negative paid amount.
                 page.goto(base + "/purchases", wait_until="networkidle")
@@ -383,7 +383,7 @@ def main() -> None:
                     negative_paid_stock_after = c.execute("SELECT stock,avg_cost FROM products WHERE id=?", (product_id,)).fetchone()
                     assert tuple(negative_paid_stock_after) == tuple(negative_paid_stock_before), "stock/cost changed after negative purchase paid amount"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases'").fetchone()[0] == negative_paid_cash_before, "cash movement created for negative purchase paid amount"
-                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative purchase paid amount rejection message missing; url={page.url}"
+                assert "نمی‌تواند منفی باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative purchase paid amount rejection message missing; url={page.url}"
 
                 # Negative path: reject a sale with zero quantity even when browser validation is bypassed.
                 page.goto(base + "/sales", wait_until="networkidle")
@@ -443,7 +443,7 @@ def main() -> None:
                     missing_price_stock_after = c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]
                 assert missing_price_sales_after == missing_price_sales_before, "sale with missing unit price was persisted"
                 assert float(missing_price_stock_after) == float(missing_price_stock_before), "stock changed after sale with missing unit price"
-                assert "کالا، مقدار یا قیمت/هزینه فروش نامعتبر است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
+                assert "قیمت فروش الزامی است و باید عدد معتبر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-price sale rejection message missing; url={page.url}; body={page.locator('body').inner_text()[:500]}"
 
                 # Negative path: reject a sale with a negative received amount.
                 page.goto(base + "/sales", wait_until="networkidle")
@@ -463,7 +463,7 @@ def main() -> None:
                     assert c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0] == negative_received_sales_before, "sale with negative received amount was persisted"
                     assert float(c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]) == float(negative_received_stock_before), "stock changed after negative received amount"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0] == negative_received_cash_before, "cash movement created for negative received amount"
-                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative received amount rejection message missing; url={page.url}"
+                assert "نمی‌تواند منفی باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative received amount rejection message missing; url={page.url}"
 
                 # Negative path: reject a sale with a negative extra cost.
                 page.goto(base + "/sales", wait_until="networkidle")
@@ -483,7 +483,7 @@ def main() -> None:
                     assert c.execute("SELECT COUNT(*) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0] == negative_extra_sales_before, "sale with negative extra cost was persisted"
                     assert float(c.execute("SELECT stock FROM products WHERE id=?", (product_id,)).fetchone()[0]) == float(negative_extra_sale_stock_before), "stock changed after negative sale extra cost"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales'").fetchone()[0] == negative_extra_sale_cash_before, "cash movement created for negative sale extra cost"
-                assert "نباید منفی باشند" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative sale extra cost rejection message missing; url={page.url}"
+                assert "نمی‌تواند منفی باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"negative sale extra cost rejection message missing; url={page.url}"
 
                 # Negative path: reject a sale that exceeds available stock.
                 page.goto(base + "/sales", wait_until="networkidle")
@@ -569,7 +569,7 @@ def main() -> None:
                 with app.conn() as c:
                     assert c.execute("SELECT COUNT(*) FROM expenses WHERE category='Phase2 invalid expense'").fetchone()[0] == invalid_expenses_before, "expense with missing amount was persisted"
                     assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='expenses'").fetchone()[0] == invalid_cash_before, "cash movement created for expense with missing amount"
-                assert "مبلغ باید بیشتر از صفر باشد" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-amount expense rejection message missing; url={page.url}"
+                assert "مبلغ هزینه الزامی است" in parse_qs(urlparse(page.url).query).get("msg", [""])[0], f"missing-amount expense rejection message missing; url={page.url}"
 
                 page.goto(base + "/expenses", wait_until="networkidle")
                 form = page.locator('form[action="/add_expense"]')

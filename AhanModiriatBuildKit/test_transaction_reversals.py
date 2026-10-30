@@ -18,7 +18,10 @@ import app
 
 def post(port, path, fields, auto_token=True):
     fields = dict(fields)
-    if auto_token and path in ("add_purchase", "add_sale", "add_expense") and "_submission_token" not in fields:
+    protected = {
+        "add_purchase", "add_sale", "add_expense", "add_cash_movement",
+    }
+    if auto_token and path in protected and "_submission_token" not in fields:
         with app.conn() as c:
             token_markup = app.submission_token(c, path)
             fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
@@ -39,6 +42,79 @@ def main():
     assert app.money_int("80.4") == 80
     assert app.money_int("-80.5") == -81
     app.init()
+    # A later return on a different source document is still a stock/cost movement.
+    # Older documents must not be reversed across that movement.
+    with app.conn() as c:
+        c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
+                     VALUES('purchase return guard','kg',10,10,20,0)""")
+        guard_pid = c.execute("SELECT id FROM products WHERE name='purchase return guard'").fetchone()[0]
+        older_sale = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+                                  VALUES('2025-12-31',?,1,20,0,'Guard customer',0,'older sale',10)""",(guard_pid,)).lastrowid
+        target_purchase = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                       VALUES('2026-01-01',?,5,10,0,'Guard supplier',0,'target purchase')""",(guard_pid,)).lastrowid
+        c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,refund_amount,reason)
+                     VALUES('2026-01-02',?,?, 'Guard customer',0.5,10,10,0,'later return')""",(older_sale,guard_pid))
+        try:
+            app.assert_purchase_reversible(c,c.execute("SELECT * FROM purchases WHERE id=?",(target_purchase,)).fetchone())
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("purchase reversal crossed a later sales return")
+
+        c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
+                     VALUES('purchase return guard 2','kg',10,10,20,0)""")
+        purchase_guard_pid = c.execute("SELECT id FROM products WHERE name='purchase return guard 2'").fetchone()[0]
+        older_purchase = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                      VALUES('2025-12-31',?,2,10,0,'Guard supplier',0,'older purchase')""",(purchase_guard_pid,)).lastrowid
+        target_purchase_2 = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                         VALUES('2026-01-01',?,2,10,0,'Guard supplier',0,'target purchase')""",(purchase_guard_pid,)).lastrowid
+        c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason)
+                     VALUES('2026-01-02',?,?, 'Guard supplier',0.5,5,0,'later purchase return')""",(older_purchase,purchase_guard_pid))
+        try:
+            app.assert_purchase_reversible(c,c.execute("SELECT * FROM purchases WHERE id=?",(target_purchase_2,)).fetchone())
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("purchase reversal crossed a later purchase return")
+
+        c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
+                     VALUES('sale return guard','kg',10,10,20,0)""")
+        sale_guard_pid = c.execute("SELECT id FROM products WHERE name='sale return guard'").fetchone()[0]
+        target_sale = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+                                   VALUES('2026-01-01',?,1,20,0,'Guard customer',0,'target sale',10)""",(sale_guard_pid,)).lastrowid
+        later_sale = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+                                  VALUES('2026-01-02',?,1,20,0,'Guard customer',0,'later sale',10)""",(sale_guard_pid,)).lastrowid
+        c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,refund_amount,reason)
+                     VALUES('2026-01-03',?,?, 'Guard customer',0.5,10,10,0,'return after target sale')""",(later_sale,sale_guard_pid))
+        try:
+            app.assert_sale_reversible(c,c.execute("SELECT * FROM sales WHERE id=?",(target_sale,)).fetchone())
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("sale reversal crossed a later sales return")
+
+        c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
+                     VALUES('sale purchase return guard','kg',10,10,20,0)""")
+        sale_purchase_guard_pid = c.execute("SELECT id FROM products WHERE name='sale purchase return guard'").fetchone()[0]
+        older_purchase_for_sale = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                               VALUES('2025-12-31',?,2,10,0,'Guard supplier',0,'older purchase')""",(sale_purchase_guard_pid,)).lastrowid
+        target_sale_2 = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+                                     VALUES('2026-01-01',?,1,20,0,'Guard customer',0,'target sale',10)""",(sale_purchase_guard_pid,)).lastrowid
+        c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason)
+                     VALUES('2026-01-02',?,?, 'Guard supplier',0.5,5,0,'later purchase return')""",(older_purchase_for_sale,sale_purchase_guard_pid))
+        try:
+            app.assert_sale_reversible(c,c.execute("SELECT * FROM sales WHERE id=?",(target_sale_2,)).fetchone())
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("sale reversal crossed a later purchase return")
+
+        c.execute("DELETE FROM sales_returns WHERE product_id IN (?,?,?)",(guard_pid,sale_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM purchase_returns WHERE product_id IN (?,?)",(purchase_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM sales WHERE product_id IN (?,?,?)",(guard_pid,sale_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM purchases WHERE product_id IN (?,?,?)",(guard_pid,purchase_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM products WHERE id IN (?,?,?,?)",(guard_pid,purchase_guard_pid,sale_guard_pid,sale_purchase_guard_pid))
+
     with app.conn() as c:
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
                      purchase_unit,purchase_factor,sale_unit,sale_factor)

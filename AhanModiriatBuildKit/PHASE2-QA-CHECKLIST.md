@@ -1,3 +1,5 @@
+> **توضیح مهم درباره دامنه:** این چک‌لیست فقط شواهد QA فنی، رابط کاربری، امنیت فرم‌ها و CI شاخه قبلی را ثبت می‌کند؛ تیک‌خوردن موارد آن به معنی تأیید منطق حسابداری آهن‌فروشی یا تکمیل نیازمندی‌های T01 تا T28 نیست. مرجع ممیزی و فازبندی حسابداری از این پس [نقشه بازطراحی منطق حسابداری](ACCOUNTING-REBUILD-ROADMAP-FA.md) است. هیچ فاز حسابداری بدون معیار پذیرش و تست‌های مستقل آن تأیید نمی‌شود.
+
 # Phase 2 QA checklist — AhanModiriat
 
 This checklist is deliberately separate from automated CI. An unchecked item is not considered passed.
@@ -31,6 +33,7 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: a purchase-form token cannot authorize a sale or expense POST; purchase/sale/expense counts, cash movements, and stock remain unchanged. Extended sale+expense coverage passed in [Run #394 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953431465) and [Run #393 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953422226).
 - [x] Missing-token regression: direct POSTs to purchase-return and sales-return routes without a one-use submission token are rejected; return rows, cash movements, stock, and party balances remain unchanged. Passed in [Run #388 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951540783) and [Run #387 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951531647).
 - [x] Regression: purchase and sale POSTs with a nonexistent product ID or non-numeric quantity are rejected atomically; purchase/sale counts, cash movements, stock, and average cost remain unchanged, with SQLite foreign-key and integrity checks passing. Passed in [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) and [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220).
+- [ ] New regression suite added; pending CI: malformed/non-finite numeric input across product create/edit, purchase/sale/expense edits, service, expense, loan/payment, daily price, settlement, purchase/sales returns, inventory count, and cash movement; zero-price sale edits must follow the same rule as new sales; negative/malformed/blank opening capital must be rejected. All rejected requests must leave source records, stock, cash movements, balances, and audit data unchanged.
 - [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
 
 Negative-path findings and resolutions:

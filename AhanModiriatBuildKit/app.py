@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar, io, zipfile, re, secrets, math, xml.etree.ElementTree as ET
 from email.parser import BytesParser
+from decimal import Decimal, InvalidOperation
 from email.policy import default as email_policy
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
@@ -640,10 +641,13 @@ def strict_number(v, label, allow_blank=False):
         raise ValueError(f"{label} الزامی است و باید عدد معتبر باشد.")
     try:
         amount = float(cleaned)
-    except (ValueError, TypeError):
+        exact_amount = Decimal(cleaned)
+    except (ValueError, TypeError, InvalidOperation):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
-    if not math.isfinite(amount):
+    if not math.isfinite(amount) or not exact_amount.is_finite():
         raise ValueError(f"{label} باید عدد معتبر باشد.")
+    if exact_amount < 0:
+        raise ValueError(f"{label} نمی‌تواند منفی باشد.")
     return amount
 
 def strict_money_int(v, label, allow_blank=False):
@@ -655,10 +659,13 @@ def strict_money_int(v, label, allow_blank=False):
         raise ValueError(f"{label} الزامی است و باید عدد معتبر باشد.")
     try:
         amount = float(cleaned)
-    except (ValueError, TypeError):
+        exact_amount = Decimal(cleaned)
+    except (ValueError, TypeError, InvalidOperation):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
-    if not math.isfinite(amount):
+    if not math.isfinite(amount) or not exact_amount.is_finite():
         raise ValueError(f"{label} باید عدد معتبر باشد.")
+    if exact_amount < 0:
+        raise ValueError(f"{label} نمی‌تواند منفی باشد.")
     return money_int(amount)
 def money(v): return f'{v:,.0f}'
 def esc(v): return html.escape(str(v if v is not None else ''))
@@ -748,7 +755,7 @@ def inventory_page(c, search='', page_num=1):
     products = options_products(c)
     body = f'''<h1>انبارگردانی و تعدیل موجودی</h1>
     <div class="card section"><h2>ثبت شمارش فیزیکی</h2>
-      <form method="post" action="/inventory_adjust">
+      <form method="post" action="/inventory_adjust">{submission_token(c,'inventory_adjust')}
         <div class="formgrid">{field("تاریخ شمارش","date","date",TODAY,True)}
           {selectfield("کالا","product_id",products)}
           {field("موجودی شمارش‌شده به واحد پایه","counted_qty","number","0",True,"0.001")}
@@ -867,7 +874,7 @@ def cash_page(c, search='', page_num=1):
     body = f'''<h1>صندوق و حساب‌های بانکی</h1>
     <div class="grid section">{metrics}</div>
     <div class="card section"><h2>ثبت گردش دستی</h2>
-      <form method="post" action="/add_cash_movement">
+      <form method="post" action="/add_cash_movement">{submission_token(c,'add_cash_movement')}
         <div class="formgrid">{field("تاریخ","date","date",TODAY,True)}
           {selectfield("نوع گردش","kind",[("deposit","واریز به حساب"),("withdraw","برداشت از حساب"),("transfer","انتقال بین حساب‌ها")])}
           <label>حساب مبدأ<select name="from_account_id"><option value="">— انتخاب حساب —</option>{opts}</select></label>
@@ -958,7 +965,7 @@ def parties_page(c, selected="", search="", page_num=1, statement_page=1):
     {selectfield("نوع طرف حساب","kind",[("customer","مشتری"),("supplier","فروشنده"),("both","هر دو")])}
     {field("شماره تماس","phone")}{field("یادداشت","notes")}
     </div><div class="actions"><button>ثبت طرف حساب</button></div></form></div>
-    <div class="card section"><h2>ثبت تسویه با شخص</h2><form method="post" action="/add_settlement"><div class="formgrid">
+    <div class="card section"><h2>ثبت تسویه با شخص</h2><form method="post" action="/add_settlement">{submission_token(c,'add_settlement')}<div class="formgrid">
     {selectfield("طرف حساب","party",person_opts)}{selectfield("نوع تسویه","kind",[("receive","دریافت از مشتری"),("pay","پرداخت به فروشنده")])}
     {field("تاریخ","date","date",TODAY,True)}{field("مبلغ تسویه (تومان)","amount","number","0",True,"1")}
     {field("شرح/یادداشت","notes")}
@@ -1475,10 +1482,12 @@ def assert_purchase_reversible(c, row):
     later = (
         scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=? AND id<>?",(pid,date,rid)) +
         scalar(c,"SELECT COUNT(*) FROM sales WHERE product_id=? AND date>=?",(pid,date)) +
-        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
+        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM sales_returns WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM purchase_returns WHERE product_id=? AND date>=?",(pid,date))
     )
     if later:
-        raise ValueError("این خرید گردش دیگری در همان تاریخ یا پس از آن دارد؛ ابتدا سندهای وابسته را اصلاح کن.")
+        raise ValueError("این خرید گردش دیگری یا مرجوعیِ بعدی دارد؛ ابتدا اسناد وابسته را اصلاح کن.")
 
 def assert_sale_reversible(c, row):
     pid, date = row["product_id"], row["date"]
@@ -1486,10 +1495,12 @@ def assert_sale_reversible(c, row):
         raise ValueError("این فروش دارای سند مرجوعی است؛ برای حفظ ریزحساب و موجودی فروش اصلی را ویرایش یا حذف نکن.")
     later = (
         scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=?",(pid,date)) +
-        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
+        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM sales_returns WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM purchase_returns WHERE product_id=? AND date>=?",(pid,date))
     )
     if later:
-        raise ValueError("پس از این فروش خرید یا تعدیل موجودی ثبت شده؛ برای حفظ میانگین موزون، اصلاح/حذف خودکار ایمن نیست.")
+        raise ValueError("پس از این فروش خرید، تعدیل یا مرجوعی موجودی ثبت شده؛ برای حفظ میانگین موزون، اصلاح/حذف خودکار ایمن نیست.")
 
 def submission_token(c, action):
     """Issue a one-use token for a state-changing finance form."""
@@ -1519,7 +1530,7 @@ def services(c, search='', page_num=1):
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total=scalar(c,"SELECT COUNT(*) FROM services WHERE title LIKE ? OR customer LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
-    body=f'''<h1>درآمد خدماتی</h1><div class="card section"><form method="post" action="/add_service"><div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح خدمت','title',required=True)}{field('درآمد خدمت (تومان)','revenue','number','0',True,'0.01')}{field('هزینه اجرای خدمت','cost','number','0',True,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خدمت</button></div></form></div>'''
+    body=f'''<h1>درآمد خدماتی</h1><div class="card section"><form method="post" action="/add_service">{submission_token(c,'add_service')}<div class="formgrid">{field('تاریخ','date','date',TODAY,True)}{field('شرح خدمت','title',required=True)}{field('درآمد خدمت (تومان)','revenue','number','0',True,'0.01')}{field('هزینه اجرای خدمت','cost','number','0',True,'0.01')}{field('وجه دریافت‌شده','received','number','0',True,'0.01')}{field('مشتری','customer')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت خدمت</button></div></form></div>'''
     rows=[[show_date(r['date']),esc(r['title']),money(r['revenue']),money(r['cost']),money(r['revenue']-r['cost']),money(r['received']),esc(r['customer'])] for r in c.execute('SELECT * FROM services WHERE title LIKE ? OR customer LIKE ? OR notes LIKE ? ORDER BY date DESC,id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>خدمات ثبت‌شده</h2><form method="get" action="/services" class="search-form"><label>جستجوی خدمت</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، مشتری یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","خدمت","درآمد","هزینه اجرا","سود خدمت","دریافتی","مشتری"],rows,total)}{page_nav("services",query,page_num,total,limit)}</div>'
     return page('خدمات',body,'services')
@@ -1532,7 +1543,7 @@ def expenses(c, search='', page_num=1):
     body+=f'<div class="card section"><h2>پرداخت‌ها و برداشت‌ها</h2><form method="get" action="/expenses" class="search-form"><label>جستجوی هزینه</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، منبع یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows,total)}{page_nav("expenses",query,page_num,total,limit)}</div>'
     return page('هزینه‌ها',body,'expenses')
 def loans(c, search='', page_num=1):
-    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan"><div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment"><div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
+    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan">{submission_token(c,'add_loan')}<div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment">{submission_token(c,'add_payment')}<div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total_loans=scalar(c,"SELECT COUNT(*) FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
@@ -1595,7 +1606,7 @@ def prices(c, selected_product_id=0, search='', page_num=1):
     total_prices=scalar(c,"SELECT COUNT(*) FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ?",(pattern,pattern))
     history_rows=c.execute("SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ? ORDER BY h.date DESC,h.id DESC LIMIT ? OFFSET ?",(pattern,pattern,limit,offset)).fetchall()
     body=f'''<h1>قیمت روز بازار</h1>
-    <div class="card section"><form method="post" action="/add_price"><div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
+    <div class="card section"><form method="post" action="/add_price">{submission_token(c,'add_price')}<div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
     <p class="small">ثبت قیمت جدید، قیمت روز فعلی کالا را به‌روزرسانی می‌کند ولی سود تحقق‌یافته معاملات قبلی را تغییر نمی‌دهد.</p></div>
     <div class="card section"><h2>انتخاب کالا برای نمودار قیمت</h2><form method="get" action="/prices"><div class="formgrid">{selectfield('کالا','product_id',product_options,value=selected_product_id)}<button>نمایش روند قیمت</button></div></form></div>
     {chart}
@@ -1719,6 +1730,8 @@ def audit_page(c, search='', page_num=1):
             "add_sale":"ثبت فروش","update_sale":"اصلاح فروش","delete_sale":"حذف فروش",
             "add_expense":"ثبت هزینه","update_expense":"اصلاح هزینه","delete_expense":"حذف هزینه",
             "add_person":"ثبت طرف حساب","add_settlement":"ثبت تسویه",
+            "add_service":"ثبت درآمد خدماتی","add_loan":"ثبت وام","add_payment":"ثبت پرداخت قسط",
+            "add_price":"ثبت قیمت روز","save_capital":"اصلاح سرمایه اولیه",
             "add_sales_return":"مرجوعی فروش","add_purchase_return":"مرجوعی خرید",
             "add_cash_movement":"گردش دستی صندوق","inventory_adjust":"انبارگردانی",
             "restore_backup":"بازیابی پشتیبان","import.xlsx":"ورود اکسل",
@@ -2014,13 +2027,17 @@ class Handler(BaseHTTPRequestHandler):
                             skipped+=1; continue
                         if target_page=='/products':
                             unit=str(record.get("unit") or "کیلوگرم").strip()
-                            stock=num(record.get("stock",0),0)
-                            avg_cost=money_int(record.get("avg_cost",0),0)
-                            market_price=money_int(record.get("market_price",0),0)
-                            min_stock=num(record.get("min_stock",0),0)
-                            pf=num(record.get("purchase_factor",1),1) or 1
-                            sf=num(record.get("sale_factor",1),1) or 1
-                            roll_weight=num(record.get("roll_weight",0),0); sheet_area=num(record.get("sheet_area",0),0)
+                            try:
+                                stock=strict_number(record.get("stock",0) or 0,"موجودی",True)
+                                avg_cost=strict_money_int(record.get("avg_cost",0) or 0,"بهای خرید",True)
+                                market_price=strict_money_int(record.get("market_price",0) or 0,"قیمت روز",True)
+                                min_stock=strict_number(record.get("min_stock",0) or 0,"حداقل موجودی",True)
+                                pf=strict_number(record.get("purchase_factor",1) or 1,"ضریب تبدیل خرید",True) or 1
+                                sf=strict_number(record.get("sale_factor",1) or 1,"ضریب تبدیل فروش",True) or 1
+                                roll_weight=strict_number(record.get("roll_weight",0) or 0,"وزن رول",True)
+                                sheet_area=strict_number(record.get("sheet_area",0) or 0,"مساحت ورق",True)
+                            except ValueError:
+                                skipped+=1; continue
                             if stock<0 or min_stock<0 or pf<=0 or sf<=0 or avg_cost<0 or market_price<0 or roll_weight<0 or sheet_area<0:
                                 skipped+=1; continue
                             c.execute("""INSERT INTO products(name,code,unit,stock,avg_cost,market_price,min_stock,category,purchase_unit,purchase_factor,sale_unit,sale_factor,roll_weight,sheet_area,notes)
@@ -2046,7 +2063,12 @@ class Handler(BaseHTTPRequestHandler):
         def v(k,default=''):return d.get(k,default).strip()
         try:
             with LOCK, conn() as c:
-                if path in ('add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return'):
+                protected_financial_posts = {
+                    'add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return',
+                    'add_service','add_loan','add_payment','add_price','add_settlement','add_cash_movement',
+                    'inventory_adjust',
+                }
+                if path in protected_financial_posts:
                     submission=d.get('_submission_token','').strip()
                     if not submission:
                         raise ValueError('فرم ثبت تراکنش شناسهٔ معتبر ندارد؛ صفحه را تازه‌سازی کن و دوباره ثبت کن.')
@@ -2055,10 +2077,10 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('این فرم قبلاً ارسال شده یا منقضی است؛ برای جلوگیری از ثبت تکراری، صفحه را تازه‌سازی کن.')
                 if path=='add_product':
                     product_name=normalize_person(v('name'))
-                    pf=num(v('purchase_factor',1)); sf=num(v('sale_factor',1))
+                    pf=strict_number(v('purchase_factor',1),'ضریب تبدیل خرید'); sf=strict_number(v('sale_factor',1),'ضریب تبدیل فروش')
                     if not product_name or pf<=0 or sf<=0: raise ValueError('نام کالا و ضرایب تبدیل معتبر الزامی هستند.')
-                    stock=num(v('stock')); avg_cost=money_int(v('avg_cost')); market_price=money_int(v('market_price')); min_stock=num(v('min_stock'))
-                    roll_weight=num(v('roll_weight')); sheet_area=num(v('sheet_area'))
+                    stock=strict_number(v('stock'),'موجودی'); avg_cost=strict_money_int(v('avg_cost'),'بهای خرید'); market_price=strict_money_int(v('market_price'),'قیمت روز'); min_stock=strict_number(v('min_stock'),'حداقل موجودی',True)
+                    roll_weight=strict_number(v('roll_weight'),'وزن رول',True); sheet_area=strict_number(v('sheet_area'),'مساحت ورق',True)
                     if stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
                         raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
                     duplicate=any(normalize_person(row['name']).casefold()==product_name.casefold() for row in c.execute('SELECT name FROM products'))
@@ -2070,7 +2092,7 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id')); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p: raise ValueError('کالا پیدا نشد.')
                     product_name=normalize_person(v('name'))
-                    pf=num(v('purchase_factor')); sf=num(v('sale_factor')); new_stock=num(v('stock'),-1)
+                    pf=strict_number(v('purchase_factor'),'ضریب تبدیل خرید'); sf=strict_number(v('sale_factor'),'ضریب تبدیل فروش'); new_stock=strict_number(v('stock'),'موجودی')
                     if not product_name or pf<=0 or sf<=0: raise ValueError('نام و ضرایب تبدیل باید معتبر باشند.')
                     duplicate=any(normalize_person(row['name']).casefold()==product_name.casefold() for row in c.execute('SELECT name FROM products WHERE id<>?',(pid,)))
                     if duplicate: raise ValueError('نام این کالا با کالای دیگری تکراری است.')
@@ -2084,8 +2106,8 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if has_movement and unit_mapping_changed:
                         raise ValueError('این کالا سابقهٔ گردش دارد؛ تغییر واحد پایه، واحد خرید/فروش یا ضریب تبدیل مسدود است تا مانده‌های تاریخی خراب نشوند.')
-                    avg_cost=money_int(v('avg_cost')); market_price=money_int(v('market_price')); min_stock=num(v('min_stock'))
-                    roll_weight=num(v('roll_weight')); sheet_area=num(v('sheet_area'))
+                    avg_cost=strict_money_int(v('avg_cost'),'بهای خرید'); market_price=strict_money_int(v('market_price'),'قیمت روز'); min_stock=strict_number(v('min_stock'),'حداقل موجودی',True)
+                    roll_weight=strict_number(v('roll_weight'),'وزن رول',True); sheet_area=strict_number(v('sheet_area'),'مساحت ورق',True)
                     if new_stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
                         raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
                     old_stock=float(p['stock'] or 0); stock_delta=new_stock-old_stock
@@ -2101,7 +2123,7 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id'))
                     try: qty=strict_number(v('qty'),'مقدار خرید')
                     except ValueError: raise ValueError('کالا، مقدار یا قیمت/هزینه خرید نامعتبر است؛ مبالغ جانبی و پرداخت نباید منفی باشند.')
-                    cost=strict_money_int(v('unit_cost'),'قیمت خرید',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی خرید',True); paid=strict_money_int(v('paid'),'مبلغ پرداختی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    cost=strict_money_int(v('unit_cost'),'قیمت خرید'); extra=strict_money_int(v('extra_cost'),'هزینه جانبی خرید',True); paid=strict_money_int(v('paid'),'مبلغ پرداختی'); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('کالا، مقدار یا قیمت/هزینه خرید نامعتبر است؛ مبالغ جانبی و پرداخت نباید منفی باشند.')
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
@@ -2116,7 +2138,7 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id'))
                     try: qty=strict_number(v('qty'),'مقدار فروش')
                     except ValueError: raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
-                    price=strict_money_int(v('unit_price'),'قیمت فروش',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی فروش',True); received=strict_money_int(v('received'),'مبلغ دریافتی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    price=strict_money_int(v('unit_price'),'قیمت فروش'); extra=strict_money_int(v('extra_cost'),'هزینه جانبی فروش',True); received=strict_money_int(v('received'),'مبلغ دریافتی'); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
@@ -2128,16 +2150,16 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('UPDATE products SET stock=stock-? WHERE id=?',(base_qty,pid)); dest='/sales';msg=f'فروش ثبت شد؛ {qty:g} {p["sale_unit"]} معادل {base_qty:g} {p["unit"]} از موجودی کم شد.'
                 elif path=='add_service':
                     service_date=to_iso_date(v('date',jalali_today())); title=normalize_person(v('title'))
-                    revenue=money_int(v('revenue'),-1); cost=money_int(v('cost'),-1); received=money_int(v('received'),-1)
+                    revenue=strict_money_int(v('revenue'),'درآمد خدمت'); cost=strict_money_int(v('cost'),'هزینه خدمت'); received=strict_money_int(v('received'),'مبلغ دریافتی')
                     if not title or revenue<=0 or cost<0 or received<0:
                         raise ValueError('شرح خدمت الزامی است؛ درآمد باید بیشتر از صفر و هزینه و دریافتی نباید منفی باشند.')
                     service_cur=c.execute('INSERT INTO services(date,title,revenue,cost,received,customer,notes) VALUES(?,?,?,?,?,?,?)',(service_date,title,revenue,cost,received,v('customer'),v('notes')))
                     service_id=service_cur.lastrowid
                     link_party(c,"services","customer_person_id",service_id,v('customer'),'customer')
-                    sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),num(v('received')),"in",v('customer'),v('notes') or "دریافت خدمات")
+                    sync_cash_posting(c,"services",service_id,to_iso_date(v('date',jalali_today())),received,"in",v('customer'),v('notes') or "دریافت خدمات")
                     dest='/services';msg='درآمد خدمات ثبت شد.'
                 elif path=='add_expense':
-                    date=to_iso_date(v('date',jalali_today())); category=normalize_person(v('category')); amount=money_int(v('amount'),-1)
+                    date=to_iso_date(v('date',jalali_today())); category=normalize_person(v('category')); amount=strict_money_int(v('amount'),'مبلغ هزینه')
                     business=v('business','1'); source=v('source','نامشخص')
                     if not category or amount<=0 or business not in ('0','1'):
                         raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست؛ مبلغ باید بیشتر از صفر باشد.')
@@ -2146,18 +2168,20 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"expenses",expense_id,date,amount,"out",source,v('notes') or "پرداخت هزینه")
                     dest='/expenses';msg='پرداخت هزینه ثبت شد.'
                 elif path=='add_loan':
-                    interval_value=int(num(v('interval_value',1)))
+                    interval_number=strict_number(v('interval_value',1),'فاصله سررسید')
+                    if not interval_number.is_integer(): raise ValueError('فاصله سررسید باید عدد صحیح باشد.')
+                    interval_value=int(interval_number)
                     interval_unit=v('interval_unit','month')
                     if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
                         raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
-                    title=normalize_person(v('title')); principal=money_int(v('principal'),-1); remaining=money_int(v('remaining'),-1); installment=money_int(v('installment'),-1)
+                    title=normalize_person(v('title')); principal=strict_money_int(v('principal'),'اصل وام'); remaining=strict_money_int(v('remaining'),'مانده وام'); installment=strict_money_int(v('installment'),'مبلغ قسط')
                     if not title or principal<=0 or remaining<0 or remaining>principal or installment<=0:
                         raise ValueError('عنوان وام و قسط باید معتبر باشند؛ اصل و قسط باید مثبت و مانده بین صفر و اصل وام باشد.')
                     loan_cur=c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(title,principal,remaining,installment,to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit))
                     new_loan_id=loan_cur.lastrowid
                     dest='/loans';msg='وام ثبت شد.'
                 elif path=='add_payment':
-                    lid=int(v('loan_id')); amount=money_int(v('amount')); principal=money_int(v('principal_part')); interest=money_int(v('interest_part')); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
+                    lid=int(v('loan_id')); amount=strict_money_int(v('amount'),'مبلغ قسط'); principal=strict_money_int(v('principal_part'),'سهم اصل قسط'); interest=strict_money_int(v('interest_part'),'سهم سود/کارمزد'); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
                     if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
                     if amount<=0 or principal<0 or interest<0: raise ValueError('مبلغ قسط باید مثبت و سهم اصل و سود/کارمزد نباید منفی باشد.')
                     if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
@@ -2168,7 +2192,7 @@ class Handler(BaseHTTPRequestHandler):
                     nextdate=add_interval_date(loan['next_date'],loan['interval_value'],loan['interval_unit'])
                     c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=? WHERE id=?',(principal,nextdate,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل و سررسید بعدی به‌روزرسانی شد.'
                 elif path=='add_price':
-                    pid=int(v('product_id')); price=money_int(v('market_price')); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
+                    pid=int(v('product_id')); price=strict_money_int(v('market_price'),'قیمت روز'); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
                     if price<=0: raise ValueError('قیمت روز باید بیشتر از صفر باشد.')
                     price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')))
@@ -2183,7 +2207,7 @@ class Handler(BaseHTTPRequestHandler):
                     person_id=ensure_person(c,name,kind,v('phone'),v('notes'))
                     dest='/parties';msg='طرف حساب ثبت شد.'
                 elif path=='add_settlement':
-                    party=normalize_person(v('party')); kind=v('kind'); amount=money_int(v('amount'))
+                    party=normalize_person(v('party')); kind=v('kind'); amount=strict_money_int(v('amount'),'مبلغ تسویه')
                     if not party: raise ValueError('طرف حساب را انتخاب کن.')
                     if kind not in ('receive','pay') or amount<=0: raise ValueError('نوع یا مبلغ تسویه نامعتبر است.')
                     person_id=ensure_person(c,party,'both')
@@ -2199,7 +2223,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند خرید پیدا نشد.')
                     assert_purchase_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=strict_number(v("qty"),"مقدار خرید"); cost=strict_money_int(v("unit_cost"),"قیمت خرید"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی خرید",True); paid=strict_money_int(v("paid"),"مبلغ پرداختی",True)
+                    qty=strict_number(v("qty"),"مقدار خرید"); cost=strict_money_int(v("unit_cost"),"قیمت خرید"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی خرید",True); paid=strict_money_int(v("paid"),"مبلغ پرداختی")
                     if qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('مقدار و مبالغ خرید باید معتبر و غیرمنفی باشند.')
                     factor=num(product["purchase_factor"] or 1,1) or 1
                     stock_before=float(product["stock"] or 0)-float(row["qty"])*factor
@@ -2238,7 +2262,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند فروش پیدا نشد.')
                     assert_sale_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=strict_number(v("qty"),"مقدار فروش"); price=strict_money_int(v("unit_price"),"قیمت فروش"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی فروش",True); received=strict_money_int(v("received"),"مبلغ دریافتی",True)
+                    qty=strict_number(v("qty"),"مقدار فروش"); price=strict_money_int(v("unit_price"),"قیمت فروش"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی فروش",True); received=strict_money_int(v("received"),"مبلغ دریافتی")
                     if qty<=0 or price<=0 or extra<0 or received<0: raise ValueError('مقدار باید مثبت، قیمت فروش بیشتر از صفر و هزینه و دریافتی غیرمنفی باشند.')
                     new_stock=float(product["stock"] or 0)+float(row["qty"])-qty
                     if new_stock < -0.000001: raise ValueError('اصلاح مقدار فروش موجودی منفی ایجاد می‌کند.')
@@ -2263,7 +2287,7 @@ class Handler(BaseHTTPRequestHandler):
                     rid=int(v('record_id'))
                     row=c.execute("SELECT * FROM expenses WHERE id=?",(rid,)).fetchone()
                     if row is None: raise ValueError('سند هزینه پیدا نشد.')
-                    date=to_iso_date(v('date',jalali_today())); category=v('category'); amount=money_int(v('amount'),-1)
+                    date=to_iso_date(v('date',jalali_today())); category=v('category'); amount=strict_money_int(v('amount'),'مبلغ هزینه')
                     business=v('business','1'); source=v('source','نامشخص')
                     if not category or amount<=0 or business not in ('0','1'): raise ValueError('شرح، مبلغ یا نوع هزینه معتبر نیست؛ مبلغ باید بیشتر از صفر باشد.')
                     c.execute("UPDATE expenses SET date=?,category=?,amount=?,source=?,business=?,notes=? WHERE id=?",
@@ -2278,7 +2302,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("DELETE FROM expenses WHERE id=?",(rid,))
                     dest='/expenses';msg='هزینه/برداشت حذف شد.'
                 elif path=='add_sales_return':
-                    sale_id=int(v("sale_id")); qty=num(v("qty"),-1); refund=money_int(v("refund_amount"),-1)
+                    sale_id=int(v("sale_id")); qty=strict_number(v("qty"),"مقدار مرجوعی فروش"); refund=strict_money_int(v("refund_amount"),"وجه برگشتی")
                     reason=normalize_person(v("reason"))
                     sale=c.execute("SELECT s.*,p.name,p.unit,p.stock,p.avg_cost FROM sales s JOIN products p ON p.id=s.product_id WHERE s.id=?",(sale_id,)).fetchone()
                     if sale is None: raise ValueError("سند فروش اصلی پیدا نشد.")
@@ -2303,7 +2327,7 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"sales_returns",return_id,to_iso_date(v("date",jalali_today())),refund,"out",sale["customer"],reason)
                     dest='/returns';msg='مرجوعی فروش ثبت شد؛ موجودی، سود و صندوق به‌روزرسانی شد.'
                 elif path=='add_purchase_return':
-                    purchase_id=int(v("purchase_id")); qty=num(v("qty"),-1); cash_refund=money_int(v("cash_refund"),-1)
+                    purchase_id=int(v("purchase_id")); qty=strict_number(v("qty"),"مقدار مرجوعی خرید"); cash_refund=strict_money_int(v("cash_refund"),"وجه برگشتی")
                     reason=normalize_person(v("reason"))
                     purchase=c.execute("""SELECT p.*,pr.name,pr.unit,pr.stock,pr.avg_cost,pr.purchase_factor
                                            FROM purchases p JOIN products pr ON pr.id=p.product_id WHERE p.id=?""",(purchase_id,)).fetchone()
@@ -2333,7 +2357,7 @@ class Handler(BaseHTTPRequestHandler):
                     sync_cash_posting(c,"purchase_returns",return_id,to_iso_date(v("date",jalali_today())),cash_refund,"in",purchase["supplier"],reason)
                     dest='/returns';msg='مرجوعی خرید ثبت شد؛ موجودی، حساب فروشنده و صندوق به‌روزرسانی شد.'
                 elif path=='inventory_adjust':
-                    pid=int(v('product_id')); counted=num(v('counted_qty'),-1)
+                    pid=int(v('product_id')); counted=strict_number(v('counted_qty'),'موجودی شمارش‌شده')
                     product=c.execute("SELECT * FROM products WHERE id=?",(pid,)).fetchone()
                     reason=normalize_person(v('reason'))
                     if product is None: raise ValueError('کالا پیدا نشد.')
@@ -2348,7 +2372,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute("UPDATE products SET stock=? WHERE id=?",(counted,pid))
                     dest='/inventory';msg=f'انبارگردانی ثبت شد؛ اختلاف {delta:+g} {product["unit"]} اعمال شد.'
                 elif path=='add_cash_movement':
-                    kind=v('kind'); amount=money_int(v('amount'))
+                    kind=v('kind'); amount=strict_money_int(v('amount'),'مبلغ گردش')
                     if amount<=0: raise ValueError('مبلغ گردش باید عدد صحیح بزرگ‌تر از صفر باشد.')
                     date=to_iso_date(v('date',jalali_today())); src=v('from_account_id'); dst=v('to_account_id')
                     src_id=int(src) if src else None; dst_id=int(dst) if dst else None

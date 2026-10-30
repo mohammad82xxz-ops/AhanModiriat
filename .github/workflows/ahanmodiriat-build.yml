@@ -15,7 +15,7 @@ jobs:
           python-version: "3.12"
       - name: Compile
         working-directory: AhanModiriatBuildKit
-        run: python -m py_compile app.py test_smoke.py test_design_system.py test_cash_ledger.py test_party_ledger.py test_backup_restore.py test_inventory_ledger.py test_transaction_reversals.py test_loan_intervals.py test_purchase_advice.py test_returns.py test_pagination_search.py test_excel_io.py test_profit_reports.py test_local_security.py test_money_schema_migration.py test_accessibility_contrast.py test_browser_ui.py test_browser_workflows.py test_browser_accessibility_proxies.py test_lighthouse_accessibility.py
+        run: python -m py_compile app.py test_smoke.py test_design_system.py test_cash_ledger.py test_party_ledger.py test_backup_restore.py test_inventory_ledger.py test_transaction_reversals.py test_loan_intervals.py test_purchase_advice.py test_returns.py test_pagination_search.py test_excel_io.py test_profit_reports.py test_local_security.py test_money_schema_migration.py test_accessibility_contrast.py test_browser_ui.py test_browser_workflows.py test_browser_accessibility_proxies.py test_lighthouse_accessibility.py test_phase2_validation_edges.py
       - name: Isolated smoke tests
         working-directory: AhanModiriatBuildKit
         run: |
@@ -35,6 +35,7 @@ jobs:
           python test_local_security.py
           python test_money_schema_migration.py
           python test_accessibility_contrast.py
+          python test_phase2_validation_edges.py
           node --check static/app.js
           node test_jalali_picker.js
       - name: Install Playwright for browser acceptance tests

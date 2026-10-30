@@ -32,7 +32,11 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        with app.conn() as c:
+            token_markup = app.submission_token(c, "inventory_adjust")
+            submission_token = token_markup.split('value="', 1)[1].split('"', 1)[0]
         data = urllib.parse.urlencode({
+            "_submission_token": submission_token,
             "date": "2026-01-03",
             "product_id": str(pid),
             "counted_qty": "7",

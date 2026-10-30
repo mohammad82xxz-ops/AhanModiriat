@@ -75,6 +75,17 @@ def main():
         with app.conn() as c:
             assert c.execute("SELECT COUNT(*) FROM products WHERE name='excel steel'").fetchone()[0] == 1
             assert c.execute("SELECT stock FROM products WHERE name='excel steel'").fetchone()[0] == 3
+
+        # Malformed/non-finite numeric cells must be skipped, never stored as NULL/NaN.
+        invalid_product_rows = [
+            ["name","code","unit","stock","avg_cost","market_price","min_stock","category","purchase_unit","purchase_factor","sale_unit","sale_factor","roll_weight","sheet_area","notes"],
+            ["nan stock steel","NAN-1","kg","nan",12,18,1,"پروفیل","kg",1,"kg",1,0,0,"invalid stock"],
+            ["infinite cost steel","INF-1","kg",3,"inf",18,1,"پروفیل","kg",1,"kg",1,0,0,"invalid cost"],
+        ]
+        invalid_workbook = app.build_xlsx_workbook([("Products", invalid_product_rows)])
+        post_import(port, "Products", invalid_workbook)
+        with app.conn() as c:
+            assert c.execute("SELECT COUNT(*) FROM products WHERE name IN ('nan stock steel','infinite cost steel')").fetchone()[0] == 0
         post_import(port, "People", workbook_bytes)
         with app.conn() as c:
             person = c.execute("SELECT * FROM people WHERE name='Excel Customer'").fetchone()
