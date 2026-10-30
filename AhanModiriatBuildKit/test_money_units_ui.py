@@ -86,6 +86,16 @@ def main():
             pass
         else:
             raise AssertionError("non-finite line amount was accepted")
+        for operation in (
+            lambda: app.strict_money_int("1e30", "overflowing amount"),
+            lambda: app.money_line_total("1e30", "1000"),
+        ):
+            try:
+                operation()
+            except ValueError as exc:
+                assert "ظرفیت" in str(exc), str(exc)
+            else:
+                raise AssertionError("out-of-range integer rial amount was accepted")
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("MONEY UNIT UI TESTS PASSED")
 
