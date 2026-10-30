@@ -336,6 +336,11 @@ MONEY_INTEGER_COLUMNS = {
 
 def migrate_money_columns_to_integer(c):
     """Safely rebuild tables where legacy monetary columns use REAL; preserve all schema objects."""
+    # SQLite may rewrite child FK targets to the temporary table name during RENAME.
+    # The application suspends FK checks for this migration; legacy rename behavior
+    # keeps existing REFERENCES clauses pointing at the original stable table names.
+    legacy_alter = c.execute("PRAGMA legacy_alter_table").fetchone()[0]
+    c.execute("PRAGMA legacy_alter_table=ON")
     migrated=0
     for table, candidates in MONEY_INTEGER_COLUMNS.items():
         table_row=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone()
@@ -381,6 +386,7 @@ def migrate_money_columns_to_integer(c):
         for obj in objects:
             c.execute(obj["sql"])
         migrated+=len(to_convert)
+    c.execute(f"PRAGMA legacy_alter_table={1 if legacy_alter else 0}")
     return migrated
 
 RIAL_UNIT_VERSION = "rial-v1"
