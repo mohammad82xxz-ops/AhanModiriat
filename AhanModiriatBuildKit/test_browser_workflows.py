@@ -217,7 +217,7 @@ def main() -> None:
                         "amount": "",
                         "principal": "0",
                         "interest": "0",
-                        "message": "مبلغ قسط باید مثبت",
+                        "message": "مبلغ قسط",
                     },
                 ]
                 for case in invalid_payment_cases:
