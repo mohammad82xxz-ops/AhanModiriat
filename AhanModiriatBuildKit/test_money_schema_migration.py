@@ -93,11 +93,16 @@ def main():
     legacy_path=Path(TMP.name)/"legacy.db"
     c=create_legacy_db(legacy_path)
     try:
+        # Match init(): disable FK enforcement only for the table rebuild, then
+        # re-enable it after commit and verify every relationship still resolves.
+        c.execute("PRAGMA foreign_keys=OFF")
+        assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 0
         scaled_rows=app.migrate_money_units_to_rial(c)
         assert scaled_rows==15, scaled_rows
         converted=app.migrate_money_columns_to_integer(c)
         assert converted==23, converted
         c.commit()
+        c.execute("PRAGMA foreign_keys=ON")
 
         expected={
             "products":{"market_price":186},
