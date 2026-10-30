@@ -402,7 +402,7 @@ RIAL_SCALE_COLUMNS = {
 }
 
 def migrate_money_units_to_rial(c):
-    \"\"\"One-time, atomic scale migration from legacy toman values to integer rial.\"\"\"
+    """One-time, atomic scale migration from legacy toman values to integer rial."""
     c.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     marker = c.execute("SELECT value FROM settings WHERE key=?", (RIAL_UNIT_SETTING,)).fetchone()
     if marker:
