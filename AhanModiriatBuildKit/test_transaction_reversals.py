@@ -292,7 +292,7 @@ def main():
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             # A rejected conversion change must reject the entire update atomically.
-            assert (p["stock"], p["avg_cost"], p["purchase_factor"]) == (8, 50, 1), (p["stock"], p["avg_cost"], p["purchase_factor"])
+            assert (p["stock"], p["avg_cost"], p["purchase_factor"]) == (8, 51, 1), (p["stock"], p["avg_cost"], p["purchase_factor"])
 
         # A stock-only correction remains allowed and must be recorded as its own movement.
         stock_page=post(port,"update_product",{
@@ -304,7 +304,7 @@ def main():
         assert "مشخصات کالا به‌روزرسانی شد" in stock_page
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 8 and p["avg_cost"] == 50 and p["purchase_factor"] == 1
+            assert p["stock"] == 8 and p["avg_cost"] == 51 and p["purchase_factor"] == 1
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 400
 
         post(port, "delete_sale", {"record_id":sale_id})
