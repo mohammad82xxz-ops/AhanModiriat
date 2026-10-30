@@ -203,7 +203,7 @@ def main():
             else:
                 raise AssertionError(f"invalid legacy value was accepted: {table}.{column}={bad_value}")
             assert rollback_db.execute("SELECT avg_cost FROM products WHERE id=1").fetchone()[0] == 12.7
-            assert rollback_db.execute("SELECT unit_cost FROM purchases WHERE id=1").fetchone()[0] == 100.6
+            assert rollback_db.execute("SELECT unit_cost FROM purchases WHERE id=4").fetchone()[0] == 100.6
             assert rollback_db.execute(
                 "SELECT value FROM settings WHERE key=?", (app.RIAL_UNIT_SETTING,)
             ).fetchone() is None
