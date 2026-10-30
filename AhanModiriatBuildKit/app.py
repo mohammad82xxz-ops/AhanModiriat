@@ -1475,10 +1475,12 @@ def assert_purchase_reversible(c, row):
     later = (
         scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=? AND id<>?",(pid,date,rid)) +
         scalar(c,"SELECT COUNT(*) FROM sales WHERE product_id=? AND date>=?",(pid,date)) +
-        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
+        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM sales_returns WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM purchase_returns WHERE product_id=? AND date>=?",(pid,date))
     )
     if later:
-        raise ValueError("این خرید گردش دیگری در همان تاریخ یا پس از آن دارد؛ ابتدا سندهای وابسته را اصلاح کن.")
+        raise ValueError("این خرید گردش دیگری یا مرجوعیِ بعدی دارد؛ ابتدا اسناد وابسته را اصلاح کن.")
 
 def assert_sale_reversible(c, row):
     pid, date = row["product_id"], row["date"]
@@ -1486,10 +1488,12 @@ def assert_sale_reversible(c, row):
         raise ValueError("این فروش دارای سند مرجوعی است؛ برای حفظ ریزحساب و موجودی فروش اصلی را ویرایش یا حذف نکن.")
     later = (
         scalar(c,"SELECT COUNT(*) FROM purchases WHERE product_id=? AND date>=?",(pid,date)) +
-        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date))
+        scalar(c,"SELECT COUNT(*) FROM inventory_adjustments WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM sales_returns WHERE product_id=? AND date>=?",(pid,date)) +
+        scalar(c,"SELECT COUNT(*) FROM purchase_returns WHERE product_id=? AND date>=?",(pid,date))
     )
     if later:
-        raise ValueError("پس از این فروش خرید یا تعدیل موجودی ثبت شده؛ برای حفظ میانگین موزون، اصلاح/حذف خودکار ایمن نیست.")
+        raise ValueError("پس از این فروش خرید، تعدیل یا مرجوعی موجودی ثبت شده؛ برای حفظ میانگین موزون، اصلاح/حذف خودکار ایمن نیست.")
 
 def submission_token(c, action):
     """Issue a one-use token for a state-changing finance form."""
