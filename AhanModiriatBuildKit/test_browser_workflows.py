@@ -210,7 +210,7 @@ def main() -> None:
                         "amount": "-1",
                         "principal": "0",
                         "interest": "0",
-                        "message": "مبلغ قسط باید مثبت",
+                        "message": "مبلغ قسط نمی‌تواند منفی باشد.",
                     },
                     {
                         "label": "missing payment amount",
