@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 import sqlite3, json, datetime, html, os, threading, webbrowser, sys, mimetypes, tempfile, calendar, io, zipfile, re, secrets, math, xml.etree.ElementTree as ET
 from email.parser import BytesParser
+from decimal import Decimal, InvalidOperation
 from email.policy import default as email_policy
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
@@ -640,10 +641,13 @@ def strict_number(v, label, allow_blank=False):
         raise ValueError(f"{label} الزامی است و باید عدد معتبر باشد.")
     try:
         amount = float(cleaned)
-    except (ValueError, TypeError):
+        exact_amount = Decimal(cleaned)
+    except (ValueError, TypeError, InvalidOperation):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
-    if not math.isfinite(amount):
+    if not math.isfinite(amount) or not exact_amount.is_finite():
         raise ValueError(f"{label} باید عدد معتبر باشد.")
+    if exact_amount < 0:
+        raise ValueError(f"{label} نمی‌تواند منفی باشد.")
     return amount
 
 def strict_money_int(v, label, allow_blank=False):
@@ -655,11 +659,12 @@ def strict_money_int(v, label, allow_blank=False):
         raise ValueError(f"{label} الزامی است و باید عدد معتبر باشد.")
     try:
         amount = float(cleaned)
-    except (ValueError, TypeError):
+        exact_amount = Decimal(cleaned)
+    except (ValueError, TypeError, InvalidOperation):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
-    if not math.isfinite(amount):
+    if not math.isfinite(amount) or not exact_amount.is_finite():
         raise ValueError(f"{label} باید عدد معتبر باشد.")
-    if amount < 0:
+    if exact_amount < 0:
         raise ValueError(f"{label} نمی‌تواند منفی باشد.")
     return money_int(amount)
 def money(v): return f'{v:,.0f}'
