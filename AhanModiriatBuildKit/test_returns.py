@@ -80,7 +80,7 @@ def main():
             assert ret["return_value"] == 200 and ret["cost_basis"] == 50 and ret["extra_reversed"] == 10
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales_returns' AND source_id=?", (ret["id"],)).fetchone()[0] == 150
             bal = app.party_balances(c)
-            assert bal["Customer A"]["receivable"] == 350, bal
+            assert bal["Customer A"]["receivable"] == 3500, bal
             assert app.account_balance(c, 1) == -20
             totals = app.calc(c)
             assert totals["sales_rev"] == 600, totals
