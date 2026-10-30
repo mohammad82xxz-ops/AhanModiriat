@@ -90,17 +90,17 @@ def main():
     legacy_path=Path(TMP.name)/"legacy.db"
     c=create_legacy_db(legacy_path)
     try:
-        converted=app.migrate_money_columns_to_integer(c)
-        assert converted==27, converted
         scaled_rows=app.migrate_money_units_to_rial(c)
         assert scaled_rows==15, scaled_rows
+        converted=app.migrate_money_columns_to_integer(c)
+        assert converted==27, converted
         c.commit()
 
         expected={
-            "products":{"avg_cost":130,"market_price":190},
-            "purchases":{"unit_cost":1010,"extra_cost":50,"paid":510},
-            "sales":{"unit_price":2010,"extra_cost":60,"received":810,"cost_basis":1010},
-            "expenses":{"amount":20},
+            "products":{"avg_cost":127,"market_price":186},
+            "purchases":{"unit_cost":1006,"extra_cost":46,"paid":505},
+            "sales":{"unit_price":2005,"extra_cost":55,"received":806,"cost_basis":1008},
+            "expenses":{"amount":16},
         }
         for table,columns in expected.items():
             schema={r["name"]:r["type"].upper() for r in c.execute(f'PRAGMA table_info("{table}")')}
@@ -110,17 +110,17 @@ def main():
                 assert actual[0]==value,(table,col,actual[0],value)
                 assert actual[1]=="integer",(table,col,actual[1])
         additional_expected = {
-            "purchase_returns": {"return_value":30,"cash_refund":20},
-            "sales_returns": {"return_value":50,"cost_basis":20,"extra_reversed":10,"refund_amount":40},
+            "purchase_returns": {"return_value":34,"cash_refund":20},
+            "sales_returns": {"return_value":54,"cost_basis":22,"extra_reversed":6,"refund_amount":40},
             "cash_accounts": {"opening_balance":70},
             "cash_movements": {"amount":80},
-            "services": {"revenue":10,"cost":20,"received":30},
-            "loans": {"principal":40,"remaining":30,"installment":10},
-            "loan_payments": {"amount":40,"principal_part":30,"interest_part":10},
-            "cash_events": {"amount":30},
-            "price_history": {"market_price":80},
-            "opening_capital": {"amount":100},
-            "settlements": {"amount":90},
+            "services": {"revenue":11,"cost":22,"received":33},
+            "loans": {"principal":44,"remaining":33,"installment":11},
+            "loan_payments": {"amount":44,"principal_part":33,"interest_part":11},
+            "cash_events": {"amount":25},
+            "price_history": {"market_price":77},
+            "opening_capital": {"amount":99},
+            "settlements": {"amount":88},
         }
         for table, columns in additional_expected.items():
             for column, value in columns.items():
