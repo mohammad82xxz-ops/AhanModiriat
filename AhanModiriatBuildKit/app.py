@@ -2273,7 +2273,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
-                    base_price=money_int(price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1))
+                    base_price=money_int(Decimal(str(price))/Decimal(str(num(p['sale_factor'] if 'sale_factor' in p.keys() else 1))))
                     sale_cur=c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
                     sale_id=sale_cur.lastrowid
                     link_party(c,"sales","customer_person_id",sale_id,v('customer'),'customer')
@@ -2361,7 +2361,7 @@ class Handler(BaseHTTPRequestHandler):
                     if stock_before < -0.000001: raise ValueError('برگشت این خرید موجودی منفی ایجاد می‌کند؛ بررسی دستی لازم است.')
                     value_before=money_line_total(product["stock"] or 0,product["avg_cost"] or 0)-(money_line_total(row["qty"],row["unit_cost"])+int(row["extra_cost"] or 0))
                     if value_before < -0.05: raise ValueError('بهای خرید قبلی با ارزش موجودی فعلی سازگار نیست؛ اصلاح خودکار ایمن نیست.')
-                    value_before=max(value_before,0.0)
+                    value_before=max(value_before,0)
                     new_stock=stock_before+qty*factor
                     new_value=value_before+money_line_total(qty,cost)+extra
                     new_avg=money_average(new_value,new_stock) if new_stock>0.000001 else 0
@@ -2382,7 +2382,7 @@ class Handler(BaseHTTPRequestHandler):
                     if new_stock < -0.000001: raise ValueError('حذف این خرید موجودی منفی ایجاد می‌کند.')
                     new_value=money_line_total(product["stock"] or 0,product["avg_cost"] or 0)-(money_line_total(row["qty"],row["unit_cost"])+int(row["extra_cost"] or 0))
                     if new_value < -0.05: raise ValueError('بهای خرید با ارزش موجودی فعلی سازگار نیست؛ حذف خودکار ایمن نیست.')
-                    new_avg=money_int(max(new_value,0.0)/new_stock) if new_stock>0.000001 else 0
+                    new_avg=money_average(max(new_value,0),new_stock) if new_stock>0.000001 else 0
                     c.execute("DELETE FROM cash_movements WHERE source_table='purchases' AND source_id=?",(rid,))
                     c.execute("DELETE FROM purchases WHERE id=?",(rid,))
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(max(new_stock,0.0),new_avg,row["product_id"]))
@@ -2448,7 +2448,7 @@ class Handler(BaseHTTPRequestHandler):
                     extra_reversed=money_int(Decimal(str(sale["extra_cost"] or 0))*Decimal(str(qty))/Decimal(str(sale["qty"])))
                     c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
                                  VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                              (to_iso_date(v("date",jalali_today())),sale_id,sale["product_id"],sale["customer"] or "",qty,return_value,float(sale["cost_basis"] or 0),extra_reversed,refund,reason,v("notes")))
+                              (to_iso_date(v("date",jalali_today())),sale_id,sale["product_id"],sale["customer"] or "",qty,return_value,int(sale["cost_basis"] or 0),extra_reversed,refund,reason,v("notes")))
                     return_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(sale["product_id"],)).fetchone()
                     old_stock=float(product["stock"] or 0); old_value=money_line_total(old_stock,product["avg_cost"] or 0)
