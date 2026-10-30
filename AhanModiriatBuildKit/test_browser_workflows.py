@@ -631,8 +631,39 @@ def main() -> None:
                     assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
                     assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
+                # Unit conversion must not round a fractional base-unit price before
+                # calculating the original sale line total.
+                with app.conn() as c:
+                    factor_product_id = c.execute(
+                        """INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
+                                   purchase_unit,purchase_factor,sale_unit,sale_factor)
+                           VALUES('Phase2 Factor2 Sale','kg',10,1000,1500,0,'kg',1,'شاخه',2)"""
+                    ).lastrowid
+                    sales_revenue_before = app.calc(c)["sales_rev"]
+                page.goto(base + "/sales", wait_until="networkidle")
+                form = page.locator('form[action="/add_sale"]')
+                form.locator('[name="product_id"]').select_option(str(factor_product_id))
+                form.locator('[name="qty"]').fill("1")
+                form.locator('[name="unit_price"]').fill("100.5")
+                form.locator('[name="extra_cost"]').fill("0")
+                form.locator('[name="received"]').fill("0")
+                form.locator('[name="customer"]').fill("Factor2 Customer")
+                form.locator("button").last.click()
+                with app.conn() as c:
+                    factor_sale = c.execute(
+                        "SELECT * FROM sales WHERE product_id=? ORDER BY id DESC LIMIT 1",
+                        (factor_product_id,),
+                    ).fetchone()
+                    assert factor_sale is not None
+                    assert factor_sale["qty"] == 2
+                    assert factor_sale["unit_price"] == 503
+                    assert factor_sale["line_total"] == 1005, dict(factor_sale)
+                    assert app.calc(c)["sales_rev"] - sales_revenue_before == 1005
+                    assert app.party_balances(c)["Factor2 Customer"]["receivable"] == 1005
+                    assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
                 assert not page_errors, page_errors
-                print("BROWSER WORKFLOWS PASSED: product -> purchase -> sale -> expense -> physical inventory count.")
+                print("BROWSER WORKFLOWS PASSED: product -> purchase -> sale -> expense -> inventory count -> exact unit-converted sales total.")
             finally:
                 browser.close()
     finally:
