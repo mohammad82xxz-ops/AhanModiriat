@@ -182,6 +182,11 @@ def main() -> None:
                 "remaining": "100", "installment": "20",
                 "interval_value": "1", "interval_unit": "month",
             }),
+            ("add_loan", {
+                "title": "invalid fractional interval", "principal": "100",
+                "remaining": "100", "installment": "20",
+                "interval_value": "1.5", "interval_unit": "month",
+            }),
             ("add_payment", {
                 "loan_id": loan_id, "amount": "nan", "principal_part": "0",
                 "interest_part": "0", "date": "2026-01-04",
