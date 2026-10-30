@@ -2199,7 +2199,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند خرید پیدا نشد.')
                     assert_purchase_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=num(v("qty"),-1); cost=money_int(v("unit_cost"),-1); extra=money_int(v("extra_cost")); paid=money_int(v("paid"),-1)
+                    qty=strict_number(v("qty"),"مقدار خرید"); cost=strict_money_int(v("unit_cost"),"قیمت خرید"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی خرید",True); paid=strict_money_int(v("paid"),"مبلغ پرداختی",True)
                     if qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('مقدار و مبالغ خرید باید معتبر و غیرمنفی باشند.')
                     factor=num(product["purchase_factor"] or 1,1) or 1
                     stock_before=float(product["stock"] or 0)-float(row["qty"])*factor
@@ -2238,8 +2238,8 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند فروش پیدا نشد.')
                     assert_sale_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=num(v("qty"),-1); price=money_int(v("unit_price"),-1); extra=money_int(v("extra_cost")); received=money_int(v("received"),-1)
-                    if qty<=0 or price<0 or extra<0 or received<0: raise ValueError('مقدار و مبالغ فروش باید معتبر و غیرمنفی باشند.')
+                    qty=strict_number(v("qty"),"مقدار فروش"); price=strict_money_int(v("unit_price"),"قیمت فروش"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی فروش",True); received=strict_money_int(v("received"),"مبلغ دریافتی",True)
+                    if qty<=0 or price<=0 or extra<0 or received<0: raise ValueError('مقدار باید مثبت، قیمت فروش بیشتر از صفر و هزینه و دریافتی غیرمنفی باشند.')
                     new_stock=float(product["stock"] or 0)+float(row["qty"])-qty
                     if new_stock < -0.000001: raise ValueError('اصلاح مقدار فروش موجودی منفی ایجاد می‌کند.')
                     c.execute("UPDATE sales SET qty=?,unit_price=?,extra_cost=?,received=?,customer=?,notes=? WHERE id=?",
@@ -2365,7 +2365,9 @@ class Handler(BaseHTTPRequestHandler):
                     cash_movement_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
                     dest='/cash';msg='گردش حساب ثبت شد.'
                 elif path=='save_capital':
-                    amount=money_int(v('amount')); capital_date=to_iso_date(v('date',jalali_today()))
+                    amount=strict_money_int(v('amount'),'سرمایه اولیه')
+                    if amount<0: raise ValueError('سرمایه اولیه نمی‌تواند منفی باشد.')
+                    capital_date=to_iso_date(v('date',jalali_today()))
                     c.execute('UPDATE opening_capital SET amount=?,date=? WHERE id=1',(amount,capital_date))
                     c.execute("UPDATE cash_accounts SET opening_balance=?,updated_at=datetime('now','localtime') WHERE id=1",(amount,))
                     dest='/settings';msg='تنظیمات سرمایه اولیه ذخیره شد.'
