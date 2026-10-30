@@ -188,6 +188,7 @@ def main():
     rollback_cases = (
         ("settlements", "amount", "NaN", "غیرمتناهی"),
         ("products", "avg_cost", "9000000000000000000", "ظرفیت عدد صحیح ریال"),
+        ("products", "avg_cost", "9000000000000000000000000000000", "ظرفیت عدد صحیح ریال"),
     )
     for index, (table, column, bad_value, message_fragment) in enumerate(rollback_cases, start=1):
         rollback_db = create_legacy_db(Path(TMP.name) / f"rollback_{index}.db")
