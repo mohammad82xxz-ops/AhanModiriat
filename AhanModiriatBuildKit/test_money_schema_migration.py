@@ -56,6 +56,13 @@ def create_legacy_db(path):
     );
     CREATE TABLE cash_accounts(id INTEGER PRIMARY KEY, opening_balance INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE cash_movements(id INTEGER PRIMARY KEY, amount INTEGER NOT NULL);
+    CREATE TABLE services(id INTEGER PRIMARY KEY, revenue REAL NOT NULL, cost REAL NOT NULL, received REAL NOT NULL);
+    CREATE TABLE loans(id INTEGER PRIMARY KEY, principal REAL NOT NULL, remaining REAL NOT NULL, installment REAL NOT NULL);
+    CREATE TABLE loan_payments(id INTEGER PRIMARY KEY, amount REAL NOT NULL, principal_part REAL NOT NULL, interest_part REAL NOT NULL);
+    CREATE TABLE cash_events(id INTEGER PRIMARY KEY, amount REAL NOT NULL);
+    CREATE TABLE price_history(id INTEGER PRIMARY KEY, market_price REAL NOT NULL);
+    CREATE TABLE opening_capital(id INTEGER PRIMARY KEY CHECK(id=1), amount REAL NOT NULL);
+    CREATE TABLE settlements(id INTEGER PRIMARY KEY, amount REAL NOT NULL);
     CREATE TRIGGER trg_products_test_insert AFTER INSERT ON products
     BEGIN UPDATE products SET notes='trigger-preserved' WHERE id=NEW.id; END;
     """)
@@ -67,6 +74,13 @@ def create_legacy_db(path):
     c.execute("INSERT INTO sales_returns(id,return_value,cost_basis,extra_reversed,refund_amount) VALUES(11,5.4,2.2,0.6,4)")
     c.execute("INSERT INTO cash_accounts(id,opening_balance) VALUES(1,7)")
     c.execute("INSERT INTO cash_movements(id,amount) VALUES(1,8)")
+    c.execute("INSERT INTO services(id,revenue,cost,received) VALUES(1,1.1,2.2,3.3)")
+    c.execute("INSERT INTO loans(id,principal,remaining,installment) VALUES(1,4.4,3.3,1.1)")
+    c.execute("INSERT INTO loan_payments(id,amount,principal_part,interest_part) VALUES(1,4.4,3.3,1.1)")
+    c.execute("INSERT INTO cash_events(id,amount) VALUES(1,2.5)")
+    c.execute("INSERT INTO price_history(id,market_price) VALUES(1,7.7)")
+    c.execute("INSERT INTO opening_capital(id,amount) VALUES(1,9.9)")
+    c.execute("INSERT INTO settlements(id,amount) VALUES(1,8.8)")
     c.commit()
     return c
 
@@ -77,9 +91,9 @@ def main():
     c=create_legacy_db(legacy_path)
     try:
         converted=app.migrate_money_columns_to_integer(c)
-        assert converted==14, converted
+        assert converted==27, converted
         scaled_rows=app.migrate_money_units_to_rial(c)
-        assert scaled_rows==8, scaled_rows
+        assert scaled_rows==15, scaled_rows
         c.commit()
 
         expected={
@@ -100,6 +114,13 @@ def main():
             "sales_returns": {"return_value":50,"cost_basis":20,"extra_reversed":10,"refund_amount":40},
             "cash_accounts": {"opening_balance":70},
             "cash_movements": {"amount":80},
+            "services": {"revenue":10,"cost":20,"received":30},
+            "loans": {"principal":40,"remaining":30,"installment":10},
+            "loan_payments": {"amount":40,"principal_part":30,"interest_part":10},
+            "cash_events": {"amount":30},
+            "price_history": {"market_price":80},
+            "opening_capital": {"amount":100},
+            "settlements": {"amount":90},
         }
         for table, columns in additional_expected.items():
             for column, value in columns.items():
