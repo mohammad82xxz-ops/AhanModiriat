@@ -246,6 +246,14 @@ def main() -> None:
                 "category": "invalid nonfinite expense", "amount": "inf",
                 "business": "1", "source": "نامشخص",
             }),
+            ("add_service", {
+                "title": "blank required service cost", "revenue": "100",
+                "cost": "", "received": "0",
+            }),
+            ("add_service", {
+                "title": "blank required service receipt", "revenue": "100",
+                "cost": "0", "received": "",
+            }),
             ("add_loan", {
                 "title": "invalid nonfinite loan", "principal": "nan",
                 "remaining": "100", "installment": "20",
