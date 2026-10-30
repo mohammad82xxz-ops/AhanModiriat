@@ -452,7 +452,10 @@ def migrate_money_units_to_rial(c):
                     raise RuntimeError(f"مقدار پولی نامعتبر در {table}.{name}؛ مهاجرت لغو شد.") from exc
                 if not amount.is_finite():
                     raise RuntimeError(f"مقدار غیرمتناهی در {table}.{name}؛ مهاجرت لغو شد.")
-                rial = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+                try:
+                    rial = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+                except (InvalidOperation, ValueError, OverflowError) as exc:
+                    raise RuntimeError(f"مقدار {table}.{name} از ظرفیت عدد صحیح ریال خارج است.") from exc
                 if rial < int_min or rial > int_max:
                     raise RuntimeError(f"مقدار {table}.{name} از ظرفیت عدد صحیح ریال خارج است.")
                 updates.append('"' + name.replace('"','""') + '"=?')
