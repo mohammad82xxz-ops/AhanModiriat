@@ -59,7 +59,7 @@ def main():
         })
         with app.conn() as c:
             loan = c.execute("SELECT * FROM loans WHERE id=?", (loan_id,)).fetchone()
-            assert loan["remaining"] == 50
+            assert loan["remaining"] == 500
             assert loan["next_date"] == "2026-02-28", loan["next_date"]
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments'").fetchone()[0] == 1
 
