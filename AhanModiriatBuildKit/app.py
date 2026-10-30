@@ -314,12 +314,13 @@ def restore_database_from_file(source_path):
     # Apply additive migrations and rebuild only missing cash-ledger links after restore.
     init()
 
-# Transaction totals are integer rial. Per-unit rates (weighted average cost,
-# sale unit price and sale cost basis) remain REAL because they can be fractional rial.
+# All monetary columns, including per-kilogram unit prices, are stored as integer rial.
+# The later inventory-value engine must use total value / total weight for COGS;
+# rounded unit cost is a display/cache value, never the authoritative valuation basis.
 MONEY_INTEGER_COLUMNS = {
-    "products": ("market_price",),
+    "products": ("avg_cost","market_price"),
     "purchases": ("unit_cost","extra_cost","paid"),
-    "sales": ("extra_cost","received"),
+    "sales": ("unit_price","extra_cost","received","cost_basis"),
     "services": ("revenue","cost","received"),
     "expenses": ("amount",),
     "loans": ("principal","remaining","installment"),
@@ -329,7 +330,7 @@ MONEY_INTEGER_COLUMNS = {
     "opening_capital": ("amount",),
     "settlements": ("amount",),
     "purchase_returns": ("return_value","cash_refund"),
-    "sales_returns": ("return_value","extra_reversed","refund_amount"),
+    "sales_returns": ("return_value","cost_basis","extra_reversed","refund_amount"),
     "cash_accounts": ("opening_balance",),
     "cash_movements": ("amount",),
 }
@@ -2233,7 +2234,7 @@ class Handler(BaseHTTPRequestHandler):
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
                     base_qty=qty*factor
-                    newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=round((oldvalue+qty*cost+extra)/newstock,8) if newstock else 0
+                    newstock=p['stock']+base_qty; oldvalue=p['stock']*p['avg_cost']; newavg=money_int((oldvalue+qty*cost+extra)/newstock) if newstock else 0
                     purchase_cur=c.execute('INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes) VALUES(?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,qty,cost,extra,v('supplier'),paid,v('notes')))
                     purchase_id=purchase_cur.lastrowid
                     link_party(c,"purchases","supplier_person_id",purchase_id,v('supplier'),'supplier')
@@ -2247,7 +2248,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
-                    base_price=round(price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1),8)
+                    base_price=money_int(price/num(p['sale_factor'] if 'sale_factor' in p.keys() else 1))
                     sale_cur=c.execute('INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis) VALUES(?,?,?,?,?,?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,base_qty,base_price,extra,v('customer'),received,v('notes'),p['avg_cost']))
                     sale_id=sale_cur.lastrowid
                     link_party(c,"sales","customer_person_id",sale_id,v('customer'),'customer')
@@ -2338,7 +2339,7 @@ class Handler(BaseHTTPRequestHandler):
                     value_before=max(value_before,0.0)
                     new_stock=stock_before+qty*factor
                     new_value=value_before+qty*cost+extra
-                    new_avg=round(new_value/new_stock,8) if new_stock>0.000001 else 0
+                    new_avg=money_int(new_value/new_stock) if new_stock>0.000001 else 0
                     c.execute("UPDATE purchases SET qty=?,unit_cost=?,extra_cost=?,paid=?,supplier=?,notes=? WHERE id=?",
                               (qty,cost,extra,paid,v("supplier"),v("notes"),rid))
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,row["product_id"]))
@@ -2356,7 +2357,7 @@ class Handler(BaseHTTPRequestHandler):
                     if new_stock < -0.000001: raise ValueError('حذف این خرید موجودی منفی ایجاد می‌کند.')
                     new_value=float(product["stock"] or 0)*float(product["avg_cost"] or 0)-(float(row["qty"])*float(row["unit_cost"])+float(row["extra_cost"]))
                     if new_value < -0.05: raise ValueError('بهای خرید با ارزش موجودی فعلی سازگار نیست؛ حذف خودکار ایمن نیست.')
-                    new_avg=round(max(new_value,0.0)/new_stock,8) if new_stock>0.000001 else 0
+                    new_avg=money_int(max(new_value,0.0)/new_stock) if new_stock>0.000001 else 0
                     c.execute("DELETE FROM cash_movements WHERE source_table='purchases' AND source_id=?",(rid,))
                     c.execute("DELETE FROM purchases WHERE id=?",(rid,))
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(max(new_stock,0.0),new_avg,row["product_id"]))
@@ -2426,7 +2427,7 @@ class Handler(BaseHTTPRequestHandler):
                     return_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(sale["product_id"],)).fetchone()
                     old_stock=float(product["stock"] or 0); old_value=old_stock*float(product["avg_cost"] or 0)
-                    new_stock=old_stock+qty; new_avg=round((old_value+cost_value)/new_stock,8) if new_stock>0 else 0
+                    new_stock=old_stock+qty; new_avg=money_int((old_value+cost_value)/new_stock) if new_stock>0 else 0
                     c.execute("UPDATE products SET stock=?,avg_cost=? WHERE id=?",(new_stock,new_avg,sale["product_id"]))
                     link_party(c,"sales_returns","customer_person_id",return_id,sale["customer"],"customer")
                     sync_cash_posting(c,"sales_returns",return_id,to_iso_date(v("date",jalali_today())),refund,"out",sale["customer"],reason)
