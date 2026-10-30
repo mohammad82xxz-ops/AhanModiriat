@@ -18,6 +18,11 @@ import app  # noqa: E402
 
 
 def post(port: int, path: str, fields: dict[str, object]) -> None:
+    fields = dict(fields)
+    if path in {"add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return"}:
+        with app.conn() as c:
+            markup = app.submission_token(c, path)
+            fields["_submission_token"] = markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}",
@@ -64,6 +69,20 @@ def snapshot(product_id: int, purchase_id: int, sale_id: int):
         )
 
 
+def fingerprint():
+    tables = (
+        "products", "purchases", "sales", "services", "expenses", "loans",
+        "loan_payments", "price_history", "people", "settlements",
+        "sales_returns", "purchase_returns", "inventory_adjustments",
+        "cash_movements", "opening_capital", "cash_accounts", "audit_log",
+    )
+    with app.conn() as c:
+        return tuple(
+            (table, tuple(tuple(row) for row in c.execute(f"SELECT * FROM {table} ORDER BY rowid")))
+            for table in tables
+        )
+
+
 def main() -> None:
     app.init()
     with app.conn() as c:
@@ -87,6 +106,11 @@ def main() -> None:
             (product_id,),
         )
         sale_id = sale_cur.lastrowid
+        loan_cur = c.execute(
+            """INSERT INTO loans(title,principal,remaining,installment,next_date,interval_value,interval_unit)
+               VALUES('validation loan',100,100,20,'2026-02-01',1,'month')"""
+        )
+        loan_id = loan_cur.lastrowid
         app.sync_cash_posting(
             c, "purchases", purchase_id, "2026-01-01", 5,
             "out", "Validation supplier", "baseline purchase",
@@ -145,6 +169,72 @@ def main() -> None:
             })
             assert snapshot(product_id, purchase_id, sale_id) == baseline, (
                 f"invalid opening capital was persisted: {invalid_amount!r}"
+            )
+
+        # Every remaining numeric financial route must reject NaN/Infinity before
+        # writing a document, stock movement, cash posting, or audit event.
+        invalid_route_cases = [
+            ("add_product", {
+                "name": "invalid nonfinite product", "unit": "kg", "stock": "nan",
+                "avg_cost": "0", "market_price": "0", "min_stock": "0",
+                "purchase_unit": "kg", "purchase_factor": "1",
+                "sale_unit": "kg", "sale_factor": "1",
+            }),
+            ("update_product", {
+                "product_id": product_id, "name": "phase2 validation steel",
+                "unit": "kg", "stock": "10", "avg_cost": "inf",
+                "market_price": "20", "min_stock": "0", "purchase_unit": "kg",
+                "purchase_factor": "1", "sale_unit": "kg", "sale_factor": "1",
+                "roll_weight": "0", "sheet_area": "0",
+            }),
+            ("add_service", {
+                "title": "invalid nonfinite service", "revenue": "nan",
+                "cost": "0", "received": "0",
+            }),
+            ("add_expense", {
+                "category": "invalid nonfinite expense", "amount": "inf",
+                "business": "1", "source": "نامشخص",
+            }),
+            ("add_loan", {
+                "title": "invalid nonfinite loan", "principal": "nan",
+                "remaining": "100", "installment": "20",
+                "interval_value": "1", "interval_unit": "month",
+            }),
+            ("add_payment", {
+                "loan_id": loan_id, "amount": "nan", "principal_part": "0",
+                "interest_part": "0", "date": "2026-01-04",
+            }),
+            ("add_price", {
+                "product_id": product_id, "market_price": "nan",
+                "date": "2026-01-04",
+            }),
+            ("add_settlement", {
+                "party": "Validation customer", "kind": "receive",
+                "amount": "nan", "date": "2026-01-04",
+            }),
+            ("add_sales_return", {
+                "sale_id": sale_id, "date": "2026-01-04", "qty": "nan",
+                "refund_amount": "0", "reason": "invalid quantity",
+            }),
+            ("add_purchase_return", {
+                "purchase_id": purchase_id, "date": "2026-01-04", "qty": "inf",
+                "cash_refund": "0", "reason": "invalid quantity",
+            }),
+            ("inventory_adjust", {
+                "product_id": product_id, "counted_qty": "nan",
+                "reason": "invalid physical count",
+            }),
+            ("add_cash_movement", {
+                "date": "2026-01-04", "kind": "deposit",
+                "to_account_id": "1", "amount": "inf",
+            }),
+        ]
+        for route, fields in invalid_route_cases:
+            before = fingerprint()
+            post(port, route, fields)
+            after = fingerprint()
+            assert after == before, (
+                f"{route} accepted non-finite numeric input or caused side effects: {fields}"
             )
 
         with app.conn() as c:
