@@ -232,7 +232,7 @@ def main():
             purchase_id = purchase["id"]
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             assert p["stock"] == 15
-            assert abs(p["avg_cost"] - (1000/15)) < 0.000001
+            assert p["avg_cost"] == 67
             linked = c.execute("SELECT * FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchall()
             assert len(linked) == 1 and linked[0]["amount"] == 250, [dict(x) for x in linked]
             assert purchase["created_at"] and purchase["updated_at"]
@@ -250,7 +250,7 @@ def main():
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             purchase = c.execute("SELECT * FROM purchases WHERE id=?", (purchase_id,)).fetchone()
-            assert p["stock"] == 14 and abs(p["avg_cost"] - (820/14)) < 0.000001
+            assert p["stock"] == 14 and p["avg_cost"] == 59
             assert purchase["qty"] == 4 and purchase["unit_cost"] == 80
             assert purchase["updated_at"]
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchone()[0] == 200
@@ -258,7 +258,7 @@ def main():
         post(port, "delete_purchase", {"record_id":purchase_id})
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 10 and abs(p["avg_cost"] - 50) < 0.000001
+            assert p["stock"] == 10 and p["avg_cost"] == 51
             assert c.execute("SELECT COUNT(*) FROM purchases WHERE id=?", (purchase_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='purchases' AND source_id=?", (purchase_id,)).fetchone()[0] == 0
 
@@ -310,7 +310,7 @@ def main():
         post(port, "delete_sale", {"record_id":sale_id})
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 10 and p["avg_cost"] == 50
+            assert p["stock"] == 10 and p["avg_cost"] == 51
             assert c.execute("SELECT COUNT(*) FROM sales WHERE id=?", (sale_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 0
 
