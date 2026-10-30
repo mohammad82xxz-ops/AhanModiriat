@@ -344,51 +344,54 @@ def migrate_money_columns_to_integer(c):
     legacy_alter = c.execute("PRAGMA legacy_alter_table").fetchone()[0]
     c.execute("PRAGMA legacy_alter_table=ON")
     migrated=0
-    for table, candidates in MONEY_INTEGER_COLUMNS.items():
-        table_row=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone()
-        if not table_row or not table_row["sql"]:
-            continue
-        create_sql=table_row["sql"]
-        info=c.execute(f'PRAGMA table_info("{table}")').fetchall()
-        money_types={row["name"]:str(row["type"] or "").strip().upper() for row in info}
-        to_convert=[name for name in candidates if money_types.get(name) in ("REAL","FLOAT","DOUBLE","NUMERIC","DECIMAL")]
-        if not to_convert:
-            continue
-        match=re.match(r'(?is)^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([A-Za-z_][A-Za-z_0-9]*)',create_sql)
-        if not match:
-            raise RuntimeError(f"ساختار جدول {table} برای مهاجرت مبلغ قابل بازسازی نیست.")
-        original_name=match.group(2)
-        if original_name.lower()!=table.lower():
-            raise RuntimeError(f"نام جدول {table} با طرح ذخیره‌شده همخوان نیست.")
-        temporary=f"__money_integer_{table}"
-        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(temporary,)).fetchone():
-            raise RuntimeError(f"جدول موقت مهاجرت {temporary} از قبل وجود دارد.")
-        objects=c.execute("""SELECT type,name,sql FROM sqlite_master
-                             WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL
-                             ORDER BY CASE type WHEN 'index' THEN 0 ELSE 1 END,name""",(table,)).fetchall()
-        rebuilt_sql=match.group(1)+f'"{temporary}"'+create_sql[match.end():]
-        for column in to_convert:
-            pattern=re.compile(r'(?i)(\b'+re.escape(column)+r'\s+)(?:REAL|FLOAT|DOUBLE|NUMERIC|DECIMAL)\b')
-            rebuilt_sql,count=pattern.subn(r'\1INTEGER',rebuilt_sql,count=1)
-            if count!=1:
-                raise RuntimeError(f"تعریف نوع ستون {table}.{column} قابل تبدیل نیست.")
-        columns=[row["name"] for row in info]
-        quoted_columns=",".join('"'+name.replace('"','""')+'"' for name in columns)
-        expressions=[]
-        for name in columns:
-            quoted='"'+name.replace('"','""')+'"'
-            if name in to_convert:
-                expressions.append(f"CASE WHEN {quoted} IS NULL THEN NULL ELSE CAST(ROUND({quoted}) AS INTEGER) END")
-            else:
-                expressions.append(quoted)
-        c.execute(rebuilt_sql)
-        c.execute(f'INSERT INTO "{temporary}" ({quoted_columns}) SELECT {",".join(expressions)} FROM "{table}"')
-        c.execute(f'DROP TABLE "{table}"')
-        c.execute(f'ALTER TABLE "{temporary}" RENAME TO "{table}"')
-        for obj in objects:
-            c.execute(obj["sql"])
-        migrated+=len(to_convert)
-    c.execute(f"PRAGMA legacy_alter_table={1 if legacy_alter else 0}")
+    try:
+        for table, candidates in MONEY_INTEGER_COLUMNS.items():
+            table_row=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone()
+            if not table_row or not table_row["sql"]:
+                continue
+            create_sql=table_row["sql"]
+            info=c.execute(f'PRAGMA table_info("{table}")').fetchall()
+            money_types={row["name"]:str(row["type"] or "").strip().upper() for row in info}
+            to_convert=[name for name in candidates if money_types.get(name) in ("REAL","FLOAT","DOUBLE","NUMERIC","DECIMAL")]
+            if not to_convert:
+                continue
+            match=re.match(r'(?is)^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([A-Za-z_][A-Za-z_0-9]*)',create_sql)
+            if not match:
+                raise RuntimeError(f"ساختار جدول {table} برای مهاجرت مبلغ قابل بازسازی نیست.")
+            original_name=match.group(2)
+            if original_name.lower()!=table.lower():
+                raise RuntimeError(f"نام جدول {table} با طرح ذخیره‌شده همخوان نیست.")
+            temporary=f"__money_integer_{table}"
+            if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(temporary,)).fetchone():
+                raise RuntimeError(f"جدول موقت مهاجرت {temporary} از قبل وجود دارد.")
+            objects=c.execute("""SELECT type,name,sql FROM sqlite_master
+                                 WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL
+                                 ORDER BY CASE type WHEN 'index' THEN 0 ELSE 1 END,name""",(table,)).fetchall()
+            rebuilt_sql=match.group(1)+f'"{temporary}"'+create_sql[match.end():]
+            for column in to_convert:
+                pattern=re.compile(r'(?i)(\b'+re.escape(column)+r'\s+)(?:REAL|FLOAT|DOUBLE|NUMERIC|DECIMAL)\b')
+                rebuilt_sql,count=pattern.subn(r'\1INTEGER',rebuilt_sql,count=1)
+                if count!=1:
+                    raise RuntimeError(f"تعریف نوع ستون {table}.{column} قابل تبدیل نیست.")
+            columns=[row["name"] for row in info]
+            quoted_columns=",".join('"'+name.replace('"','""')+'"' for name in columns)
+            expressions=[]
+            for name in columns:
+                quoted='"'+name.replace('"','""')+'"'
+                if name in to_convert:
+                    expressions.append(f"CASE WHEN {quoted} IS NULL THEN NULL ELSE CAST(ROUND({quoted}) AS INTEGER) END")
+                else:
+                    expressions.append(quoted)
+            c.execute(rebuilt_sql)
+            c.execute(f'INSERT INTO "{temporary}" ({quoted_columns}) SELECT {",".join(expressions)} FROM "{table}"')
+            c.execute(f'DROP TABLE "{table}"')
+            c.execute(f'ALTER TABLE "{temporary}" RENAME TO "{table}"')
+            for obj in objects:
+                c.execute(obj["sql"])
+            migrated+=len(to_convert)
+
+    finally:
+        c.execute(f"PRAGMA legacy_alter_table={1 if legacy_alter else 0}")
     return migrated
 
 RIAL_UNIT_VERSION = "rial-v1"
