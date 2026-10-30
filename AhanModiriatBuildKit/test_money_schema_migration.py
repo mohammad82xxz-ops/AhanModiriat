@@ -101,6 +101,8 @@ def main():
         assert scaled_rows==15, scaled_rows
         converted=app.migrate_money_columns_to_integer(c)
         assert converted==23, converted
+        assert c.execute("PRAGMA foreign_key_check").fetchall()==[]
+        assert c.execute("PRAGMA legacy_alter_table").fetchone()[0] == 0
         c.commit()
         c.execute("PRAGMA foreign_keys=ON")
 
@@ -168,6 +170,10 @@ def main():
         assert c.execute("SELECT COUNT(*) FROM sales WHERE id=8").fetchone()[0]==1
         assert c.execute("PRAGMA foreign_key_check").fetchall()==[]
         assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        purchase_fk={r["table"] for r in c.execute("PRAGMA foreign_key_list(purchase_returns)")}
+        sales_fk={r["table"] for r in c.execute("PRAGMA foreign_key_list(sales_returns)")}
+        assert "purchases" in purchase_fk and "products" in purchase_fk, purchase_fk
+        assert "sales" in sales_fk and "products" in sales_fk, sales_fk
         assert app.migrate_money_columns_to_integer(c)==0,"money migration must be idempotent"
         assert c.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
     finally:
