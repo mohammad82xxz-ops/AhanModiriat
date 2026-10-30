@@ -59,6 +59,22 @@ def main():
             raise AssertionError("purchase reversal crossed a later sales return")
 
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
+                     VALUES('purchase return guard 2','kg',10,10,20,0)""")
+        purchase_guard_pid = c.execute("SELECT id FROM products WHERE name='purchase return guard 2'").fetchone()[0]
+        older_purchase = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                      VALUES('2025-12-31',?,2,10,0,'Guard supplier',0,'older purchase')""",(purchase_guard_pid,)).lastrowid
+        target_purchase_2 = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                         VALUES('2026-01-01',?,2,10,0,'Guard supplier',0,'target purchase')""",(purchase_guard_pid,)).lastrowid
+        c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason)
+                     VALUES('2026-01-02',?,?, 'Guard supplier',0.5,5,0,'later purchase return')""",(older_purchase,purchase_guard_pid))
+        try:
+            app.assert_purchase_reversible(c,c.execute("SELECT * FROM purchases WHERE id=?",(target_purchase_2,)).fetchone())
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("purchase reversal crossed a later purchase return")
+
+        c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
                      VALUES('sale return guard','kg',10,10,20,0)""")
         sale_guard_pid = c.execute("SELECT id FROM products WHERE name='sale return guard'").fetchone()[0]
         target_sale = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
@@ -74,10 +90,27 @@ def main():
         else:
             raise AssertionError("sale reversal crossed a later sales return")
 
-        c.execute("DELETE FROM sales_returns WHERE product_id IN (?,?)",(guard_pid,sale_guard_pid))
-        c.execute("DELETE FROM sales WHERE product_id IN (?,?)",(guard_pid,sale_guard_pid))
-        c.execute("DELETE FROM purchases WHERE product_id=?",(guard_pid,))
-        c.execute("DELETE FROM products WHERE id IN (?,?)",(guard_pid,sale_guard_pid))
+        c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
+                     VALUES('sale purchase return guard','kg',10,10,20,0)""")
+        sale_purchase_guard_pid = c.execute("SELECT id FROM products WHERE name='sale purchase return guard'").fetchone()[0]
+        older_purchase_for_sale = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                                               VALUES('2025-12-31',?,2,10,0,'Guard supplier',0,'older purchase')""",(sale_purchase_guard_pid,)).lastrowid
+        target_sale_2 = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+                                     VALUES('2026-01-01',?,1,20,0,'Guard customer',0,'target sale',10)""",(sale_purchase_guard_pid,)).lastrowid
+        c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason)
+                     VALUES('2026-01-02',?,?, 'Guard supplier',0.5,5,0,'later purchase return')""",(older_purchase_for_sale,sale_purchase_guard_pid))
+        try:
+            app.assert_sale_reversible(c,c.execute("SELECT * FROM sales WHERE id=?",(target_sale_2,)).fetchone())
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("sale reversal crossed a later purchase return")
+
+        c.execute("DELETE FROM sales_returns WHERE product_id IN (?,?,?)",(guard_pid,sale_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM purchase_returns WHERE product_id IN (?,?)",(purchase_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM sales WHERE product_id IN (?,?,?)",(guard_pid,sale_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM purchases WHERE product_id IN (?,?,?)",(guard_pid,purchase_guard_pid,sale_purchase_guard_pid))
+        c.execute("DELETE FROM products WHERE id IN (?,?,?,?)",(guard_pid,purchase_guard_pid,sale_guard_pid,sale_purchase_guard_pid))
 
     with app.conn() as c:
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
