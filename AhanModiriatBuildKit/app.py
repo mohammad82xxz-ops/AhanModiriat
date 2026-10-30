@@ -659,6 +659,8 @@ def strict_money_int(v, label, allow_blank=False):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
     if not math.isfinite(amount):
         raise ValueError(f"{label} باید عدد معتبر باشد.")
+    if amount < 0:
+        raise ValueError(f"{label} نمی‌تواند منفی باشد.")
     return money_int(amount)
 def money(v): return f'{v:,.0f}'
 def esc(v): return html.escape(str(v if v is not None else ''))
