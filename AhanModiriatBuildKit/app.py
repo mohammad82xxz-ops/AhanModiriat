@@ -2123,7 +2123,7 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id'))
                     try: qty=strict_number(v('qty'),'مقدار خرید')
                     except ValueError: raise ValueError('کالا، مقدار یا قیمت/هزینه خرید نامعتبر است؛ مبالغ جانبی و پرداخت نباید منفی باشند.')
-                    cost=strict_money_int(v('unit_cost'),'قیمت خرید',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی خرید',True); paid=strict_money_int(v('paid'),'مبلغ پرداختی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    cost=strict_money_int(v('unit_cost'),'قیمت خرید'); extra=strict_money_int(v('extra_cost'),'هزینه جانبی خرید',True); paid=strict_money_int(v('paid'),'مبلغ پرداختی'); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('کالا، مقدار یا قیمت/هزینه خرید نامعتبر است؛ مبالغ جانبی و پرداخت نباید منفی باشند.')
                     factor=num(p['purchase_factor'] if 'purchase_factor' in p.keys() else 1)
                     if factor<=0: raise ValueError('ضریب تبدیل واحد خرید باید بیشتر از صفر باشد.')
@@ -2138,7 +2138,7 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id'))
                     try: qty=strict_number(v('qty'),'مقدار فروش')
                     except ValueError: raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
-                    price=strict_money_int(v('unit_price'),'قیمت فروش',True); extra=strict_money_int(v('extra_cost'),'هزینه جانبی فروش',True); received=strict_money_int(v('received'),'مبلغ دریافتی',True); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
+                    price=strict_money_int(v('unit_price'),'قیمت فروش'); extra=strict_money_int(v('extra_cost'),'هزینه جانبی فروش',True); received=strict_money_int(v('received'),'مبلغ دریافتی'); p=c.execute('SELECT * FROM products WHERE id=?',(pid,)).fetchone()
                     if not p or qty<=0 or price<=0 or extra<0 or received<0:raise ValueError('کالا، مقدار یا قیمت/هزینه فروش نامعتبر است؛ هزینه و دریافتی نباید منفی باشند.')
                     base_qty=qty*num(p['sale_factor'] if 'sale_factor' in p.keys() else 1)
                     if base_qty>p['stock']:raise ValueError(f"موجودی کافی نیست؛ موجودی فعلی {p['stock']:g} {p['unit']} است.")
@@ -2223,7 +2223,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند خرید پیدا نشد.')
                     assert_purchase_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=strict_number(v("qty"),"مقدار خرید"); cost=strict_money_int(v("unit_cost"),"قیمت خرید"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی خرید",True); paid=strict_money_int(v("paid"),"مبلغ پرداختی",True)
+                    qty=strict_number(v("qty"),"مقدار خرید"); cost=strict_money_int(v("unit_cost"),"قیمت خرید"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی خرید",True); paid=strict_money_int(v("paid"),"مبلغ پرداختی")
                     if qty<=0 or cost<0 or extra<0 or paid<0: raise ValueError('مقدار و مبالغ خرید باید معتبر و غیرمنفی باشند.')
                     factor=num(product["purchase_factor"] or 1,1) or 1
                     stock_before=float(product["stock"] or 0)-float(row["qty"])*factor
@@ -2262,7 +2262,7 @@ class Handler(BaseHTTPRequestHandler):
                     if row is None: raise ValueError('سند فروش پیدا نشد.')
                     assert_sale_reversible(c,row)
                     product=c.execute("SELECT * FROM products WHERE id=?",(row["product_id"],)).fetchone()
-                    qty=strict_number(v("qty"),"مقدار فروش"); price=strict_money_int(v("unit_price"),"قیمت فروش"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی فروش",True); received=strict_money_int(v("received"),"مبلغ دریافتی",True)
+                    qty=strict_number(v("qty"),"مقدار فروش"); price=strict_money_int(v("unit_price"),"قیمت فروش"); extra=strict_money_int(v("extra_cost"),"هزینه جانبی فروش",True); received=strict_money_int(v("received"),"مبلغ دریافتی")
                     if qty<=0 or price<=0 or extra<0 or received<0: raise ValueError('مقدار باید مثبت، قیمت فروش بیشتر از صفر و هزینه و دریافتی غیرمنفی باشند.')
                     new_stock=float(product["stock"] or 0)+float(row["qty"])-qty
                     if new_stock < -0.000001: raise ValueError('اصلاح مقدار فروش موجودی منفی ایجاد می‌کند.')
