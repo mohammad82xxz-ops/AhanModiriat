@@ -2478,7 +2478,7 @@ class Handler(BaseHTTPRequestHandler):
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(purchase["product_id"],)).fetchone()
                     old_stock=float(product["stock"] or 0); new_stock=old_stock-qty
                     if new_stock < -0.000001: raise ValueError("موجودی فعلی از مقدار مرجوعی کمتر است.")
-                    new_stock=max(0.0,new_stock); new_avg=float(product["avg_cost"] or 0) if new_stock>0 else 0
+                    new_stock=max(0.0,new_stock); new_avg=int(product["avg_cost"] or 0) if new_stock>0 else 0
                     cur=c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
                                      VALUES(?,?,?,?,?,?,?,?,?)""",
                                   (to_iso_date(v("date",jalali_today())),purchase_id,purchase["product_id"],purchase["supplier"] or "",qty,return_value,cash_refund,reason,v("notes")))
