@@ -18,7 +18,10 @@ import app
 
 def post(port, path, fields, auto_token=True):
     fields = dict(fields)
-    if auto_token and path in ("add_purchase", "add_sale", "add_expense") and "_submission_token" not in fields:
+    protected = {
+        "add_purchase", "add_sale", "add_expense", "add_cash_movement",
+    }
+    if auto_token and path in protected and "_submission_token" not in fields:
         with app.conn() as c:
             token_markup = app.submission_token(c, path)
             fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
