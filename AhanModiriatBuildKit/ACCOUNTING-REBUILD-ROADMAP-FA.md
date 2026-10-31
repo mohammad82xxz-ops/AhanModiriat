@@ -263,3 +263,18 @@
 ## ماتریس ردیابی یافته‌ها تا پذیرش
 
 برای اتصال یافته‌های ACC به DECها، سناریوهای طلایی، نقاط تماس کد، معیار Done و گیت‌های Runbook از [ماتریس ردیابی یکپارچهٔ P0](ACCOUNTING-P0-TRACEABILITY-MATRIX-FA.md) استفاده شود. موارد Pending/TBD عمداً باز می‌مانند و تا تصویب مالک یا شناسایی کد واقعی نباید حدس زده شوند.
+
+### تکمیل اجرای CI شمارهٔ ۶۴۸ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای کامل [GitHub Actions Run #648](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173) روی SHA دقیق `3620cacd7ef9d3cdf022b877350de336add2031b` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- مراحل موفق `smoke-test`: Compile، تست‌های ایزوله، ماتریس UI مرورگر و ثبت اسکرین‌شات، گردش‌های مالی و انبار در مرورگر، proxyهای صفحه‌کلید/بزرگ‌نمایی، نصب Lighthouse و axe-core، ممیزی دسترس‌پذیری و بارگذاری گزارش‌ها.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact آن موفق شد.
+- Artifactهای همین اجرا (مربوط به SHA بالا و با وضعیت `expired=false` هنگام بررسی):
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173/artifacts/13045157651)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173/artifacts/13045825556)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173/artifacts/13045885297)
+- معیارهای عددی Lighthouse/axe-core در این بند ادعا نشده‌اند؛ برای اعلام آن‌ها باید محتوای گزارش Artifact بررسی شود.
+- این نتیجه فقط workflowهای موجود روی SHA `3620cac...` را تأیید می‌کند؛ موفقیت CI به‌تنهایی یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-11 را تصویب نمی‌کند و بازبینی دستی migration/محاسبات را جایگزین نمی‌کند.
+- این اجرا روی commit مستنداتی `3620cac...` انجام شده است. هر commit بعدی SHA جدیدی می‌سازد و نیازمند CI مستقل خواهد بود.
+
