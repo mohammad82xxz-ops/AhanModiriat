@@ -228,6 +228,7 @@
 - نقشهٔ محل کد، مسیرهای فعلی، تست‌های موجود و شکاف تست: [ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md](ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md).
 - سناریوهای طلایی، expected result و invariantهای قابل تبدیل به تست: [ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md](ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md).
 - دستورالعمل backup، shadow migration، cutover، پایش و rollback: [ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md](ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md).
+- دفتر ثبت و تصویب DEC-01 تا DEC-10: [ACCOUNTING-POLICY-DECISION-REGISTER-FA.md](ACCOUNTING-POLICY-DECISION-REGISTER-FA.md).
 - یافته‌های P0/P1 ثبت‌شده باید پیش از ادعای تکمیل حسابداری به معیارهای پذیرش و تست‌های سرتاسری تبدیل شوند. موفقیت CI فعلی فقط صحت workflow و تست‌های موجود را نشان می‌دهد، نه بسته‌شدن یافته‌های ممیزی.
 - فاز ۱ فقط پس از CI موفق روی آخرین SHA و بازبینی دستی migration/محاسبات پذیرفته می‌شود.
 
