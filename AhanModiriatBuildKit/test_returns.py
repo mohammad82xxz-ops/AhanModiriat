@@ -38,18 +38,18 @@ def main():
     with app.conn() as c:
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
                      purchase_unit,purchase_factor,sale_unit,sale_factor)
-                     VALUES('return steel','kg',6,5,20,0,'kg',1,'kg',1)""")
+                     VALUES('return steel','kg',6,50,200,0,'kg',1,'kg',1)""")
         pid = c.execute("SELECT id FROM products WHERE name='return steel'").fetchone()[0]
         pc = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
-                          VALUES('2026-01-01',?,10,5,0,'Seller A',30,'source purchase')""", (pid,))
+                          VALUES('2026-01-01',?,10,50,0,'Seller A',300,'source purchase')""", (pid,))
         purchase_id = pc.lastrowid
         sc = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
-                          VALUES('2026-01-02',?,4,20,4,'Customer A',40,'source sale',5)""", (pid,))
+                          VALUES('2026-01-02',?,4,200,40,'Customer A',400,'source sale',50)""", (pid,))
         sale_id = sc.lastrowid
         app.ensure_person(c, "Seller A", "supplier")
         app.ensure_person(c, "Customer A", "customer")
-        app.sync_cash_posting(c,"purchases",purchase_id,"2026-01-01",30,"out","Seller A","source purchase")
-        app.sync_cash_posting(c,"sales",sale_id,"2026-01-02",40,"in","Customer A","source sale")
+        app.sync_cash_posting(c,"purchases",purchase_id,"2026-01-01",300,"out","Seller A","source purchase")
+        app.sync_cash_posting(c,"sales",sale_id,"2026-01-02",400,"in","Customer A","source sale")
 
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     port = server.server_address[1]
@@ -62,12 +62,12 @@ def main():
         })
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 5 and p["avg_cost"] == 5
+            assert p["stock"] == 5 and p["avg_cost"] == 50
             ret = c.execute("SELECT * FROM purchase_returns").fetchone()
-            assert ret["return_value"] == 5 and ret["cash_refund"] == 3
-            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='purchase_returns' AND source_id=?", (ret["id"],)).fetchone()[0] == 3
+            assert ret["return_value"] == 50 and ret["cash_refund"] == 30
+            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='purchase_returns' AND source_id=?", (ret["id"],)).fetchone()[0] == 30
             bal = app.party_balances(c)
-            assert bal["Seller A"]["payable"] == 18, bal
+            assert bal["Seller A"]["payable"] == 180, bal
 
         post(port, "add_sales_return", {
             "sale_id":sale_id,"date":"2026-01-04","qty":"1",
@@ -75,18 +75,18 @@ def main():
         })
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 6 and abs(p["avg_cost"]-5) < 1e-7
+            assert p["stock"] == 6 and abs(p["avg_cost"]-50) < 1e-7
             ret = c.execute("SELECT * FROM sales_returns").fetchone()
-            assert ret["return_value"] == 20 and ret["cost_basis"] == 5 and ret["extra_reversed"] == 1
-            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales_returns' AND source_id=?", (ret["id"],)).fetchone()[0] == 15
+            assert ret["return_value"] == 200 and ret["cost_basis"] == 50 and ret["extra_reversed"] == 10
+            assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales_returns' AND source_id=?", (ret["id"],)).fetchone()[0] == 150
             bal = app.party_balances(c)
-            assert bal["Customer A"]["receivable"] == 35, bal
-            assert app.account_balance(c, 1) == -2
+            assert bal["Customer A"]["receivable"] == 350, bal
+            assert app.account_balance(c, 1) == -20
             totals = app.calc(c)
-            assert totals["sales_rev"] == 60, totals
-            assert totals["sales_cost"] == 15, totals
-            assert totals["sales_extra"] == 3, totals
-            assert totals["net"] == 42, totals
+            assert totals["sales_rev"] == 600, totals
+            assert totals["sales_cost"] == 150, totals
+            assert totals["sales_extra"] == 30, totals
+            assert totals["net"] == 420, totals
             ledger = app.product_ledger_page(c, pid)
             assert "مرجوعی خرید" in ledger and "مرجوعی فروش" in ledger
             page = app.returns_page(c)

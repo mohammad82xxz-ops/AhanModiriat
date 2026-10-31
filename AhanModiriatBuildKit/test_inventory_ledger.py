@@ -77,7 +77,7 @@ def main():
     with app.conn() as c:
         p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
         assert p["stock"] == 6, p["stock"]  # 7 after physical count, then 6 via the product editor.
-        assert p["avg_cost"] == 10, p["avg_cost"]
+        assert p["avg_cost"] == 100, p["avg_cost"]
         adjustment = c.execute("SELECT * FROM inventory_adjustments WHERE product_id=?", (pid,)).fetchone()
         assert adjustment is not None
         assert adjustment["expected_qty"] == 21
