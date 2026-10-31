@@ -291,3 +291,16 @@
 - در این ثبت، امتیاز یا تعداد violation گزارش نشده است؛ برای ادعای عددی باید محتوای خود Artifact بررسی شود.
 - این نتیجه فقط workflowهای موجود روی SHA `c04a26d...` را تأیید می‌کند؛ CI به‌تنهایی یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-11 را تصویب نمی‌کند و بازبینی دستی منطق/مهاجرت را جایگزین نمی‌کند.
 
+### تکمیل اجرای CI شمارهٔ ۶۵۰ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای [GitHub Actions Run #650](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108) روی SHA دقیق `fc81f3c43d2519ec2a3c7810003c2f92180cbc9e` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- تمام مراحل smoke-test موفق شدند؛ از جمله Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse و axe-core و بارگذاری گزارش‌ها.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact موفق شد.
+- Artifactهای اجرا (در زمان بررسی `expired=false`):
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108/artifacts/13045654671)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108/artifacts/13045584647)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108/artifacts/13045213794)
+- هیچ امتیاز عددی Lighthouse یا شمارش violation در این ثبت ادعا نمی‌شود؛ برای چنین ادعایی باید محتوای گزارش‌ها بررسی شود.
+- این CI فقط workflowهای تعریف‌شده روی SHA بالا را تأیید می‌کند؛ به معنی بسته‌شدن یافته‌های حسابداری، تصویب DECها یا تأیید مهاجرت نیست.
+
