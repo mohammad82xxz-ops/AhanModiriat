@@ -220,17 +220,26 @@
 ## ۶) وضعیت CI و اسناد ممیزی — به‌روزرسانی ۱۴۰۵/۰۸/۰۹
 
 - شاخهٔ کاری: `rebuild/phase1-money-rial-foundation`.
-- هر commit جدید روی این شاخه workflowهای CI را اجرا می‌کند؛ نتیجهٔ هر اجرا فقط زمانی معتبر است که SHA آن دقیقاً با آخرین commit شاخه تطبیق داشته باشد.
-- آخرین اجرای کامل بررسی‌شده: [GitHub Actions Run #636](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41182491251) روی SHA `8b43c562a5c299e3d3a1e59208d485b9d716c6ef` با نتیجهٔ `success` پایان یافته است؛ هر دو job یعنی `smoke-test` و `windows-onedir` موفق‌اند و گزارش‌های Lighthouse/axe-core، اسکرین‌شات‌های UI و بستهٔ Windows OneDir به‌عنوان Artifact بارگذاری شده‌اند. این نتیجه فقط همین SHA را پوشش می‌دهد و به commitهای بعدی تعمیم داده نمی‌شود.
-- PR #9 باز و Draft است؛ head همین شاخه و base برابر `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
+- آخرین commit بررسی‌شده: `b65018d46c9a211c52ed53d004cf7e5aa5148e68`؛ پیام: `docs: include DEC-11 in P0 implementation gate`.
+- اجرای کامل CI شمارهٔ ۶۴۰: [GitHub Actions Run #640](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326) روی همین SHA با نتیجهٔ `success` پایان یافته است. هر دو job یعنی `smoke-test` و `windows-onedir` موفق‌اند.
+- پوشش تأییدشده در job تست: compile، تست‌های ایزوله، UI matrix مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی axe-core و Lighthouse.
+- نتیجهٔ دسترس‌پذیری: axe-core تعداد ۱۷ از ۱۷ مسیر را بررسی کرده و صفر violation در تمام سطوح اثر گزارش کرده است. Lighthouse تعداد ۱۰ گزارش موبایل/دسکتاپ تولید کرده؛ performance بین ۹۹ تا ۱۰۰، accessibility برابر ۱۰۰، best-practices برابر ۱۰۰ و SEO برابر ۸۲ بوده است.
+- ساخت Windows OneDir با PyInstaller موفق شده و Artifact آن بارگذاری شده است. Artifactهای این اجرا:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039879392)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039144497)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039154328)
+- لاگ تست مرورگر چند `BrokenPipeError` هنگام قطع اتصال کلاینت ثبت کرده، اما مراحل مربوطه و کل job موفق شده‌اند. این مورد خطای نهایی CI نبوده، ولی برای تمیزشدن لاگ و اطمینان از مدیریت قطع اتصال، در بازبینی فنی بعدی بررسی شود.
+- proxyهای دسترس‌پذیری فقط بررسی خودکارند؛ بررسی انسانی با صفحه‌کلید، screen reader و دستگاه واقعی همچنان لازم است.
+- مقایسهٔ commitها نشان می‌دهد از SHA قبلی `8b43c562a5c299e3d3a1e59208d485b9d716c6ef` تا این commit فقط دو فایل مستنداتی تغییر کرده‌اند: Roadmap و Code Touchpoints؛ هیچ کد اجرایی در این دو commit تغییر نکرده است.
+- PR #9 باز و Draft است؛ head برابر همین SHA و base برابر `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
 - دفتر یافته‌های ممیزی: [ACCOUNTING-AUDIT-REGISTER-FA.md](ACCOUNTING-AUDIT-REGISTER-FA.md).
 - بستهٔ اجرایی P0 و تصمیم‌های لازم: [ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md).
 - نقشهٔ محل کد، مسیرهای فعلی، تست‌های موجود و شکاف تست: [ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md](ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md).
 - سناریوهای طلایی، expected result و invariantهای قابل تبدیل به تست: [ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md](ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md).
 - دستورالعمل backup، shadow migration، cutover، پایش و rollback: [ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md](ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md).
 - دفتر ثبت و تصویب DEC-01 تا DEC-11: [ACCOUNTING-POLICY-DECISION-REGISTER-FA.md](ACCOUNTING-POLICY-DECISION-REGISTER-FA.md).
-- یافته‌های P0/P1 ثبت‌شده باید پیش از ادعای تکمیل حسابداری به معیارهای پذیرش و تست‌های سرتاسری تبدیل شوند. موفقیت CI فعلی فقط صحت workflow و تست‌های موجود را نشان می‌دهد، نه بسته‌شدن یافته‌های ممیزی.
-- فاز ۱ فقط پس از CI موفق روی آخرین SHA و بازبینی دستی migration/محاسبات پذیرفته می‌شود.
+- موفقیت CI فقط صحت تست‌ها و workflowهای موجود روی همین SHA را نشان می‌دهد؛ به‌تنهایی یافته‌های ممیزی حسابداری را نمی‌بندد یا تأیید دستی migration/محاسبات را جایگزین نمی‌کند.
+- وضعیت پذیرش T02-A: CI روی آخرین SHA موفق است؛ بازبینی دستی migration/محاسبات و تأیید سیاست‌های وابسته همچنان گیت مستقل‌اند. DEC-01 تا DEC-11 در دفتر تصمیم‌ها Pending هستند و تا تصویب مالک، کدنویسی وابسته به آن‌ها آغاز نمی‌شود.
 
 ---
 این نقشه، مبنای کار جدید است. انجام هر فاز فقط پس از تکمیل معیار پذیرش همان فاز ثبت می‌شود؛ «وجود یک صفحه یا جدول» به‌تنهایی معادل تکمیل قابلیت حسابداری نیست.
