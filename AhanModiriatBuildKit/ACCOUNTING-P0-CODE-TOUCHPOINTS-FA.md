@@ -90,7 +90,7 @@
 
 شروع batch اجرایی فقط وقتی مجاز است که همه موارد زیر برقرار باشد:
 
-- DEC-01 تا DEC-10 در [بستهٔ P0](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md) توسط مالک تأیید شده باشند.
+- DEC-01 تا DEC-11 در [دفتر تصمیم‌های سیاست حسابداری](ACCOUNTING-POLICY-DECISION-REGISTER-FA.md) توسط مالک تأیید شده باشند؛ هیچ DEC وابسته‌ای نباید از گیت آمادگی کدنویسی حذف شود.
 - fixtureهای طلایی و expected resultها commit شده باشند.
 - schema جدید و migration plan با نمونهٔ واقعی ناشناس‌شده بازبینی شده باشد.
 - مسیر rollback و backup/restore تمرین شده باشد.
