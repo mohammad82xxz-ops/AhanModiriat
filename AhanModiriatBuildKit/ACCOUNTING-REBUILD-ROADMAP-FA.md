@@ -221,7 +221,7 @@
 
 - شاخهٔ کاری: `rebuild/phase1-money-rial-foundation`.
 - هر commit جدید روی این شاخه workflowهای CI را اجرا می‌کند؛ نتیجهٔ هر اجرا فقط زمانی معتبر است که SHA آن دقیقاً با آخرین commit شاخه تطبیق داشته باشد.
-- در زمان تهیهٔ این یادداشت، اجراهای مربوط به تغییرات مستنداتی در حال انجام بودند؛ هیچ نتیجهٔ موفقی برای SHA نهایی این بسته پیشاپیش ادعا نمی‌شود.
+- آخرین اجرای کامل بررسی‌شده: [GitHub Actions Run #636](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41182491251) روی SHA `8b43c562a5c299e3d3a1e59208d485b9d716c6ef` با نتیجهٔ `success` پایان یافته است؛ هر دو job یعنی `smoke-test` و `windows-onedir` موفق‌اند و گزارش‌های Lighthouse/axe-core، اسکرین‌شات‌های UI و بستهٔ Windows OneDir به‌عنوان Artifact بارگذاری شده‌اند. این نتیجه فقط همین SHA را پوشش می‌دهد و به commitهای بعدی تعمیم داده نمی‌شود.
 - PR #9 باز و Draft است؛ head همین شاخه و base برابر `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
 - دفتر یافته‌های ممیزی: [ACCOUNTING-AUDIT-REGISTER-FA.md](ACCOUNTING-AUDIT-REGISTER-FA.md).
 - بستهٔ اجرایی P0 و تصمیم‌های لازم: [ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md).
