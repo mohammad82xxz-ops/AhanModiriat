@@ -220,8 +220,8 @@
 ## ۶) وضعیت CI و اسناد ممیزی — به‌روزرسانی ۱۴۰۵/۰۸/۰۹
 
 - شاخهٔ کاری: `rebuild/phase1-money-rial-foundation`.
-- آخرین commit بررسی‌شده: `b65018d46c9a211c52ed53d004cf7e5aa5148e68`؛ پیام: `docs: include DEC-11 in P0 implementation gate`.
-- اجرای کامل CI شمارهٔ ۶۴۰: [GitHub Actions Run #640](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326) روی همین SHA با نتیجهٔ `success` پایان یافته است. هر دو job یعنی `smoke-test` و `windows-onedir` موفق‌اند.
+- اجرای کامل CI شمارهٔ ۶۴۰: [GitHub Actions Run #640](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326) روی SHA `b65018d46c9a211c52ed53d004cf7e5aa5148e68` با نتیجهٔ `success` پایان یافته است؛ هر دو job یعنی `smoke-test` و `windows-onedir` موفق‌اند.
+- پس از آن، commit مستنداتی `5f07514e7040267d08ec9e0b61894cf24579592d` برای ثبت شواهد ساخته شد؛ کد اجرایی تغییر نکرد. CI برای SHA جدید جداگانه اجرا شده و نتیجهٔ آن باید مستقل بررسی شود؛ موفقیت Run #640 به SHA جدید تعمیم داده نمی‌شود.
 - پوشش تأییدشده در job تست: compile، تست‌های ایزوله، UI matrix مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی axe-core و Lighthouse.
 - نتیجهٔ دسترس‌پذیری: axe-core تعداد ۱۷ از ۱۷ مسیر را بررسی کرده و صفر violation در تمام سطوح اثر گزارش کرده است. Lighthouse تعداد ۱۰ گزارش موبایل/دسکتاپ تولید کرده؛ performance بین ۹۹ تا ۱۰۰، accessibility برابر ۱۰۰، best-practices برابر ۱۰۰ و SEO برابر ۸۲ بوده است.
 - ساخت Windows OneDir با PyInstaller موفق شده و Artifact آن بارگذاری شده است. Artifactهای این اجرا:
@@ -230,8 +230,8 @@
   - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039154328)
 - لاگ تست مرورگر چند `BrokenPipeError` هنگام قطع اتصال کلاینت ثبت کرده، اما مراحل مربوطه و کل job موفق شده‌اند. این مورد خطای نهایی CI نبوده، ولی برای تمیزشدن لاگ و اطمینان از مدیریت قطع اتصال، در بازبینی فنی بعدی بررسی شود.
 - proxyهای دسترس‌پذیری فقط بررسی خودکارند؛ بررسی انسانی با صفحه‌کلید، screen reader و دستگاه واقعی همچنان لازم است.
-- مقایسهٔ commitها نشان می‌دهد از SHA قبلی `8b43c562a5c299e3d3a1e59208d485b9d716c6ef` تا این commit فقط دو فایل مستنداتی تغییر کرده‌اند: Roadmap و Code Touchpoints؛ هیچ کد اجرایی در این دو commit تغییر نکرده است.
-- PR #9 باز و Draft است؛ head برابر همین SHA و base برابر `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
+- مقایسهٔ commitها نشان می‌دهد از SHA `8b43c562a5c299e3d3a1e59208d485b9d716c6ef` تا `b65018d` فقط دو فایل مستنداتی Roadmap و Code Touchpoints تغییر کرده‌اند؛ commit `5f07514` نیز فقط Roadmap را به‌روزرسانی کرده است. هیچ کد اجرایی در این تغییرات مستنداتی تغییر نکرده است.
+- PR #9 باز و Draft است؛ head شاخهٔ `rebuild/phase1-money-rial-foundation` و base شاخهٔ `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
 - دفتر یافته‌های ممیزی: [ACCOUNTING-AUDIT-REGISTER-FA.md](ACCOUNTING-AUDIT-REGISTER-FA.md).
 - بستهٔ اجرایی P0 و تصمیم‌های لازم: [ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md).
 - نقشهٔ محل کد، مسیرهای فعلی، تست‌های موجود و شکاف تست: [ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md](ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md).
@@ -239,7 +239,7 @@
 - دستورالعمل backup، shadow migration، cutover، پایش و rollback: [ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md](ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md).
 - دفتر ثبت و تصویب DEC-01 تا DEC-11: [ACCOUNTING-POLICY-DECISION-REGISTER-FA.md](ACCOUNTING-POLICY-DECISION-REGISTER-FA.md).
 - موفقیت CI فقط صحت تست‌ها و workflowهای موجود روی همین SHA را نشان می‌دهد؛ به‌تنهایی یافته‌های ممیزی حسابداری را نمی‌بندد یا تأیید دستی migration/محاسبات را جایگزین نمی‌کند.
-- وضعیت پذیرش T02-A: CI روی آخرین SHA موفق است؛ بازبینی دستی migration/محاسبات و تأیید سیاست‌های وابسته همچنان گیت مستقل‌اند. DEC-01 تا DEC-11 در دفتر تصمیم‌ها Pending هستند و تا تصویب مالک، کدنویسی وابسته به آن‌ها آغاز نمی‌شود.
+- وضعیت پذیرش T02-A: Run #640 روی SHA والد موفق است؛ CI روی commit مستنداتی جدید باید جداگانه پاس شود. بازبینی دستی migration/محاسبات و تأیید سیاست‌های وابسته همچنان گیت مستقل‌اند. DEC-01 تا DEC-11 در دفتر تصمیم‌ها Pending هستند و تا تصویب مالک، کدنویسی وابسته به آن‌ها آغاز نمی‌شود.
 
 ---
 این نقشه، مبنای کار جدید است. انجام هر فاز فقط پس از تکمیل معیار پذیرش همان فاز ثبت می‌شود؛ «وجود یک صفحه یا جدول» به‌تنهایی معادل تکمیل قابلیت حسابداری نیست.
