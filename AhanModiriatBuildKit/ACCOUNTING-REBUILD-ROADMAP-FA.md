@@ -225,6 +225,7 @@
 - PR #9 باز و Draft است؛ head همین شاخه و base برابر `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
 - دفتر یافته‌های ممیزی: [ACCOUNTING-AUDIT-REGISTER-FA.md](ACCOUNTING-AUDIT-REGISTER-FA.md).
 - بستهٔ اجرایی P0 و تصمیم‌های لازم: [ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md).
+- نقشهٔ محل کد، مسیرهای فعلی، تست‌های موجود و شکاف تست: [ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md](ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md).
 - یافته‌های P0/P1 ثبت‌شده باید پیش از ادعای تکمیل حسابداری به معیارهای پذیرش و تست‌های سرتاسری تبدیل شوند. موفقیت CI فعلی فقط صحت workflow و تست‌های موجود را نشان می‌دهد، نه بسته‌شدن یافته‌های ممیزی.
 - فاز ۱ فقط پس از CI موفق روی آخرین SHA و بازبینی دستی migration/محاسبات پذیرفته می‌شود.
 
