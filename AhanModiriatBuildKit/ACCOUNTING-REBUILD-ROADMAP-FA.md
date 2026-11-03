@@ -318,3 +318,23 @@
   - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41210073165/artifacts/13045239291)
 - هیچ امتیاز عددی Lighthouse یا تعداد violation در این ثبت ادعا نمی‌شود؛ برای چنین ادعایی باید محتوای خود گزارش‌ها بررسی شود.
 - این CI فقط workflowهای تعریف‌شده روی SHA بالا را تأیید می‌کند؛ به معنی بسته‌شدن یافته‌های حسابداری، تصویب DEC-01 تا DEC-11، پذیرش نهایی T02-A یا تأیید دستی migration و محاسبات نیست.
+
+### تکمیل اجرای CI شمارهٔ ۶۵۵ — ۱۴۰۵/۰۸/۱۲
+
+- اجرای [GitHub Actions Run #655](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663) با رویداد `push` روی SHA دقیق `437418f8ed7c6c48e7dc10a64259d7e0c5b27ed7` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`. تمام مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید و بزرگ‌نمایی، ممیزی Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت Windows OneDir موفق شدند.
+- Artifactهای همین اجرا (هنگام بررسی دارای `expired=false`):
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663/artifacts/13237490206)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663/artifacts/13236687730)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663/artifacts/13236682555)
+
+### تکمیل اجرای CI شمارهٔ ۶۵۶ — ۱۴۰۵/۰۸/۱۲
+
+- اجرای [GitHub Actions Run #656](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718) با رویداد `pull_request` روی همان SHA دقیق `437418f8ed7c6c48e7dc10a64259d7e0c5b27ed7` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`. تمام مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید و بزرگ‌نمایی، ممیزی Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت Windows OneDir موفق شدند.
+- Artifactهای همین اجرا (هنگام بررسی دارای `expired=false`):
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718/artifacts/13237365766)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718/artifacts/13236882108)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718/artifacts/13235289471)
+- هر دو اجرا روی یک SHA بوده‌اند و به‌عنوان دو trigger مستقل ثبت شده‌اند؛ این دو نتیجه را نباید به SHAهای بعدی تعمیم داد. هیچ امتیاز عددی Lighthouse یا شمارش violation ادعا نمی‌شود، چون محتوای گزارش‌ها در این مرحله تحلیل نشده است.
+- موفقیت این CIها فقط workflowهای تعریف‌شده را تأیید می‌کند؛ یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-11 را تصویب نمی‌کند و جایگزین آزمون دستی Windows واقعی، بازبینی سیاست‌های حسابداری یا تأیید migration نیست.
