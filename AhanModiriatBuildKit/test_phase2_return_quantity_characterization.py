@@ -162,7 +162,16 @@ def main() -> None:
             ).fetchone()
             assert [r["qty"] for r in purchase_rows] == [2.5, 7.5]
             assert [r["return_value"] for r in purchase_rows] == [5250, 15750]
+            assert sum(r["qty"] for r in purchase_rows) == 10
+            assert sum(r["return_value"] for r in purchase_rows) == 21000
+            assert sum(r["cash_refund"] for r in purchase_rows) == 19000
             assert purchase_product["stock"] == 10, purchase_product["stock"]
+            assert c.execute(
+                """SELECT SUM(amount) FROM cash_movements
+                   WHERE source_table='purchase_returns' AND source_id IN
+                     (SELECT id FROM purchase_returns WHERE purchase_id=?)""",
+                (purchase_id,),
+            ).fetchone()[0] == 19000
 
         # Two partial sales returns allocate the remaining line value and
         # extra cost against the remaining quantity on each successive return.
@@ -216,6 +225,9 @@ def main() -> None:
             assert [r["extra_reversed"] for r in returns] == [2000, 3000, 5000]
             assert [r["refund_amount"] for r in returns] == [5000, 7000, 12000]
             assert sum(r["qty"] for r in returns) == 10
+            assert sum(r["return_value"] for r in returns) == 300000
+            assert sum(r["extra_reversed"] for r in returns) == 10000
+            assert sum(r["refund_amount"] for r in returns) == 24000
             assert sale_product["stock"] == 15, sale_product["stock"]
             assert c.execute(
                 """SELECT SUM(amount) FROM cash_movements
