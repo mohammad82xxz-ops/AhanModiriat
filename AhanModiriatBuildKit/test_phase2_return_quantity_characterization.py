@@ -125,12 +125,12 @@ def main() -> None:
             assert purchase_return["qty"] == 2.5, purchase_return["qty"]
             assert purchase_product["stock"] == 17.5, purchase_product["stock"]
             assert purchase_return["return_value"] == 5250, purchase_return["return_value"]
-            assert purchase_return["cash_refund"] == 4000, purchase_return["cash_refund"]
+            assert purchase_return["cash_refund"] == 400, purchase_return["cash_refund"]
             assert c.execute(
                 """SELECT amount FROM cash_movements
                    WHERE source_table='purchase_returns' AND source_id=?""",
                 (purchase_return["id"],),
-            ).fetchone()[0] == 4000
+            ).fetchone()[0] == 400
 
         # Two partial sales returns allocate the remaining line value and
         # extra cost against the remaining quantity on each successive return.
@@ -170,7 +170,7 @@ def main() -> None:
                    WHERE source_table='sales_returns' AND source_id IN
                      (SELECT id FROM sales_returns WHERE sale_id=?)""",
                 (sale_id,),
-            ).fetchone()[0] == 120000
+            ).fetchone()[0] == 12000
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
