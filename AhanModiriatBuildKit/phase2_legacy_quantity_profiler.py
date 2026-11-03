@@ -67,6 +67,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
     exc, limitations = [], []
     manifest = {
         "source_label": source_label, "source_sha256_before": before,
+        "working_copy_sha256_before": before, "app_commit": None,
         "mode": "READ_ONLY", "database_path_disclosed": False,
         "started_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "result": "complete", "limitations": limitations,
@@ -206,7 +207,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
                     if finite(factor) and float(factor) > 0:
                         recon[pid]["purchase_base_assumed"] += qty * float(factor)
                     else:
-                        add_exc(exc, "blocker", "FACTOR-003", table, r["id"], pid, factor,
+                        add_exc(exc, "blocker", "FACTOR-003", table, r["id"] if "id" in r.keys() else None, pid, factor,
                                 "Cannot reconstruct purchase using current factor.",
                                 "factor تاریخی یا سند معتبر لازم است.")
                 elif table == "sales":
@@ -298,9 +299,14 @@ def main(argv=None):
     p.add_argument("--db", required=True, help="مسیر کپی ایزوله SQLite؛ فایل فعال ممنوع است")
     p.add_argument("--out", required=True, help="پوشه مستقل خروجی")
     p.add_argument("--source-label", default="isolated-backup-copy")
+    p.add_argument("--app-commit", default=None, help="شناسه commit نسخه ابزار/برنامه برای manifest")
     a = p.parse_args(argv)
     try:
         result = audit(a.db, a.out, a.source_label)
+        if a.app_commit:
+            result["app_commit"] = a.app_commit
+            (Path(a.out).expanduser().resolve() / "audit_manifest.json").write_text(
+                json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     except Exception as e:
         print("AUDIT BLOCKED: " + str(e), file=sys.stderr)
         return 2
