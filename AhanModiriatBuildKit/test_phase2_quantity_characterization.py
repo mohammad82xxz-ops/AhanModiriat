@@ -127,6 +127,30 @@ def main() -> None:
             ).fetchone()[0] == 1
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+
+        # Inventory count/adjustment is entered and stored in the product base unit.
+        adjustment_page = post(port, "inventory_adjust", {
+            "date": "2026-01-03",
+            "product_id": product_id,
+            "counted_qty": "9",
+            "reason": "synthetic base-unit count",
+            "notes": "counted quantity is kg, not purchase bundle or sale box",
+        })
+        assert "انبارگردانی ثبت شد" in adjustment_page
+        with app.conn() as c:
+            adjustment = c.execute(
+                "SELECT * FROM inventory_adjustments WHERE product_id=?",
+                (product_id,),
+            ).fetchone()
+            product = c.execute(
+                "SELECT * FROM products WHERE id=?", (product_id,)
+            ).fetchone()
+            assert adjustment["expected_qty"] == 7
+            assert adjustment["counted_qty"] == 9
+            assert adjustment["delta_qty"] == 2
+            assert product["stock"] == 9
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         server.shutdown()
         server.server_close()
