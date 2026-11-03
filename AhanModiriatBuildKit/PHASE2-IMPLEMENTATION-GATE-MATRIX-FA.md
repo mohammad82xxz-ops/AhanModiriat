@@ -71,7 +71,7 @@
 | Batch | دامنه | پیش‌نیاز | خروجی قابل قبول | ممنوع تا عبور از گیت |
 |---|---|---|---|---|
 | B0 — Profiling فقط‌خواندنی | اسکریپت/گزارش استخراج distinct unit، factorهای غیرعادی، موجودی منفی، baseline و timestamp از کپی ایزوله | backup مجاز، hash منبع، کپی ایزوله، تأیید read-only | گزارش خام، شمارش exception و provenance؛ بدون افشای اطلاعات اشخاص | اتصال به دیتابیس فعال؛ هرگونه write یا اصلاح داده |
-| B1 — Characterization | تست رفتار فعلی خرید/فروش با factor غیر۱، مرجوعی‌های جزئی، تعدیل، parser تاریخ و XLSX فعلی | fixture مصنوعی و baseline کد | تست‌های قفل‌کنندهٔ رفتار موجود با نام‌گذاری روشن | assert کردن سیاست جدید یا تغییر منطق production |
+| B1 — Characterization | تست رفتار فعلی خرید/فروش با factor غیر۱، مرجوعی‌های جزئی/چندمرحله‌ای، تعدیل در واحد پایه، parser تاریخ و XLSX فعلی | fixture مصنوعی و baseline کد | تست‌های HTTP خرید/فروش/مرجوعی، سقف مرجوعی، تطبیق جمع‌ها و تعدیل شمارش؛ سایر مسیرهای B1 جداگانه پوشش داده شوند | assert کردن سیاست جدید یا تغییر منطق production |
 | B2 — قرارداد مقدار pure | parser/representation مستقل و deterministic برای مقدار | تصویب DEC-13 و دامنهٔ واحدها؛ برای وزن واقعی DEC-12 | کتابخانهٔ pure، تست مرزی و round-trip | اتصال به مسیرهای ثبت سند، migration یا تغییر stock |
 | B3 — ledger و dual tracking | مدل تعداد/وزن، snapshot واحد/ضریب و گردش‌های سندی | DEC-12/13/14، قرارداد canonical، DEC-11 برای افتتاحیه | پیاده‌سازی کوچک در شاخهٔ اجرایی، migration آزمایشی روی fixture، تطبیق ledger | نوشتن روی دیتابیس واقعی؛ استنتاج وزن/تعداد قدیمی |
 | B4 — تاریخ و زمان | تفکیک effective_date، recorded_at و updated_at؛ parser و نمایش شمسی | DEC-04 برای تاریخ اقتصادی؛ تصمیم timezone برای timestamp و legacy | تست‌های DATE، audit و replay آزمایشی | بازنویسی تاریخچه یا عبور از دورهٔ بسته بدون مصوبه |
