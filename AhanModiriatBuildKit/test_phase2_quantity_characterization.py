@@ -85,7 +85,7 @@ def main() -> None:
             assert abs(product["avg_cost"] - 84) < 1e-9, product["avg_cost"]
             assert c.execute(
                 """SELECT COUNT(*) FROM cash_movements
-                   WHERE source_table='purchases' AND source_id=? AND amount=126""",
+                   WHERE source_table='purchases' AND source_id=? AND amount=1260""",
                 (purchase["id"],),
             ).fetchone()[0] == 1
 
@@ -122,7 +122,7 @@ def main() -> None:
             assert product["stock"] == 7, product["stock"]
             assert c.execute(
                 """SELECT COUNT(*) FROM cash_movements
-                   WHERE source_table='sales' AND source_id=? AND amount=120""",
+                   WHERE source_table='sales' AND source_id=? AND amount=1200""",
                 (sale["id"],),
             ).fetchone()[0] == 1
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
