@@ -163,7 +163,7 @@ def main() -> None:
             assert [r["qty"] for r in returns] == [2, 3]
             assert [r["return_value"] for r in returns] == [60000, 90000]
             assert [r["extra_reversed"] for r in returns] == [2000, 3000]
-            assert [r["refund_amount"] for r in returns] == [500, 700]
+            assert [r["refund_amount"] for r in returns] == [5000, 7000]
             assert sale_product["stock"] == 10, sale_product["stock"]
             assert c.execute(
                 """SELECT SUM(amount) FROM cash_movements
