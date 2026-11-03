@@ -116,7 +116,7 @@ def main() -> None:
             # sales.qty is stored after conversion to the product base unit.
             assert purchase["qty"] == 3, purchase["qty"]
             assert sale["qty"] == 8, sale["qty"]
-            assert sale["unit_price"] == 300, sale["unit_price"]
+            assert sale["unit_price"] == 150, sale["unit_price"]
             assert sale["line_total"] == 1200, sale["line_total"]
             assert abs(sale["cost_basis"] - 84) < 1e-9, sale["cost_basis"]
             assert product["stock"] == 7, product["stock"]
