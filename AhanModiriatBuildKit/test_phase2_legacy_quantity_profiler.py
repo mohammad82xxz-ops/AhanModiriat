@@ -3,6 +3,7 @@
 from __future__ import annotations
 import hashlib
 import importlib.util
+import shutil
 import json
 import sqlite3
 import tempfile
@@ -58,6 +59,7 @@ def main() -> None:
                 (1, 'synthetic steel', 'S-1', 'kg', 13, 1, 'bundle ', 5, 'piece', 2, 0, 0),
                 (2, 'invalid factor', 'S-2', 'kg', -1, 0, 'bundle', 0, '', -2, -1, 0);
             INSERT INTO purchases VALUES (1, '2026-01-01', 1, 3);
+            INSERT INTO purchases VALUES (2, '2026-01-01', 2, 1);
             INSERT INTO sales VALUES (1, '2026-01-02', 1, 4);
             INSERT INTO purchase_returns VALUES (1, '2026-01-03', 1, 2);
             INSERT INTO sales_returns VALUES (1, '2026-01-04', 1, 1);
@@ -94,6 +96,23 @@ def main() -> None:
         exceptions = (out / "exceptions.csv").read_text(encoding="utf-8-sig")
         assert "FACTOR-001" in exceptions and "UNIT-002" in exceptions
         assert "LEDGER-002" in exceptions
+        assert "FACTOR-003" in exceptions
+
+        # A bad factor on a product with purchases must not produce a baseline.
+        assert "UNRECONCILED" in reconciliation
+
+        # Missing one movement table makes the entire movement reconstruction partial.
+        incomplete_db = root / "incomplete.sqlite"
+        shutil.copy2(db, incomplete_db)
+        broken = sqlite3.connect(incomplete_db)
+        broken.execute("DROP TABLE inventory_adjustments")
+        broken.commit()
+        broken.close()
+        partial = PROFILER.audit(incomplete_db, root / "partial-report", "incomplete-fixture")
+        assert partial["result"] == "partial"
+        partial_csv = (root / "partial-report" / "product_reconciliation.csv").read_text(encoding="utf-8-sig")
+        assert "UNRECONCILED" in partial_csv
+        assert "LEDGER-001" in (root / "partial-report" / "exceptions.csv").read_text(encoding="utf-8-sig")
         print("PHASE 2 READ-ONLY LEGACY PROFILER TESTS PASSED")
 
 
