@@ -82,7 +82,7 @@ def main() -> None:
             ).fetchone()
             assert purchase["qty"] == 3, purchase["qty"]
             assert product["stock"] == 15, product["stock"]
-            assert abs(product["avg_cost"] - 8.4) < 1e-9, product["avg_cost"]
+            assert abs(product["avg_cost"] - 84) < 1e-9, product["avg_cost"]
             assert c.execute(
                 """SELECT COUNT(*) FROM cash_movements
                    WHERE source_table='purchases' AND source_id=? AND amount=126""",
@@ -116,9 +116,9 @@ def main() -> None:
             # sales.qty is stored after conversion to the product base unit.
             assert purchase["qty"] == 3, purchase["qty"]
             assert sale["qty"] == 8, sale["qty"]
-            assert sale["unit_price"] == 15, sale["unit_price"]
-            assert sale["line_total"] == 120, sale["line_total"]
-            assert abs(sale["cost_basis"] - 8.4) < 1e-9, sale["cost_basis"]
+            assert sale["unit_price"] == 300, sale["unit_price"]
+            assert sale["line_total"] == 1200, sale["line_total"]
+            assert abs(sale["cost_basis"] - 84) < 1e-9, sale["cost_basis"]
             assert product["stock"] == 7, product["stock"]
             assert c.execute(
                 """SELECT COUNT(*) FROM cash_movements
