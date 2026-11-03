@@ -23,8 +23,15 @@ def main():
         c.execute("""INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock)
                      VALUES('low stock no sales','kg',1,1,2,4)""")
         low = c.execute("SELECT id FROM products WHERE name='low stock no sales'").fetchone()[0]
-        c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
+        sale = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,extra_cost,customer,received,notes,cost_basis)
                      VALUES(?,?,60,2,0,'sample',120,'30-day demand',1)""", (today,fast))
+        # Characterize current behavior: sales returns are not subtracted from
+        # the recommendation's gross sales window. Date attribution and whether
+        # returned goods are saleable remain explicit policy decisions.
+        c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,
+                     cost_basis,extra_reversed,refund_amount,reason,notes)
+                     VALUES(?,?,?,?,10,20,1,0,0,'synthetic return','characterization only')""",
+                  (today,sale.lastrowid,fast,"sample"))
         recs = {r["id"]:r for r in app.compute_purchase_advice(c,30)}
         assert recs[fast]["sold"] == 60
         assert recs[fast]["daily"] == 2
