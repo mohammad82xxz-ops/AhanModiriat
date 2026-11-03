@@ -81,3 +81,22 @@
 ## جمع‌بندی
 
 Run #715 روی SHA ثبت‌شده کاملاً موفق است و artifactهای لازم تولید شده‌اند. این نتیجه، آمادگی شواهد CI برای این snapshot را نشان می‌دهد؛ نه تکمیل کل فاز دوم، نه تصویب سیاست حسابداری، نه تأیید دادهٔ واقعی و نه تأیید نهایی اجرای Windows. PR باید Draft و main دست‌نخورده باقی بماند تا گیت‌های باز و بررسی‌های مالک تکمیل شوند.
+
+
+## اجرای تکمیلی Run #719 — CSV characterization و رفع باگ
+
+- Run: [#719](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41708106130)
+- SHA آزموده‌شده: `5ea31da29c2d9084c3b0b6fd59bbe1e1244a5490`
+- نتیجه: هر دو Job یعنی `smoke-test` و `windows-onedir` با موفقیت کامل شدند.
+- در اولین اجرای تست تازهٔ CSV، Run [#718](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41707978421) شکست واقعی را آشکار کرد: query خروجی CSV به‌دلیل ستون مبهم `notes` در JOIN جدول‌های فروش و کالا، `sqlite3.OperationalError` می‌داد. در commit `5ea31da` فقط ارجاع ستون‌های هزینه و یادداشت فروش به جدول `sales` مقید شد؛ فرمول مالی یا منطق موجودی تغییر نکرد.
+- `test_phase2_csv_export_characterization.py` پس از اصلاح، در Isolated Smoke Tests موفق شد. این تست HTTP واقعی برنامه را با fixture مصنوعی اجرا می‌کند و BOM، header شش‌ستونی، ردیف‌های فروش کالا/خدمت/پرداخت، نبود ردیف خرید و نبود ستون مقدار/واحد را بررسی می‌کند.
+- Browser UI matrix، finance/inventory workflows و keyboard/zoom proxies همگی موفق شدند.
+- Lighthouse: در ۱۰ گزارش، Accessibility=100 و Best Practices=100 در همهٔ مسیرها؛ Performance=99 فقط برای mobile در `/purchases` و 100 برای ۹ گزارش دیگر؛ SEO=82 در همهٔ ۱۰ گزارش.
+- axe-core: ۱۷ مسیر، صفر violation در همهٔ سطوح؛ incomplete=2 برای هر یک از `/loans`، `/prices`، `/parties` و `/returns` و صفر برای ۱۳ مسیر دیگر. این موارد incomplete جایگزین بررسی انسانی نیستند.
+- Artifactهای Run #719 دریافت و فهرست فایل‌هایشان بررسی شدند:
+  - [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41708106130/artifacts/13267906093) — ۶۸ تصویر.
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41708106130/artifacts/13266221786) — شامل `AhanModiriat.exe` و پوشهٔ `_internal`.
+  - [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41708106130/artifacts/13266156651) — ۱۰ گزارش Lighthouse، `axe-results.json` و خلاصهٔ audit.
+- هر سه artifact تا ۱۷ نوامبر ۲۰۲۶ در دسترس‌اند. Build موفق Windows OneDir معادل اجرای دستی روی Windows پاک نیست.
+
+Run #719 روی SHA کد `5ea31da` تأیید CI را می‌دهد. اگر این گزارش در commit بعدی ذخیره شود، CI آن commit مستندات باید جداگانه بررسی شود؛ شواهد Run #719 به SHA خودش محدود است.
