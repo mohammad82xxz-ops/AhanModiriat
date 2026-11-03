@@ -66,6 +66,16 @@ def main() -> None:
         c.commit()
         c.close()
         before = digest(db)
+        read_only = PROFILER.connect_readonly(db)
+        try:
+            try:
+                read_only.execute("UPDATE products SET stock=999 WHERE id=1")
+                raise AssertionError("read-only connection unexpectedly accepted UPDATE")
+            except sqlite3.OperationalError:
+                pass
+        finally:
+            read_only.close()
+        assert digest(db) == before
         result = PROFILER.audit(db, out, "synthetic-fixture")
         assert result["mode"] == "READ_ONLY"
         assert result["source_unchanged"] is True
