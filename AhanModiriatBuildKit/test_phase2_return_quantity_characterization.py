@@ -132,6 +132,38 @@ def main() -> None:
                 (purchase_return["id"],),
             ).fetchone()[0] == 400
 
+        # A second partial purchase return exhausts the original 10 kg
+        # purchase entitlement. A further return must be rejected without
+        # inserting a row or changing stock.
+        post(port, "add_purchase_return", {
+            "purchase_id": purchase_id,
+            "date": "2026-02-06",
+            "qty": "7.5",
+            "cash_refund": "150",
+            "reason": "synthetic final purchase return",
+            "notes": "remaining 7.5 kg",
+        })
+        over_purchase_page = post(port, "add_purchase_return", {
+            "purchase_id": purchase_id,
+            "date": "2026-02-07",
+            "qty": "0.1",
+            "cash_refund": "1",
+            "reason": "synthetic over-return attempt",
+            "notes": "must be rejected",
+        })
+        assert "مقدار مرجوعی از خرید اصلی بیشتر است" in over_purchase_page
+        with app.conn() as c:
+            purchase_rows = c.execute(
+                "SELECT * FROM purchase_returns WHERE purchase_id=? ORDER BY id",
+                (purchase_id,),
+            ).fetchall()
+            purchase_product = c.execute(
+                "SELECT * FROM products WHERE id=?", (purchase_product_id,)
+            ).fetchone()
+            assert [r["qty"] for r in purchase_rows] == [2.5, 7.5]
+            assert [r["return_value"] for r in purchase_rows] == [5250, 15750]
+            assert purchase_product["stock"] == 10, purchase_product["stock"]
+
         # Two partial sales returns allocate the remaining line value and
         # extra cost against the remaining quantity on each successive return.
         post(port, "add_sales_return", {
@@ -150,6 +182,25 @@ def main() -> None:
             "reason": "synthetic second partial sales return",
             "notes": "second partial return",
         })
+        # Return the final 5 kg in a third step, then prove that an
+        # additional return is rejected and has no database side effects.
+        post(port, "add_sales_return", {
+            "sale_id": sale_id,
+            "date": "2026-02-06",
+            "qty": "5",
+            "refund_amount": "1200",
+            "reason": "synthetic final sales return",
+            "notes": "remaining 5 kg",
+        })
+        over_sale_page = post(port, "add_sales_return", {
+            "sale_id": sale_id,
+            "date": "2026-02-07",
+            "qty": "0.1",
+            "refund_amount": "1",
+            "reason": "synthetic over-return attempt",
+            "notes": "must be rejected",
+        })
+        assert "مقدار مرجوعی از ماندهٔ قابل برگشت بیشتر است" in over_sale_page
         with app.conn() as c:
             returns = c.execute(
                 """SELECT * FROM sales_returns
@@ -159,18 +210,19 @@ def main() -> None:
             sale_product = c.execute(
                 "SELECT * FROM products WHERE id=?", (sale_product_id,)
             ).fetchone()
-            assert len(returns) == 2, len(returns)
-            assert [r["qty"] for r in returns] == [2, 3]
-            assert [r["return_value"] for r in returns] == [60000, 90000]
-            assert [r["extra_reversed"] for r in returns] == [2000, 3000]
-            assert [r["refund_amount"] for r in returns] == [5000, 7000]
-            assert sale_product["stock"] == 10, sale_product["stock"]
+            assert len(returns) == 3, len(returns)
+            assert [r["qty"] for r in returns] == [2, 3, 5]
+            assert [r["return_value"] for r in returns] == [60000, 90000, 150000]
+            assert [r["extra_reversed"] for r in returns] == [2000, 3000, 5000]
+            assert [r["refund_amount"] for r in returns] == [5000, 7000, 12000]
+            assert sum(r["qty"] for r in returns) == 10
+            assert sale_product["stock"] == 15, sale_product["stock"]
             assert c.execute(
                 """SELECT SUM(amount) FROM cash_movements
                    WHERE source_table='sales_returns' AND source_id IN
                      (SELECT id FROM sales_returns WHERE sale_id=?)""",
                 (sale_id,),
-            ).fetchone()[0] == 12000
+            ).fetchone()[0] == 24000
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
