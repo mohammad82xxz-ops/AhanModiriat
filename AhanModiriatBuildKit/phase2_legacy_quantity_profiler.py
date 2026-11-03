@@ -307,6 +307,14 @@ def main(argv=None):
             result["app_commit"] = a.app_commit
             (Path(a.out).expanduser().resolve() / "audit_manifest.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+            report_dir = Path(a.out).expanduser().resolve()
+            checksum_lines = [
+                sha256(path) + "  " + path.name
+                for path in sorted(report_dir.iterdir())
+                if path.is_file() and path.name != "checksums.txt"
+            ]
+            (report_dir / "checksums.txt").write_text(
+                "\\n".join(checksum_lines) + "\\n", encoding="utf-8")
     except Exception as e:
         print("AUDIT BLOCKED: " + str(e), file=sys.stderr)
         return 2
