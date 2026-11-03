@@ -49,6 +49,16 @@ def add_exc(out, severity, code, table, rid, pid, raw, reason, action):
     out.append(dict(severity=severity, code=code, table=table, record_id=rid,
                     product_id=pid, raw_value=raw, reason=reason, next_action=action))
 
+def connect_readonly(db):
+    path = Path(db).expanduser().resolve(strict=True)
+    connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA query_only=ON")
+    if connection.execute("PRAGMA query_only").fetchone()[0] != 1:
+        connection.close()
+        raise RuntimeError("فعال‌سازی query_only ناموفق بود.")
+    return connection
+
 def audit(db, out, source_label="isolated-backup-copy"):
     db = Path(db).expanduser().resolve(strict=True)
     out = Path(out).expanduser().resolve()
@@ -58,12 +68,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
         raise ValueError("پوشه خروجی نباید فایل دیتابیس یا والد آن باشد.")
     out.mkdir(parents=True, exist_ok=True)
     before = sha256(db)
-    c = sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=5)
-    c.row_factory = sqlite3.Row
-    c.execute("PRAGMA query_only=ON")
-    if c.execute("PRAGMA query_only").fetchone()[0] != 1:
-        c.close()
-        raise RuntimeError("فعال‌سازی query_only ناموفق بود.")
+    c = connect_readonly(db)
     exc, limitations = [], []
     manifest = {
         "source_label": source_label, "source_sha256_before": before,
