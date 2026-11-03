@@ -59,8 +59,8 @@ def main() -> None:
             """INSERT INTO purchases(
                    date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes
                ) VALUES(?,?,?,?,?,?,?,?)""",
-            ("2026-02-01", purchase_product_id, 2, 100, 10,
-             "B1 return supplier", 210, "synthetic purchase source"),
+            ("2026-02-01", purchase_product_id, 2, 10000, 1000,
+             "B1 return supplier", 21000, "synthetic purchase source"),
         ).lastrowid
 
         c.execute(
@@ -80,18 +80,18 @@ def main() -> None:
                    date,product_id,qty,unit_price,extra_cost,customer,
                    received,notes,cost_basis,line_total
                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-            ("2026-02-02", sale_product_id, 10, 300, 100,
-             "B1 return customer", 3000, "synthetic sale source", 30, 3000),
+            ("2026-02-02", sale_product_id, 10, 30000, 10000,
+             "B1 return customer", 300000, "synthetic sale source", 3000, 300000),
         ).lastrowid
 
         app.ensure_person(c, "B1 return supplier", "supplier")
         app.ensure_person(c, "B1 return customer", "customer")
         app.sync_cash_posting(
-            c, "purchases", purchase_id, "2026-02-01", 210,
+            c, "purchases", purchase_id, "2026-02-01", 21000,
             "out", "B1 return supplier", "synthetic purchase source",
         )
         app.sync_cash_posting(
-            c, "sales", sale_id, "2026-02-02", 3000,
+            c, "sales", sale_id, "2026-02-02", 300000,
             "in", "B1 return customer", "synthetic sale source",
         )
 
@@ -124,13 +124,13 @@ def main() -> None:
             assert purchase["qty"] == 2, purchase["qty"]
             assert purchase_return["qty"] == 2.5, purchase_return["qty"]
             assert purchase_product["stock"] == 17.5, purchase_product["stock"]
-            assert purchase_return["return_value"] == 53, purchase_return["return_value"]
-            assert purchase_return["cash_refund"] == 40, purchase_return["cash_refund"]
+            assert purchase_return["return_value"] == 5250, purchase_return["return_value"]
+            assert purchase_return["cash_refund"] == 4000, purchase_return["cash_refund"]
             assert c.execute(
                 """SELECT amount FROM cash_movements
                    WHERE source_table='purchase_returns' AND source_id=?""",
                 (purchase_return["id"],),
-            ).fetchone()[0] == 40
+            ).fetchone()[0] == 4000
 
         # Two partial sales returns allocate the remaining line value and
         # extra cost against the remaining quantity on each successive return.
@@ -161,8 +161,8 @@ def main() -> None:
             ).fetchone()
             assert len(returns) == 2, len(returns)
             assert [r["qty"] for r in returns] == [2, 3]
-            assert [r["return_value"] for r in returns] == [600, 900]
-            assert [r["extra_reversed"] for r in returns] == [20, 30]
+            assert [r["return_value"] for r in returns] == [60000, 90000]
+            assert [r["extra_reversed"] for r in returns] == [2000, 3000]
             assert [r["refund_amount"] for r in returns] == [500, 700]
             assert sale_product["stock"] == 10, sale_product["stock"]
             assert c.execute(
@@ -170,7 +170,7 @@ def main() -> None:
                    WHERE source_table='sales_returns' AND source_id IN
                      (SELECT id FROM sales_returns WHERE sale_id=?)""",
                 (sale_id,),
-            ).fetchone()[0] == 1200
+            ).fetchone()[0] == 120000
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
