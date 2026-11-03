@@ -150,13 +150,18 @@ def audit(db, out, source_label="isolated-backup-copy"):
         unit_rows = [dict(field=k[0], raw_value=k[1], product_count=v)
                      for k, v in sorted(unit_counter.items())]
         profiles = []
+        movement_schema_complete = True
         for table, qfield in PROFILE.items():
             if not exists(c, table):
-                limitations.append("Optional table missing: " + table)
+                limitations.append("Required movement table missing: " + table)
+                movement_schema_complete = False
+                if manifest["result"] == "complete":
+                    manifest["result"] = "partial"
                 continue
             if qfield not in schema[table]:
                 add_exc(exc, "high", "SCHEMA-001", table, None, None, qfield,
                         "Expected quantity column missing.", "schema را دستی بررسی کنید.")
+                movement_schema_complete = False
                 if manifest["result"] == "complete":
                     manifest["result"] = "partial"
                 continue
@@ -193,6 +198,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
         recon = {pid: dict(purchase_base_assumed=0.0, sales_base=0.0,
                            purchase_returns_base=0.0, sales_returns_base=0.0,
                            inventory_adjustment_base=0.0) for pid in pmap}
+        recon_valid = {pid: True for pid in pmap}
         for table in MOVEMENTS:
             if not exists(c, table):
                 continue
@@ -204,7 +210,10 @@ def audit(db, out, source_label="isolated-backup-copy"):
                 continue
             for r in c.execute('SELECT * FROM "' + table + '"'):
                 pid = r["product_id"]
-                if pid not in recon or not finite(r[qfield]):
+                if pid not in recon:
+                    continue
+                if not finite(r[qfield]):
+                    recon_valid[pid] = False
                     continue
                 qty = float(r[qfield])
                 if table == "purchases":
@@ -212,6 +221,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
                     if finite(factor) and float(factor) > 0:
                         recon[pid]["purchase_base_assumed"] += qty * float(factor)
                     else:
+                        recon_valid[pid] = False
                         add_exc(exc, "blocker", "FACTOR-003", table, r["id"] if "id" in r.keys() else None, pid, factor,
                                 "Cannot reconstruct purchase using current factor.",
                                 "factor تاریخی یا سند معتبر لازم است.")
@@ -231,7 +241,12 @@ def audit(db, out, source_label="isolated-backup-copy"):
                      - parts["purchase_returns_base"] + parts["sales_returns_base"]
                      + parts["inventory_adjustment_base"])
             stock = float(p["stock"]) if finite(p["stock"]) else None
-            baseline = stock - delta if stock is not None else None
+            can_reconcile = stock is not None and movement_schema_complete and recon_valid[pid]
+            baseline = stock - delta if can_reconcile else None
+            if not can_reconcile:
+                add_exc(exc, "blocker", "LEDGER-001", "products", pid, pid, delta,
+                        "Movement history/schema or a required factor is incomplete for reconciliation.",
+                        "مانده تطبیق‌نیافته باقی بماند؛ از baseline ناقص افتتاحیه نسازید.")
             reconciliations.append(dict(
                 product_id=pid, product_name=p["name"], current_stock_raw=p["stock"],
                 **parts, total_delta_assumed=delta,
