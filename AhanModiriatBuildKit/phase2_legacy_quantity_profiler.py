@@ -205,6 +205,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
             qfield = PROFILE[table]
             if not {"product_id", qfield}.issubset(schema[table]):
                 limitations.append("Reconciliation skipped for schema mismatch: " + table)
+                movement_schema_complete = False
                 if manifest["result"] == "complete":
                     manifest["result"] = "partial"
                 continue
