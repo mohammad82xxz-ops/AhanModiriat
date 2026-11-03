@@ -124,14 +124,15 @@
 - `test_phase2_date_characterization.py` نیز رفتار فعلی parser تاریخ را با fixture مستقل پوشش می‌دهد: مرز سال شمسی، ارقام فارسی و عربی، کبیسهٔ شمسی/میلادی، تاریخ نامعتبر، قالب ناقص و fallback ورودی خالی. این تست timezone، تاریخ اقتصادی، دورهٔ بسته یا انتساب تاریخ مرجوعی را تعیین نمی‌کند.
 - `test_phase2_edit_quantity_characterization.py` فرم ویرایش خرید را در واحد خرید و فرم/مسیر ویرایش فروش را در واحد پایه با factor فروش غیر۱ بررسی می‌کند؛ updateها از HTTP واقعی عبور می‌کنند و اثر stock را روی fixture مصنوعی assert می‌کنند.
 - `test_excel_io.py` موجود نیز round-trip فایل، import/export HTTP، idempotency تکرار import، رد مقادیر NaN/Infinity و سقف اندازهٔ XML بازشده را پوشش می‌دهد؛ قرارداد نسخه‌دار/preview هنوز پیاده‌سازی نشده و در B6 باقی می‌ماند.
-- Workflow CI تست‌های مقدار، ویرایش، مرجوعی، profiler و تاریخ را در compile و isolated smoke test اجرا می‌کند.
+- `test_phase2_xlsx_unit_characterization.py` نشان می‌دهد import فعلی واحدهای ناشناخته را بدون mapping می‌پذیرد و factor صفر را به‌دلیل fallback با مقدار پیش‌فرض ۱ وارد می‌کند؛ factor منفی رد می‌شود. این دو رفتار ریسک داده‌ای هستند و صرفاً ثبت شده‌اند؛ اصلاح parser/import تا قرارداد B6، mapping واحد و قواعد factor نباید حدس زده شود.
+- Workflow CI تست‌های مقدار، ویرایش، مرجوعی، profiler، تاریخ و واحدهای XLSX را در compile و isolated smoke test اجرا می‌کند.
 
 ## ۸. وضعیت فعلی و اقدام بعدی
 
 - DEC-01 تا DEC-11: طبق دفتر تصمیم، همگی Pending.
 - DEC-12 تا DEC-16: پیشنهادهای جدید برای بررسی؛ هنوز در دفتر رسمی ثبت یا تصویب نشده‌اند.
 - دیتابیس واقعی/backup ناشناس‌شده: در این PR بررسی نشده؛ فهرست واحدها و نرخ exception واقعی هنوز نامعلوم است.
-- B0 و B1: نخستین کارهای کم‌ریسک؛ B0 به کپی ایزوله نیاز دارد. برای B1 چهار تست مستقل مقدار/مرجوعی/ویرایش/تاریخ اضافه شده‌اند: `test_phase2_quantity_characterization.py` برای خرید/فروش با factorهای غیر۱ و `test_phase2_return_quantity_characterization.py` برای تفاوت واحد qty در خرید و مرجوعی خرید، مرجوعی خرید چندمرحله‌ای تا سقف سند، سه مرحله مرجوعی فروش و رد مرجوعی بیش از مانده؛ `test_phase2_edit_quantity_characterization.py` برای واحد مستقل فرم‌های ویرایش خرید و فروش. هر دو از HTTP واقعی برنامه و fixture مصنوعی استفاده می‌کنند؛ صرفاً رفتار فعلی را ثبت می‌کنند و تأیید سیاست حسابداری نیستند.
+- B0 و B1: نخستین کارهای کم‌ریسک؛ B0 به کپی ایزوله نیاز دارد. برای B1 پنج تست مستقل مقدار/مرجوعی/ویرایش/تاریخ/XLSX اضافه شده‌اند: `test_phase2_quantity_characterization.py` برای خرید/فروش با factorهای غیر۱ و `test_phase2_return_quantity_characterization.py` برای تفاوت واحد qty در خرید و مرجوعی خرید، مرجوعی خرید چندمرحله‌ای تا سقف سند، سه مرحله مرجوعی فروش و رد مرجوعی بیش از مانده؛ `test_phase2_edit_quantity_characterization.py` برای واحد مستقل فرم‌های ویرایش خرید و فروش و `test_phase2_xlsx_unit_characterization.py` برای پذیرش واحد خام و fallback factor صفر در import فعلی. هر دو از HTTP واقعی برنامه و fixture مصنوعی استفاده می‌کنند؛ صرفاً رفتار فعلی را ثبت می‌کنند و تأیید سیاست حسابداری نیستند.
 - B2 تا B8: طبق وابستگی‌های جدول Batch، مرحله‌ای و مشروط‌اند.
 - این PR همچنان design-only و Draft می‌ماند؛ main و دیتابیس عملیاتی خارج از دامنه‌اند.
 
