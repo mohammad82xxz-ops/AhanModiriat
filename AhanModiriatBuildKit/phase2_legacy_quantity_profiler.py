@@ -314,7 +314,7 @@ def main(argv=None):
                 if path.is_file() and path.name != "checksums.txt"
             ]
             (report_dir / "checksums.txt").write_text(
-                "\\n".join(checksum_lines) + "\\n", encoding="utf-8")
+                "\n".join(checksum_lines) + "\n", encoding="utf-8")
     except Exception as e:
         print("AUDIT BLOCKED: " + str(e), file=sys.stderr)
         return 2
