@@ -2069,7 +2069,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=='export.csv':
                 import csv, io
                 out=io.StringIO(); w=csv.writer(out); w.writerow(['نوع','تاریخ','شرح','مبلغ/درآمد','هزینه/اصل','یادداشت'])
-                for r in c.execute('SELECT date, name, COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price)), money_line_total(qty,cost_basis)+extra_cost, notes FROM sales JOIN products ON products.id=sales.product_id'):w.writerow(['فروش کالا',r[0],r[1],money(r[2]),money(r[3]),r[4]])
+                for r in c.execute('SELECT date, name, COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price)), money_line_total(sales.qty,sales.cost_basis)+sales.extra_cost, sales.notes FROM sales JOIN products ON products.id=sales.product_id'):w.writerow(['فروش کالا',r[0],r[1],money(r[2]),money(r[3]),r[4]])
                 for r in c.execute('SELECT date,title,revenue,cost,notes FROM services'):w.writerow(['خدمت',r[0],r[1],money(r[2]),money(r[3]),r[4]])
                 for r in c.execute('SELECT date,category,amount,business,notes FROM expenses'):w.writerow(['پرداخت',r[0],r[1],money(r[2]),'هزینه کسب‌وکار' if r[3] else 'برداشت شخصی',r[4]])
                 self.send('\ufeff'+out.getvalue(),'text/csv; charset=utf-8'); return
