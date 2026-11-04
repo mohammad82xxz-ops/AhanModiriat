@@ -90,7 +90,7 @@ def main() -> None:
         assert result["source_unchanged"] is True
         assert digest(db) == before
         assert result["product_count"] == 2
-        assert result["result"] == "complete"
+        assert result["result"] == "partial"  # orphan also triggers the SQLite FK diagnostic
         assert (out / "checksums.txt").is_file()
         assert (out / "audit_manifest.json").is_file()
         units = (out / "unit_value_counts.csv").read_text(encoding="utf-8-sig")
