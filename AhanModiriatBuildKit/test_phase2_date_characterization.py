@@ -39,16 +39,26 @@ def main():
     assert app.to_iso_date("۱۴۰۳/۰۱/۰۱") == "2024-03-20"
     assert app.to_iso_date("١٤٠٣/٠١/٠١") == "2024-03-20"
 
-    # Leap-day handling in both calendars.
+    # Leap-day handling across distinct Jalali and Gregorian leap rules.
     assert app.to_iso_date("1403/12/30") == "2025-03-20"
+    assert app.to_iso_date("1399/12/30") == "2021-03-20"
     assert app.to_iso_date("2024/02/29") == "2024-02-29"
+    assert app.to_iso_date("2000/02/29") == "2000-02-29"
     expect_invalid("1402/12/30")
+    expect_invalid("1400/12/30")
     expect_invalid("2023/02/29")
+    expect_invalid("1900/02/29")
+
+    # Explicit Gregorian input also accepts ISO separators and normalized digits.
+    assert app.to_iso_date(" 2024-02-29 ") == "2024-02-29"
+    assert app.to_iso_date("۲۰۲۴-۰۲-۲۹") == "2024-02-29"
+    assert app.to_iso_date("١٤٠٣-٠١-٠١") == "2024-03-20"
 
     # Invalid month/day, malformed and ambiguous input must not normalize.
     for value in (
         "1403/13/01", "1403/00/01", "1403/07/31",
         "1403/01/00", "1403/01/32", "1403/1", "1403/01/01/extra",
+        "2024/13/01", "2024/00/01", "2024/04/31",
         "not-a-date",
     ):
         expect_invalid(value)
