@@ -99,4 +99,22 @@ Run #715 روی SHA ثبت‌شده کاملاً موفق است و artifactها
   - [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41708106130/artifacts/13266156651) — ۱۰ گزارش Lighthouse، `axe-results.json` و خلاصهٔ audit.
 - هر سه artifact تا ۱۷ نوامبر ۲۰۲۶ در دسترس‌اند. Build موفق Windows OneDir معادل اجرای دستی روی Windows پاک نیست.
 
-Run #719 روی SHA کد `5ea31da` تأیید CI را می‌دهد. اگر این گزارش در commit بعدی ذخیره شود، CI آن commit مستندات باید جداگانه بررسی شود؛ شواهد Run #719 به SHA خودش محدود است.
+Run #719 روی SHA کد `5ea31da` تأیید CI را می‌دهد؛ Run #720 نیز commit مستندات `dae5534` را جداگانه تأیید کرده است. شواهد هر اجرا فقط به SHA همان اجرا محدود است.
+
+
+## اجرای تکمیلی Run #721 — characterization خروجی XLSX
+
+- Run: [#721](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41792827717)
+- SHA آزموده‌شده: `ae054aac4ce82eb93ef0944a822ae80d3122a9be`
+- نتیجه: هر دو Job یعنی `smoke-test` و `windows-onedir` با موفقیت کامل شدند.
+- تست تازهٔ `test_phase2_xlsx_export_characterization.py` در Compile و Isolated Smoke Tests اجرا شد و endpoint واقعی `/export.xlsx` را با fixture مصنوعی بررسی کرد: هر ۱۵ ستون محصول، هر ۴ ستون شخص، تبدیل نمایشی مبالغ ریالی به تومان، نام/ترتیب دو برگهٔ `Products` و `People` و نبود برگه‌های گردش خرید/فروش/مرجوعی/انبار.
+- هیچ کد production یا schema کسب‌وکار در این commit تغییر نکرد؛ فقط تست characterization، workflow CI و مستندات ممیزی/برنامهٔ تست به‌روز شدند.
+- Lighthouse در ۱۰ گزارش: Accessibility=100 و Best Practices=100 در همهٔ مسیرها؛ Performance=99 در mobile برای `/sales` و `/purchases` و 100 در ۸ گزارش دیگر؛ SEO=82 در هر ۱۰ گزارش.
+- axe-core در ۱۷ مسیر صفر violation داشت؛ incomplete=2 در `/loans`، `/prices`، `/parties` و `/returns` و صفر در ۱۳ مسیر دیگر. این موارد incomplete نیازمند بررسی انسانی‌اند و صفر violation به‌تنهایی اثبات دسترس‌پذیری کامل نیست.
+- Artifactهای Run #721 دریافت و بررسی شدند:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41792827717/artifacts/13304442202) — ZIP سالم، ۷۰ فایل شامل `AhanModiriat.exe` و ۶۹ فایل در `_internal`.
+  - [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41792827717/artifacts/13304412303) — ZIP سالم، ۶۸ تصویر.
+  - [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41792827717/artifacts/13304412297) — ZIP سالم، ۱۳ فایل شامل ۱۰ گزارش Lighthouse، `axe-results.json` و `audit-summary.md`.
+- Build موفق OneDir و artifact سالم، معادل اجرای دستی روی Windows پاک یا تأیید محیط واقعی مالک نیست.
+
+این گزارش در commit بعدی ثبت می‌شود؛ CI همان commit مستندات باید جداگانه بررسی شود. نتیجهٔ Run #721 به SHA `ae054aac` محدود است.
