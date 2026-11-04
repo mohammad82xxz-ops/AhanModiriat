@@ -53,7 +53,7 @@ def main():
             raise AssertionError(f"expected ValueError for {weight!r} g at {price!r} rial/kg")
 
     try:
-        weighted_line_total_rial(MAX_INT64, 1000)
+        weighted_line_total_rial(MAX_INT64, 1001)
     except OverflowError:
         pass
     else:
