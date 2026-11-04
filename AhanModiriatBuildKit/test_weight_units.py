@@ -70,6 +70,30 @@ def main():
     else:
         raise AssertionError("expected weighted line total overflow")
 
+    # Exhaustive small-domain contract checks for the integer-only line
+    # calculation. The independent quotient formula expresses ROUND_HALF_UP
+    # for non-negative integer numerators without Decimal or float.
+    for weight_g in range(0, 64):
+        previous_total = -1
+        for price_rial_per_kg in range(0, 128):
+            numerator = weight_g * price_rial_per_kg
+            expected = (numerator + 500) // 1000
+            actual = weighted_line_total_rial(weight_g, price_rial_per_kg)
+            assert actual == expected
+            assert actual >= previous_total
+            previous_total = actual
+
+    for price_rial_per_kg in range(0, 128):
+        previous_total = -1
+        for weight_g in range(0, 64):
+            actual = weighted_line_total_rial(weight_g, price_rial_per_kg)
+            assert actual >= previous_total
+            previous_total = actual
+
+    # Rounding is per line, not after aggregating unlike document lines.
+    assert weighted_line_total_rial(1, 500) + weighted_line_total_rial(1, 500) == 2
+    assert weighted_line_total_rial(2, 500) == 1
+
     print("EXACT WEIGHT UNIT AND PRICING TESTS PASSED")
 
 
