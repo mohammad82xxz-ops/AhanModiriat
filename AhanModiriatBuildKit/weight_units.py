@@ -63,3 +63,27 @@ def weight_to_grams(value, unit):
     if grams != integral_grams:
         raise ValueError("وزن با دقت کمتر از یک گرم قابل ذخیره نیست.")
     return int(integral_grams)
+
+
+def weighted_line_total_rial(weight_g, unit_price_rial_per_kg):
+    """Calculate one weight-priced line from integer grams and rial/kg.
+
+    The calculation is exact integer arithmetic. Half-rial ties round upward
+    (ROUND_HALF_UP for non-negative amounts), and the result must fit SQLite's
+    signed INTEGER range. This function does not aggregate document lines.
+    """
+    if type(weight_g) is not int or type(unit_price_rial_per_kg) is not int:
+        raise ValueError("وزن گرم و قیمت ریال/کیلو باید عدد صحیح باشند.")
+    if weight_g < 0:
+        raise ValueError("وزن منفی مجاز نیست.")
+    if unit_price_rial_per_kg < 0:
+        raise ValueError("قیمت منفی مجاز نیست.")
+    if weight_g > MAX_INT64 or unit_price_rial_per_kg > MAX_INT64:
+        raise OverflowError("وزن یا قیمت از محدودهٔ INTEGER علامت‌دار SQLite خارج است.")
+
+    whole, remainder = divmod(weight_g * unit_price_rial_per_kg, 1000)
+    if remainder >= 500:
+        whole += 1
+    if whole > MAX_INT64:
+        raise OverflowError("مبلغ سطر از محدودهٔ INTEGER علامت‌دار SQLite خارج است.")
+    return whole
