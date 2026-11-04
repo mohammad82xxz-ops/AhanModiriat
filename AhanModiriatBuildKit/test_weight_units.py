@@ -27,11 +27,13 @@ def main():
         ("", "kg"), ("abc", "kg"), ("NaN", "kg"), ("Infinity", "kg"),
         ("-1", "kg"), ("0.0005", "kg"), ("0.0001", "g"),
         ("0.999999999999999999999999999999", "kg"),
+        ("1e-1000000", "kg"),
         ("1", "ton"), ("1", "کیلوگرم"), ("1", ""),
         (True, "kg"), (0.1, "kg"),
     ]:
         expect_error(ValueError, value, unit)
 
+    expect_error(OverflowError, "1e+1000000", "kg")
     expect_error(OverflowError, str(MAX_INT64 + 1), "g")
     expect_error(OverflowError, "9223372036854775.808", "kg")
     print("EXACT WEIGHT UNIT TESTS PASSED")
