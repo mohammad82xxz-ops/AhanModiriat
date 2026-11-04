@@ -209,7 +209,7 @@ def main():
             rounding_pid = c.execute(
                 """INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
                            purchase_unit,purchase_factor,sale_unit,sale_factor)
-                   VALUES('partial return rounding steel','kg',5,100,503,0,'kg',1,'kg',1)"""
+                   VALUES('partial return rounding steel','kg',3,100,503,0,'kg',1,'kg',1)"""
             ).lastrowid
             rounding_sale_id = c.execute(
                 """INSERT INTO sales(date,product_id,qty,unit_price,line_total,extra_cost,
@@ -236,7 +236,7 @@ def main():
             assert sum(allocated) == 1005, allocated
             assert c.execute(
                 "SELECT stock FROM products WHERE id=?", (rounding_pid,)
-            ).fetchone()[0] == 7
+            ).fetchone()[0] == 5
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
