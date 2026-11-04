@@ -67,6 +67,8 @@ def audit(db, out, source_label="isolated-backup-copy"):
     if out == db or out in db.parents:
         raise ValueError("پوشه خروجی نباید فایل دیتابیس یا والد آن باشد.")
     out.mkdir(parents=True, exist_ok=True)
+    if any(out.iterdir()):
+        raise ValueError("پوشه خروجی باید خالی باشد تا گزارش‌های اجرای قبلی با این ممیزی مخلوط نشوند.")
     before = sha256(db)
     c = connect_readonly(db)
     exc, limitations = [], []
@@ -235,6 +237,19 @@ def audit(db, out, source_label="isolated-backup-copy"):
                 else:
                     recon[pid]["inventory_adjustment_base"] += qty
 
+        orphan_movement_count = 0
+        for table in MOVEMENTS:
+            if not exists(c, table) or not {"product_id", PROFILE[table]}.issubset(schema[table]):
+                continue
+            for r in c.execute('SELECT * FROM "' + table + '"'):
+                pid = r["product_id"]
+                if pid not in recon:
+                    orphan_movement_count += 1
+                    add_exc(exc, "blocker", "REL-002", table,
+                            r["id"] if "id" in r.keys() else None, pid, pid,
+                            "Movement references a NULL or unknown product_id.",
+                            "مرجع کالا را با سند اصلی بررسی کنید؛ اتصال یا حذف خودکار ممنوع است.")
+
         reconciliations = []
         for pid, p in pmap.items():
             parts = recon[pid]
@@ -264,6 +279,7 @@ def audit(db, out, source_label="isolated-backup-copy"):
                 manifest["result"] = "partial"
 
         manifest["product_count"] = len(products)
+        manifest["orphan_movement_count"] = orphan_movement_count
         manifest["exception_count"] = len(exc)
         manifest["exception_counts_by_code"] = dict(Counter(x["code"] for x in exc))
         manifest["exception_counts_by_severity"] = dict(Counter(x["severity"] for x in exc))
