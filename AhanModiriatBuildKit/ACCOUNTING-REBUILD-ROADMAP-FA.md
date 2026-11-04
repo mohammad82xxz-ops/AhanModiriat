@@ -1,7 +1,7 @@
 # نقشه بازطراحی منطق حسابداری آهن‌مدیریت
 
-> وضعیت: ممیزی اولیه انجام شده؛ بازطراحی حسابداری هنوز شروع نشده است. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
-> محدوده بررسی: کد شاخه `work/phase2-validation-edge-cases`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌های موجود. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
+> وضعیت: زیرساخت T02-A و تست رگرسیون تخصیص چندمرحله‌ای مرجوعی فروش پیاده‌سازی شده‌اند. آخرین commit کد/تست `5cfec51d76b8326140991e19f3933f140d9f2b40` در هر دو trigger CI با نتیجهٔ success تأیید شده است (Runهای `41799063587` و `41799070581`). commitهای بعدی صرفاً مستنداتی‌اند و برای SHA نهایی خود باید CI جداگانه پاس شود. موفقیت CI تصویب سیاست‌های حسابداری، پذیرش دستی migration و تکمیل T02-A را جایگزین نمی‌کند. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
+> محدوده بررسی: کد شاخه‌های `work/phase2-validation-edge-cases` و `rebuild/phase1-money-rial-foundation`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌ها، به‌علاوه سند Word مرجع نیازمندی‌ها. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
 
 ## ۱) نتیجه ممیزی معماری فعلی
 
@@ -9,7 +9,7 @@
 
 ### یافته‌های قطعی از کد
 
-1. **واحد پول با مشخصات مرجع یکی نیست.** ستون‌های پولی منتخب با مهاجرت به نوع `INTEGER` تبدیل می‌شوند، اما تست مهاجرت صریحاً آن را «INTEGER TOMAN» می‌نامد و فرم‌ها نیز تومان می‌گیرند/نمایش می‌دهند. سند مرجع پول را ریال صحیح و نمایش را تومان می‌خواهد. بنابراین تبدیل فعلی، مهاجرت به ریال نیست و نباید بدون برنامه تبدیل مقیاس انجام شود.
+1. **زیرساخت واحد پول در کد فعلی با قرارداد ریال/تومان هم‌راستا شده است.** `migrate_money_units_to_rial` یک‌بار مقادیر قدیمی تومان را با ضریب ۱۰ به ریال تبدیل می‌کند و marker نسخهٔ `rial-v1` مانع اجرای دوبارهٔ مقیاس‌دهی می‌شود؛ سپس `migrate_money_columns_to_integer` ستون‌های پولی منتخب را به `INTEGER` بازسازی می‌کند. توابع ورودی/نمایش رابط، تومان را به ریال صحیح تبدیل می‌کنند. تست‌های `test_money_schema_migration.py` و `test_money_units_ui.py` مقیاس‌دهی، marker، نوع ستون، rollback و قرارداد UI را پوشش می‌دهند. این پیشرفت، گیت‌های بازبینی دستی، تطبیق همهٔ مسیرهای مالی و آزمون migration روی clone را حذف نمی‌کند.
 2. **وزن و موجودی هنوز اعشاری‌اند.** ستون‌های `stock` و `qty` از نوع `REAL` باقی مانده‌اند؛ گرم صحیح به‌عنوان واحد پایه پیاده نشده است.
 3. **موجودی کالا هنوز مانده دستی/کش‌شده است.** ستون `products.stock` در ثبت خرید، فروش، برگشت و انبارگردانی مستقیم تغییر می‌کند. کارت گردش کالا حرکات را نشان می‌دهد، اما مانده پایه را از اختلاف موجودی فعلی و گردش‌ها استنتاج می‌کند؛ پس هنوز برابری موجودی با جمع دفتر حرکات تضمین یا قابل بازسازی نیست.
 4. **میانگین موزون تا حدی وجود دارد، اما موتور بهای تمام‌شده کامل نیست.** خرید میانگین را تغییر می‌دهد و فروش `cost_basis` را ذخیره می‌کند؛ ولی ارزش کل و وزن کل به‌عنوان مبنای مستقل نگهداری نمی‌شوند. اصلاح خرید قدیمی در صورت وجود گردش بعدی عمدتاً مسدود می‌شود، نه اینکه اسناد بعدی از تاریخ مؤثر دوباره محاسبه شوند.
@@ -35,8 +35,8 @@
 
 | شناسه | موضوع | وضعیت فعلی | جمع‌بندی |
 |---|---|---|---|
-| T01 | ممیزی کد فعلی | انجام شد | ممیزی ایستا و تطبیق اولیه انجام شد؛ تصمیم‌های مالک کسب‌وکار جداگانه ثبت می‌شوند. |
-| T02 | پول ریال صحیح، وزن گرم صحیح و گردکردن واحد | ناقص | پول فعلی تومان صحیح است؛ وزن REAL و گردکردن سطری استاندارد نیست. |
+| T01 | ممیزی کد فعلی | انجام شد — دفتر یافته‌ها ثبت شد | ممیزی ایستا، تطبیق اولیه و دفتر یافته‌های اولویت‌بندی‌شده در `ACCOUNTING-AUDIT-REGISTER-FA.md` ثبت شده؛ تصمیم‌های مالک کسب‌وکار در بستهٔ P0 جداگانه باقی است. |
+| T02 | پول ریال صحیح، وزن گرم صحیح و گردکردن واحد | نیمه‌کامل | T02-A روی شاخه مستقل در حال پیاده‌سازی/آزمون است؛ T02-B (گرم صحیح) هنوز اجرا نشده و T02 تا پذیرش هر دو ناقص می‌ماند. |
 | T03 | مانده‌ها از دفتر حرکات و بازسازی | ناقص | صندوق تا حدی دفتر حرکات دارد؛ موجودی کالا و همه مانده‌ها هنوز منبع حقیقت واحد ندارند. |
 | T04 | تراکنش اتمیک و تست قطع فرایند | نیمه‌کامل | تراکنش سطح درخواست وجود دارد؛ fault-injection و پوشش همه عملیات لازم است. |
 | T05 | ابطال/سند اصلاحی و باز‌محاسبه تاریخی | ناقص | حذف فیزیکی و guard وجود دارد؛ چرخه immutable و replay کامل وجود ندارد. |
@@ -69,7 +69,7 @@
 **تعداد کل: ۱۵ فاز/گیت پذیرش (فاز صفر ممیزی + ۱۴ گیت اجرایی).** برای کوچک ماندن دامنه، هسته عددی به دو گیت مستقل پول و وزن/تاریخ شکسته شده است. هر گیت پذیرش مستقل دارد و گیت بعدی فقط پس از تأیید قبلی شروع می‌شود.
 
 ### فاز ۰ — ممیزی و تثبیت خط مبنا
-**وضعیت: انجام شد (ممیزی اولیه).**
+**وضعیت: انجام شد (ممیزی اولیه و ثبت دفتر یافته‌ها/بستهٔ P0).**
 - تطبیق T01 با کد واقعی و ثبت وضعیت T01 تا T28.
 - ثبت ریسک‌های معماری و ترتیب وابستگی‌ها.
 - عدم تغییر دیتابیس واقعی یا ادعای مهاجرت داده واقعی.
@@ -77,11 +77,14 @@
 **آزمون پذیرش:** بازبینی دستی گزارش ممیزی در برابر schema، مسیرهای POST و تست‌ها؛ هر ادعا باید به کد یا تست مشخص متصل باشد.
 
 ### فاز ۱ — واحد پول و محاسبات مالی دقیق (T02-A)
-- ذخیره همه مبالغ به ریال صحیح و نمایش تومان در رابط.
-- تبدیل امن تمام ستون‌های پولی، از جمله صندوق/بانک، چک‌ها، افتتاحیه و گردش‌های خودکار؛ مهاجرت داده‌های قدیمی تومان به ریال با نسخه مهاجرت و امکان rollback.
-- حذف float از محاسبات مبلغی و تعریف یک تابع گردکردن نیم‌به‌بالا در سطح سطر.
+**وضعیت: CI آخرین commit موفق؛ پذیرش حسابداری نهایی هنوز باز**
+- ذخیره تمام ستون‌های پولی موجود در schema به ریال صحیح signed 64-bit و نمایش/ورودی تومان در رابط. جدول‌های چک هنوز وجود ندارند؛ هنگام ساخت چرخه چک در فاز ۸، ستون‌های آن نیز از ابتدا ریال صحیح خواهند بود.
+- تبدیل امن داده‌های قدیمی تومان به ریال با marker نسخه، اجرای idempotent، backup پیش از startup migration و rollback تراکنشی؛ ابتدا مقیاس ×۱۰ اعمال و سپس نوع ستون به INTEGER تبدیل می‌شود.
+- محاسبه هر مبلغ سطر با `Decimal` و `ROUND_HALF_UP`؛ ابتدا هر سطر جداگانه به ریال صحیح گرد می‌شود و بعد مجموع سطرها محاسبه می‌شود. جمع دفتر خرید/فروش، مانده اشخاص، سود و ارزش موجودی باید از همین مبلغ سطری استفاده کنند؛ جمع‌زدن حاصل‌ضرب‌های اعشاری مجاز نیست.
+- مبلغ نهایی سطر فروش (`sales.line_total`) به‌صورت ریال صحیح و مستقل از نرخ نمایشی واحد پایه ذخیره می‌شود؛ تبدیل نرخ واحد فروش به واحد پایه نباید مبلغ فاکتور را با گردکردن نرخ واحد تغییر دهد. مرجوعی‌های جزئی نیز از مبلغ باقی‌مانده سطر تخصیص می‌گیرند تا مجموع مرجوعی از مبلغ اصلی بیشتر/کمتر نشود.
+- هیچ محاسبه پولی با float انجام نمی‌شود؛ float باقی‌مانده در این گیت فقط برای مقادیر مقداری/وزنی و رسم نمودار است و در فاز ۲ حذف می‌شود.
 
-**تست‌ها:** تبدیل ×۱۰ برای تمام ستون‌ها؛ عدم تبدیل دوباره در اجرای دوم؛ داده‌های صفر/منفی/بزرگ؛ مرز نیم‌ریال؛ تطبیق جمع اسناد، مانده اشخاص و صندوق قبل/بعد؛ حفظ FK/index/trigger؛ restore و rollback روی کپی.
+**تست‌ها:** تبدیل ×۱۰ تمام ستون‌های پولی موجود؛ اجرای دوم بدون تبدیل دوباره؛ ورودی نیم‌ریال و گردکردن مستقل سطرها؛ جمع سطرهای خرید/فروش در گزارش و دفتر اشخاص؛ تبدیل واحد فروش با نرخ پایه اعشاری و مبلغ سطر ثابت؛ تخصیص مرجوعی‌های چندمرحله‌ای بدون اختلاف ریالی؛ صفر/منفی/NaN/Infinity/سرریز signed 64-bit؛ rollback کامل در خطای داده قدیمی؛ حفظ FK/index/trigger؛ رابط تومان؛ تست‌های خرید، فروش، مرجوعی، صندوق و سود؛ backup/restore روی کپی.
 
 ### فاز ۲ — وزن پایه، واحد دوگانه و تاریخ (T02-B, بخشی از T14)
 - طراحی وزن پایه به گرم صحیح؛ تفکیک وزن از تعداد شاخه/بندیل/ورق و حفظ واحد خرید و فروش با ضرایب تبدیل دقیق.
@@ -106,7 +109,7 @@
 **تست‌ها:** تبدیل واحدها؛ یک کالا با دو مارک/طول نباید موجودی یا بهای هم را مخلوط کند؛ وزن تئوریک فقط پیشنهاد باشد؛ وزن باسکول مقصد مبنای موجودی شود؛ اختلاف و مسئول در دفتر قابل ردیابی باشد.
 
 ### فاز ۵ — موتور بهای تمام‌شده و ارزش‌گذاری (T08, T09)
-- انتخاب مبنای پیش‌فرض: میانگین موزون متحرک، با نگهداری ارزش کل و وزن کل؛ قیمت واحد گرد‌شده منبع محاسبه نباشد.
+- **پیشنهاد فنیِ مشروط، نه سیاست مصوب:** میانگین موزون متحرک با نگهداری ارزش کل و وزن کل؛ اجرای این روش و قواعد مرجوعی/تعدیل فقط پس از تعیین تکلیف DEC-01، DEC-02، DEC-03 و DEC-10 مجاز است. قیمت واحد گرد‌شده منبع محاسبه نباشد.
 - تفکیک کرایه، باسکول، بارگیری، تخلیه، بیمه و کمیسیون.
 - تسهیم هزینه مشترک بار بین اقلام بر اساس وزن/قاعده مصوب.
 - باز‌محاسبه متوالی فروش‌ها پس از اصلاح سند تاریخی؛ ثبت نسخه/اثر محاسباتی برای audit.
@@ -203,8 +206,8 @@
 
 ## ۵) تصمیم‌های پیش‌فرض برای شروع
 
-برای جلوگیری از توقف کار، تا زمان اعلام خلاف این موارد را مبنا می‌گیرم:
-- روش ارزش‌گذاری: میانگین موزون متحرک؛
+موارد زیر **فرض‌های فنی موقت برای طراحی و برآورد** هستند، نه مصوبهٔ مالک و نه مجوز پیاده‌سازی سیاست‌های مالی. هر موردی که با DEC-01 تا DEC-12 مرتبط است فقط پس از ثبت تأیید صریح در دفتر رسمی تصمیم‌ها قابل اجراست؛ در صورت تعارض، دفتر تصمیم‌ها مرجع بالادست است:
+- روش ارزش‌گذاری پیشنهادی: میانگین موزون متحرک؛ تا تصویب DEC-01، DEC-02، DEC-03 و DEC-10 صرفاً گزینهٔ طراحی است و مبنای کدنویسی قطعی نیست.
 - فروش بیش از موجودی: ممنوع، استثنا فقط با مجوز مدیر و اتصال به حواله/بار در راه؛
 - پول ذخیره‌شده: ریال صحیح؛ نمایش رابط: تومان؛
 - وزن پایه: گرم صحیح؛
@@ -214,11 +217,174 @@
 - برش/قراضه در فاز جداگانه و پس از تثبیت هسته؛
 - نسخه فعلی محلی و تک‌کاربره می‌ماند، مگر نیاز چندکاربره تأیید شود.
 
-## ۶) وضعیت CI هنگام تهیه این نقشه
+## ۶) وضعیت CI و اسناد ممیزی — به‌روزرسانی ۱۴۰۵/۰۸/۰۹
 
-- اجرای #445 روی commit پیش از تغییرات ورودی خالی موفق بود.
-- اجرای #451 پس از تغییرات اعتبارسنجی ورودی خالی، به دلیل قدیمی بودن متن مورد انتظار در یک assertion مرورگر برای قیمت خالی فروش شکست خورد؛ پیام واقعی سرور دقیق‌تر شده بود. assertion تست با پیام جدید هماهنگ شد.
-- اجرای مربوط به commit اصلاح تست باید دوباره بررسی شود؛ تا مشاهده نتیجه کامل موفق، این شاخه سبز/تأییدشده اعلام نمی‌شود.
+- شاخهٔ کاری: `rebuild/phase1-money-rial-foundation`.
+- اجرای کامل CI شمارهٔ ۶۴۰: [GitHub Actions Run #640](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326) روی SHA `b65018d46c9a211c52ed53d004cf7e5aa5148e68` با نتیجهٔ `success` پایان یافته است؛ هر دو job یعنی `smoke-test` و `windows-onedir` موفق‌اند.
+- پس از آن، commit مستنداتی `5f07514e7040267d08ec9e0b61894cf24579592d` برای ثبت شواهد ساخته شد؛ کد اجرایی تغییر نکرد. CI برای SHA جدید جداگانه اجرا شده و نتیجهٔ آن باید مستقل بررسی شود؛ موفقیت Run #640 به SHA جدید تعمیم داده نمی‌شود.
+- پوشش تأییدشده در job تست: compile، تست‌های ایزوله، UI matrix مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی axe-core و Lighthouse.
+- نتیجهٔ دسترس‌پذیری: axe-core تعداد ۱۷ از ۱۷ مسیر را بررسی کرده و صفر violation در تمام سطوح اثر گزارش کرده است. Lighthouse تعداد ۱۰ گزارش موبایل/دسکتاپ تولید کرده؛ performance بین ۹۹ تا ۱۰۰، accessibility برابر ۱۰۰، best-practices برابر ۱۰۰ و SEO برابر ۸۲ بوده است.
+- ساخت Windows OneDir با PyInstaller موفق شده و Artifact آن بارگذاری شده است. Artifactهای این اجرا:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039879392)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039144497)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41194135326/artifacts/13039154328)
+- لاگ تست مرورگر چند `BrokenPipeError` هنگام قطع اتصال کلاینت ثبت کرده، اما مراحل مربوطه و کل job موفق شده‌اند. این مورد خطای نهایی CI نبوده، ولی برای تمیزشدن لاگ و اطمینان از مدیریت قطع اتصال، در بازبینی فنی بعدی بررسی شود.
+- proxyهای دسترس‌پذیری فقط بررسی خودکارند؛ بررسی انسانی با صفحه‌کلید، screen reader و دستگاه واقعی همچنان لازم است.
+- مقایسهٔ commitها نشان می‌دهد از SHA `8b43c562a5c299e3d3a1e59208d485b9d716c6ef` تا `b65018d` فقط دو فایل مستنداتی Roadmap و Code Touchpoints تغییر کرده‌اند؛ commit `5f07514` نیز فقط Roadmap را به‌روزرسانی کرده است. هیچ کد اجرایی در این تغییرات مستنداتی تغییر نکرده است.
+- PR #9 باز و Draft است؛ head شاخهٔ `rebuild/phase1-money-rial-foundation` و base شاخهٔ `work/phase2-validation-edge-cases` است. PR ادغام نشده و `main` دست‌نخورده است.
+- دفتر یافته‌های ممیزی: [ACCOUNTING-AUDIT-REGISTER-FA.md](ACCOUNTING-AUDIT-REGISTER-FA.md).
+- بستهٔ اجرایی P0 و تصمیم‌های لازم: [ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md).
+- نقشهٔ محل کد، مسیرهای فعلی، تست‌های موجود و شکاف تست: [ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md](ACCOUNTING-P0-CODE-TOUCHPOINTS-FA.md).
+- سناریوهای طلایی، expected result و invariantهای قابل تبدیل به تست: [ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md](ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md).
+- دستورالعمل backup، shadow migration، cutover، پایش و rollback: [ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md](ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md).
+- دفتر ثبت و تصویب DEC-01 تا DEC-12: [ACCOUNTING-POLICY-DECISION-REGISTER-FA.md](ACCOUNTING-POLICY-DECISION-REGISTER-FA.md).
+- موفقیت CI فقط صحت تست‌ها و workflowهای موجود روی همین SHA را نشان می‌دهد؛ به‌تنهایی یافته‌های ممیزی حسابداری را نمی‌بندد یا تأیید دستی migration/محاسبات را جایگزین نمی‌کند.
+- وضعیت T02-A: مهاجرت مقیاس ×۱۰ و تبدیل ستون‌های پولی منتخب به INTEGER ریال در کد و تست‌های fixture پیاده‌سازی شده‌اند؛ آخرین CIهای Push و Pull Request روی SHA `799bfc3` هر دو موفق‌اند. هنوز باید بازبینی مستقل کامل همهٔ touchpointهای مالی، اجرای restore/migration روی clone ناشناس‌سازی‌شده، تطبیق دفترها و پذیرش دستی انجام شود. DEC-01 تا DEC-12 Pending هستند؛ کدنویسی سیاست‌وابسته بدون تصویب مالک مجاز نیست.
+
+
+### تکمیل اجرای CI شمارهٔ ۶۴۴ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای کامل [GitHub Actions Run #644](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41207766033) روی SHA دقیق `ce21909b391f2c41c3426bc603a8d4ba60fec9e3` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- مراحل تأییدشده در `smoke-test`: Compile، تست‌های ایزوله، ماتریس UI مرورگر و ثبت اسکرین‌شات، گردش‌های مالی و انبار در مرورگر، proxyهای صفحه‌کلید/بزرگ‌نمایی، اجرای ممیزی Lighthouse و axe-core و بارگذاری گزارش‌ها.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact آن موفق شد.
+- Artifactهای همین اجرای #644 (همگی مربوط به SHA بالا و دارای انقضای اعلام‌شده در GitHub):
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41207766033/artifacts/13045001670)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41207766033/artifacts/13045042588)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41207766033/artifacts/13045027668)
+- این نتیجه فقط CI و workflowهای موجود روی SHA `ce21909...` را تأیید می‌کند. معیارهای عددی گزارش‌های Lighthouse/axe-core در این بند ادعا نشده‌اند؛ برای اعلام آن‌ها باید خود گزارش Artifact بررسی شود.
+- این موفقیت به معنی بسته‌شدن یافته‌های ممیزی حسابداری، تصویب DEC-01 تا DEC-12، پذیرش نهایی T02-A یا تأیید دستی migration و محاسبات نیست. بررسی مستقل کد، migration و سناریوهای حسابداری همچنان لازم است.
+- commit `ce21909...` در زمان اجرای #644 آخرین head شاخه بوده است. هر commit بعدی SHA جدیدی می‌سازد و برای آن باید CI جداگانه بررسی شود.
 
 ---
 این نقشه، مبنای کار جدید است. انجام هر فاز فقط پس از تکمیل معیار پذیرش همان فاز ثبت می‌شود؛ «وجود یک صفحه یا جدول» به‌تنهایی معادل تکمیل قابلیت حسابداری نیست.
+
+
+## ماتریس ردیابی یافته‌ها تا پذیرش
+
+برای اتصال یافته‌های ACC به DECها، سناریوهای طلایی، نقاط تماس کد، معیار Done و گیت‌های Runbook از [ماتریس ردیابی یکپارچهٔ P0](ACCOUNTING-P0-TRACEABILITY-MATRIX-FA.md) استفاده شود. موارد Pending/TBD عمداً باز می‌مانند و تا تصویب مالک یا شناسایی کد واقعی نباید حدس زده شوند.
+
+### تکمیل اجرای CI شمارهٔ ۶۴۸ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای کامل [GitHub Actions Run #648](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173) روی SHA دقیق `3620cacd7ef9d3cdf022b877350de336add2031b` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- مراحل موفق `smoke-test`: Compile، تست‌های ایزوله، ماتریس UI مرورگر و ثبت اسکرین‌شات، گردش‌های مالی و انبار در مرورگر، proxyهای صفحه‌کلید/بزرگ‌نمایی، نصب Lighthouse و axe-core، ممیزی دسترس‌پذیری و بارگذاری گزارش‌ها.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact آن موفق شد.
+- Artifactهای همین اجرا (مربوط به SHA بالا و با وضعیت `expired=false` هنگام بررسی):
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173/artifacts/13045157651)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173/artifacts/13045825556)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41208727173/artifacts/13045885297)
+- معیارهای عددی Lighthouse/axe-core در این بند ادعا نشده‌اند؛ برای اعلام آن‌ها باید محتوای گزارش Artifact بررسی شود.
+- این نتیجه فقط workflowهای موجود روی SHA `3620cac...` را تأیید می‌کند؛ موفقیت CI به‌تنهایی یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-12 را تصویب نمی‌کند و بازبینی دستی migration/محاسبات را جایگزین نمی‌کند.
+- این اجرا روی commit مستنداتی `3620cac...` انجام شده است. هر commit بعدی SHA جدیدی می‌سازد و نیازمند CI مستقل خواهد بود.
+
+### تکمیل اجرای CI شمارهٔ ۶۴۹ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای کامل [GitHub Actions Run #649](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209177182) روی SHA دقیق `c04a26d1c3c816c8c6fd4f053ad4e395a6aa144c` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- مراحل موفق `smoke-test`: Compile، تست‌های ایزوله، ماتریس UI مرورگر و ثبت اسکرین‌شات، گردش‌های مالی و انبار در مرورگر، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse و axe-core و بارگذاری گزارش‌ها.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact آن موفق شد.
+- Artifactهای این اجرا (در زمان بررسی دارای `expired=false`):
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209177182/artifacts/13046090536)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209177182/artifacts/13046045614)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209177182/artifacts/13045668918)
+- در این ثبت، امتیاز یا تعداد violation گزارش نشده است؛ برای ادعای عددی باید محتوای خود Artifact بررسی شود.
+- این نتیجه فقط workflowهای موجود روی SHA `c04a26d...` را تأیید می‌کند؛ CI به‌تنهایی یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-12 را تصویب نمی‌کند و بازبینی دستی منطق/مهاجرت را جایگزین نمی‌کند.
+
+### تکمیل اجرای CI شمارهٔ ۶۵۰ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای [GitHub Actions Run #650](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108) روی SHA دقیق `fc81f3c43d2519ec2a3c7810003c2f92180cbc9e` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- تمام مراحل smoke-test موفق شدند؛ از جمله Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse و axe-core و بارگذاری گزارش‌ها.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact موفق شد.
+- Artifactهای اجرا (در زمان بررسی `expired=false`):
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108/artifacts/13045654671)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108/artifacts/13045584647)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41209625108/artifacts/13045213794)
+- هیچ امتیاز عددی Lighthouse یا شمارش violation در این ثبت ادعا نمی‌شود؛ برای چنین ادعایی باید محتوای گزارش‌ها بررسی شود.
+- این CI فقط workflowهای تعریف‌شده روی SHA بالا را تأیید می‌کند؛ به معنی بسته‌شدن یافته‌های حسابداری، تصویب DECها یا تأیید مهاجرت نیست.
+
+
+
+### تکمیل اجرای CI شمارهٔ ۶۵۱ — ۱۴۰۵/۰۸/۰۹
+
+- اجرای [GitHub Actions Run #651](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41210073165) روی SHA دقیق `8a05f100ce3f39786e8c33547a27188752e12fba` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`.
+- مراحل موفق smoke-test شامل Compile، تست‌های ایزوله، ماتریس UI مرورگر و ثبت اسکرین‌شات، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse و axe-core و بارگذاری گزارش‌ها است.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact آن موفق شد.
+- Artifactهای این اجرا (در زمان ثبت دارای `expired=false`):
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41210073165/artifacts/13046246520)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41210073165/artifacts/13046012164)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41210073165/artifacts/13045239291)
+- هیچ امتیاز عددی Lighthouse یا تعداد violation در این ثبت ادعا نمی‌شود؛ برای چنین ادعایی باید محتوای خود گزارش‌ها بررسی شود.
+- این CI فقط workflowهای تعریف‌شده روی SHA بالا را تأیید می‌کند؛ به معنی بسته‌شدن یافته‌های حسابداری، تصویب DEC-01 تا DEC-12، پذیرش نهایی T02-A یا تأیید دستی migration و محاسبات نیست.
+
+### تکمیل اجرای CI شمارهٔ ۶۵۵ — ۱۴۰۵/۰۸/۱۲
+
+- اجرای [GitHub Actions Run #655](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663) با رویداد `push` روی SHA دقیق `437418f8ed7c6c48e7dc10a64259d7e0c5b27ed7` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`. تمام مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید و بزرگ‌نمایی، ممیزی Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت Windows OneDir موفق شدند.
+- Artifactهای همین اجرا (هنگام بررسی دارای `expired=false`):
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663/artifacts/13237490206)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663/artifacts/13236687730)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648967663/artifacts/13236682555)
+
+### تکمیل اجرای CI شمارهٔ ۶۵۶ — ۱۴۰۵/۰۸/۱۲
+
+- اجرای [GitHub Actions Run #656](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718) با رویداد `pull_request` روی همان SHA دقیق `437418f8ed7c6c48e7dc10a64259d7e0c5b27ed7` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`. تمام مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید و بزرگ‌نمایی، ممیزی Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت Windows OneDir موفق شدند.
+- Artifactهای همین اجرا (هنگام بررسی دارای `expired=false`):
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718/artifacts/13237365766)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718/artifacts/13236882108)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41648976718/artifacts/13235289471)
+- هر دو اجرا روی یک SHA بوده‌اند و به‌عنوان دو trigger مستقل ثبت شده‌اند؛ این دو نتیجه را نباید به SHAهای بعدی تعمیم داد. هیچ امتیاز عددی Lighthouse یا شمارش violation ادعا نمی‌شود، چون محتوای گزارش‌ها در این مرحله تحلیل نشده است.
+- موفقیت این CIها فقط workflowهای تعریف‌شده را تأیید می‌کند؛ یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-12 را تصویب نمی‌کند و جایگزین آزمون دستی Windows واقعی، بازبینی سیاست‌های حسابداری یا تأیید migration نیست.
+
+
+### تکمیل اجرای CI شمارهٔ ۶۵۷ — ۱۴۰۵/۰۸/۱۲
+
+- اجرای [GitHub Actions Run #657](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650138520) با رویداد `push` روی SHA دقیق `929fd67f92280a96d9498bac824ee5c902232a40` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`. مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت Windows OneDir موفق شدند.
+- Artifactهای همین اجرا (هنگام ثبت دارای `expired=false`):
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650138520/artifacts/13238135271)
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650138520/artifacts/13237107948)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650138520/artifacts/13236429562)
+
+### تکمیل اجرای CI شمارهٔ ۶۵۸ — ۱۴۰۵/۰۸/۱۲
+
+- اجرای [GitHub Actions Run #658](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650149715) با رویداد `pull_request` روی همان SHA دقیق `929fd67f92280a96d9498bac824ee5c902232a40` با نتیجهٔ `success` پایان یافت.
+- هر دو job موفق‌اند: `smoke-test` و `windows-onedir`. مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت Windows OneDir موفق شدند.
+- Artifactهای همین اجرا (هنگام ثبت دارای `expired=false`):
+  - [گزارش‌های Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650149715/artifacts/13237760570)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650149715/artifacts/13237506329)
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650149715/artifacts/13237362308)
+- هر دو trigger مستقل روی یک SHA دقیق موفق شده‌اند. این موفقیت فقط workflowهای موجود را تأیید می‌کند؛ هیچ امتیاز عددی Lighthouse یا شمارش violation در این ثبت ادعا نمی‌شود، و نتیجه به SHAهای بعدی تعمیم‌پذیر نیست.
+- CI موفق، یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-12 را تصویب نمی‌کند و جایگزین بازبینی دستی migration/محاسبات یا آزمون روی Windows واقعی، صفحه‌خوان و نمایشگر واقعی نیست.
+
+
+### پذیرش خودکار آخرین commit فاز ۱ — ۱۴۰۵/۰۸/۱۳
+
+- آخرین commit بررسی‌شده: `cf727c700ebbe6321819627ff19bd86dbe90b5fa`؛ اصلاح نمودارها برای حفظ دقت integer rial و افزودن regression test برای مبلغ بزرگ‌تر از (2^{53}).
+- اجرای push [Run #724](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499) و اجرای pull_request [Run #725](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666) روی همان SHA با نتیجهٔ `success` پایان یافتند.
+- در هر دو اجرا، jobهای `smoke-test` و `windows-onedir` موفق شدند؛ شامل Compile، تست‌های ایزوله، گردش‌های مرورگر، proxyهای keyboard/zoom، Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت بستهٔ Windows OneDir.
+- Artifactهای Run #724: [گزارش‌های Lighthouse/axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305457877)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305442962)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305921711).
+- Artifactهای Run #725: [گزارش‌های Lighthouse/axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13305182905)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13304638961)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13305387454).
+- این نتیجه فقط workflowهای موجود روی همین SHA را تأیید می‌کند. DEC-01 تا DEC-12 همچنان نیازمند تصمیم مالک‌اند؛ موتور ارزش‌گذاری موجودی، migration روی دیتابیس واقعی، و آزمون دستی نصب/اجرای Windows، صفحه‌خوان، صفحه‌کلید و بزرگ‌نمایی واقعی ۲۰۰٪ همچنان باز هستند. هیچ دیتابیس واقعی تغییر نکرده و `main` دست‌نخورده است.
+
+
+## ۹) شواهد CI آخرین commit کد/تست T02-A
+
+**SHA بررسی‌شده:** `5cfec51d76b8326140991e19f3933f140d9f2b40`
+
+هر دو اجرای مستقل روی همین SHA با نتیجهٔ `success` خاتمه یافته‌اند؛ هر دو job در هر اجرا موفق بوده‌اند:
+
+| Trigger | Run | نتیجه |
+|---|---:|---|
+| Push | [41799063587](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799063587) | موفق |
+| Pull Request | [41799070581](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581) | موفق |
+
+در هر دو اجرا، `smoke-test` و `windows-onedir` موفق شده‌اند. هر اجرا سه artifact غیرمنقضی تولید کرده است: گزارش Lighthouse/axe-core، تصاویر رابط کاربری و بستهٔ Windows OneDir.
+
+- Push: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799063587/artifacts/13306438938)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799063587/artifacts/13306617380)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799063587/artifacts/13306224535)
+- Pull Request: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581/artifacts/13307236259)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581/artifacts/13306328854)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581/artifacts/13306184602)
+
+**محدودیت پذیرش:** این شواهد، اجرای موفق CI و ساخت بسته را ثابت می‌کنند؛ جایگزین اجرای واقعی برنامه روی Windows تمیز، آزمون دستی بزرگ‌نمایی ۲۰۰٪، صفحه‌خوان، صفحه‌کلید و نمایشگر کوچک نیستند. همچنین هیچ‌یک مجوز اجرای migration روی دیتابیس واقعی یا تصویب DEC-01 تا DEC-12 محسوب نمی‌شوند.

@@ -69,7 +69,7 @@ def main():
         with app.conn() as c:
             product = c.execute("SELECT * FROM products WHERE name='excel steel'").fetchone()
             assert product is not None
-            assert product["stock"] == 3 and product["avg_cost"] == 12
+            assert product["stock"] == 3 and product["avg_cost"] == 120
         # A second import is idempotent for duplicate names and must not overwrite stock.
         post_import(port, "Products", workbook_bytes)
         with app.conn() as c:
@@ -115,6 +115,7 @@ def main():
     # HTTP export contains the full product template (stock is column D).
     assert round_trip["Products"][1][0] == "excel steel", round_trip["Products"][1]
     assert round_trip["Products"][1][3] == "3.0", round_trip["Products"][1]
+    assert round_trip["Products"][1][4] == "12", round_trip["Products"][1]
     assert round_trip["People"][1][0:2] == ["Excel Customer","customer"]
     with app.conn() as c:
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
