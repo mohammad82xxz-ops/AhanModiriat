@@ -118,3 +118,15 @@ Run #719 روی SHA کد `5ea31da` تأیید CI را می‌دهد؛ Run #720 �
 - Build موفق OneDir و artifact سالم، معادل اجرای دستی روی Windows پاک یا تأیید محیط واقعی مالک نیست.
 
 این گزارش در commit بعدی ثبت می‌شود؛ CI همان commit مستندات باید جداگانه بررسی شود. نتیجهٔ Run #721 به SHA `ae054aac` محدود است.
+
+
+## تأیید commit مستندات — Run #722
+
+- Run: [#722](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41793603385)
+- SHA آزموده‌شده: `b63d6cb6ccf6a6caca57681cb7cb438e2b0c93e1`
+- نتیجه: هر دو Job یعنی `smoke-test` و `windows-onedir` موفق شدند.
+- Compile، تمام isolated smoke tests، browser UI matrix، finance/inventory workflows، keyboard/zoom proxies و Lighthouse/axe-core موفق شدند.
+- Lighthouse در ۱۰ گزارش: Accessibility=100 و Best Practices=100؛ Performance=99 فقط برای mobile در `/purchases` و 100 در ۹ گزارش دیگر؛ SEO=82 در همهٔ گزارش‌ها.
+- axe-core در ۱۷ مسیر صفر violation داشت؛ incomplete=2 در `/loans`، `/prices`، `/parties` و `/returns` و صفر در ۱۳ مسیر دیگر.
+- Artifactها دریافت و ZIPها بررسی شدند: [Lighthouse/axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41793603385/artifacts/13305020866) — ۱۳ فایل؛ [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41793603385/artifacts/13304845956) — ۶۸ تصویر؛ [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41793603385/artifacts/13304503220) — ۷۰ فایل شامل `AhanModiriat.exe`.
+- این Run تأیید CI برای commit `b63d6cb` است؛ اجرای واقعی بسته روی Windows پاک همچنان آزمون دستی مالک است.
