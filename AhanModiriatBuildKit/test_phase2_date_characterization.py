@@ -63,6 +63,17 @@ def main():
     ):
         expect_invalid(value)
 
+    # Exhaustive day-by-day round-trip over a deterministic Gregorian span.
+    # This checks the conversion pair without imposing timezone/date policy.
+    cursor = __import__("datetime").date(1999, 1, 1)
+    end = __import__("datetime").date(2026, 1, 1)
+    while cursor < end:
+        jalali = app.gregorian_to_jalali(cursor.year, cursor.month, cursor.day)
+        assert app.jalali_to_gregorian(*jalali) == (
+            cursor.year, cursor.month, cursor.day
+        ), f"calendar round-trip failed for {cursor.isoformat()} -> {jalali}"
+        cursor += __import__("datetime").timedelta(days=1)
+
     # Empty input retains the legacy TODAY fallback; it is not a historical
     # timestamp and no timezone interpretation is asserted here.
     assert app.to_iso_date("") == app.TODAY
