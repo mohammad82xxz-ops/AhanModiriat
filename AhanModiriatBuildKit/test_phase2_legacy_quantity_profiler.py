@@ -67,6 +67,13 @@ def main() -> None:
         """)
         c.commit()
         c.close()
+        # Simulate a legacy database with a missing FK declaration/enforcement:
+        # the profiler must detect the orphan even when it cannot rely on FK constraints.
+        orphan = sqlite3.connect(db)
+        orphan.execute("PRAGMA foreign_keys=OFF")
+        orphan.execute("INSERT INTO purchases VALUES (99, '2026-01-06', 999, 2)")
+        orphan.commit()
+        orphan.close()
         before = digest(db)
         read_only = PROFILER.connect_readonly(db)
         try:
@@ -97,9 +104,24 @@ def main() -> None:
         assert "FACTOR-001" in exceptions and "UNIT-002" in exceptions
         assert "LEDGER-002" in exceptions
         assert "FACTOR-003" in exceptions
+        assert "REL-001" in exceptions  # SQLite FK diagnostic
+        assert "REL-002" in exceptions  # explicit orphan scan, even without FK enforcement
+        assert result["orphan_movement_count"] == 1
 
         # A bad factor on a product with purchases must not produce a baseline.
         assert "UNRECONCILED" in reconciliation
+
+        # Reusing a non-empty output folder must be refused; stale artifacts cannot be
+        # silently mixed into a new audit package.
+        stale = root / "stale-report"
+        stale.mkdir()
+        (stale / "old.txt").write_text("stale", encoding="utf-8")
+        try:
+            PROFILER.audit(db, stale, "stale-output-fixture")
+            raise AssertionError("non-empty output directory unexpectedly accepted")
+        except ValueError as error:
+            assert "خالی باشد" in str(error)
+        assert digest(db) == before
 
         # Missing one movement table makes the entire movement reconstruction partial.
         incomplete_db = root / "incomplete.sqlite"
