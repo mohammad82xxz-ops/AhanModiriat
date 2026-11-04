@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Synthetic tests for the read-only legacy quantity profiler."""
 from __future__ import annotations
+import csv
 import hashlib
 import importlib.util
 import shutil
@@ -72,6 +73,7 @@ def main() -> None:
         orphan = sqlite3.connect(db)
         orphan.execute("PRAGMA foreign_keys=OFF")
         orphan.execute("INSERT INTO purchases VALUES (99, '2026-01-06', 999, 2)")
+        orphan.execute("INSERT INTO purchases VALUES (100, '2026-01-07', NULL, 1)")
         orphan.commit()
         orphan.close()
         before = digest(db)
@@ -105,8 +107,10 @@ def main() -> None:
         assert "LEDGER-002" in exceptions
         assert "FACTOR-003" in exceptions
         assert "REL-001" not in exceptions  # no FK is declared on this legacy table
-        assert "REL-002" in exceptions  # explicit orphan scan works without FK constraints
-        assert result["orphan_movement_count"] == 1
+        rel_exceptions = [row for row in csv.DictReader(exceptions.splitlines()) if row["code"] == "REL-002"]
+        assert len(rel_exceptions) == 2  # unknown and NULL product_id are both detected
+        assert any(row["product_id"] == "" for row in rel_exceptions)
+        assert result["orphan_movement_count"] == 2
 
         # A bad factor on a product with purchases must not produce a baseline.
         assert "UNRECONCILED" in reconciliation
