@@ -1,6 +1,6 @@
 # نقشه بازطراحی منطق حسابداری آهن‌مدیریت
 
-> وضعیت: ممیزی اولیه انجام شده؛ CI هر دو trigger روی آخرین commit فاز ۱ (`cf727c700ebbe6321819627ff19bd86dbe90b5fa`) موفق است. این نتیجه پذیرش خودکار همان SHA را ثبت می‌کند، نه تصویب سیاست‌های حسابداری، تأیید دستی migration یا پذیرش نهایی فاز. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
+> وضعیت: ممیزی اولیه انجام شده؛ CI هر دو trigger روی آخرین commit مستندات (`548e49690c4531557df5d011a0ae3749ad76901b`) موفق است. CI مربوط به تغییر کد دقت ریال (`cf727c700ebbe6321819627ff19bd86dbe90b5fa`) نیز قبلاً موفق بوده است. موفقیت CI فقط پذیرش خودکار همان SHA را ثبت می‌کند، نه تصویب سیاست‌های حسابداری، تأیید دستی migration یا پذیرش نهایی فاز. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
 > محدوده بررسی: کد شاخه‌های `work/phase2-validation-edge-cases` و `rebuild/phase1-money-rial-foundation`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌ها، به‌علاوه سند Word مرجع نیازمندی‌ها. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
 
 ## ۱) نتیجه ممیزی معماری فعلی
@@ -369,3 +369,22 @@
 - Artifactهای Run #724: [گزارش‌های Lighthouse/axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305457877)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305442962)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305921711).
 - Artifactهای Run #725: [گزارش‌های Lighthouse/axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13305182905)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13304638961)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13305387454).
 - این نتیجه فقط workflowهای موجود روی همین SHA را تأیید می‌کند. DEC-01 تا DEC-11 همچنان نیازمند تصمیم مالک‌اند؛ موتور ارزش‌گذاری موجودی، migration روی دیتابیس واقعی، و آزمون دستی نصب/اجرای Windows، صفحه‌خوان، صفحه‌کلید و بزرگ‌نمایی واقعی ۲۰۰٪ همچنان باز هستند. هیچ دیتابیس واقعی تغییر نکرده و `main` دست‌نخورده است.
+
+
+## ۹) شواهد CI آخرین commit مستندات
+
+**SHA بررسی‌شده:** `548e49690c4531557df5d011a0ae3749ad76901b`
+
+هر دو اجرای مستقل روی همین SHA با نتیجهٔ `success` خاتمه یافته‌اند؛ هر دو job در هر اجرا موفق بوده‌اند:
+
+| Trigger | Run | نتیجه |
+|---|---:|---|
+| Push | [41796752650](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650) | موفق |
+| Pull Request | [41796760347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347) | موفق |
+
+در هر دو اجرا، `smoke-test` و `windows-onedir` موفق شده‌اند. هر اجرا سه artifact غیرمنقضی تولید کرده است: گزارش Lighthouse/axe-core، تصاویر رابط کاربری و بستهٔ Windows OneDir.
+
+- Push: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650/artifacts/13306051617)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650/artifacts/13306405302)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650/artifacts/13306220993)
+- Pull Request: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347/artifacts/13306235833)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347/artifacts/13306555015)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347/artifacts/13306285741)
+
+**محدودیت پذیرش:** این شواهد، اجرای موفق CI و ساخت بسته را ثابت می‌کنند؛ جایگزین اجرای واقعی برنامه روی Windows تمیز، آزمون دستی بزرگ‌نمایی ۲۰۰٪، صفحه‌خوان، صفحه‌کلید و نمایشگر کوچک نیستند. همچنین هیچ‌یک مجوز اجرای migration روی دیتابیس واقعی یا تصویب DEC-01 تا DEC-11 محسوب نمی‌شوند.
