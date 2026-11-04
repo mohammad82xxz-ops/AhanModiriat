@@ -205,7 +205,9 @@
 | DEC-08 | — | — | — | — | Pending |
 | DEC-09 | — | — | — | — | Pending |
 | DEC-10 | — | — | — | — | Pending |
-| DEC-11 | — | — | — | — | Pending |\n| DEC-12 | — | — | — | — | Pending |\n| DEC-13 | — | — | — | — | Pending |
+| DEC-11 | — | — | — | — | Pending |
+| DEC-12 | — | — | — | — | Pending |
+| DEC-13 | — | — | — | — | Pending |
 
 ## ۴. گیت مجوز پیاده‌سازی
 
