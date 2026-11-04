@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Independent tests for deterministic weight-based shared-cost allocation."""
+from itertools import product
+
 from landed_cost import MAX_INT64, allocate_shared_cost_by_weight
 
 
@@ -65,6 +67,25 @@ def main():
     )
     assert sum(row["allocated_rial"] for row in rows) == MAX_INT64
     assert all(0 <= row["allocated_rial"] <= MAX_INT64 for row in rows)
+
+    # Exhaustive small-domain invariants: conservation, floor/ceil bounds,
+    # and allocation invariance under a different input ordering.
+    line_ids = ("A", "B", "C")
+    for weights in product(range(4), repeat=3):
+        if sum(weights) == 0:
+            continue
+        for cost in range(10):
+            source = list(zip(line_ids, weights))
+            forward = allocate_shared_cost_by_weight(cost, source)
+            reversed_rows = allocate_shared_cost_by_weight(cost, list(reversed(source)))
+            forward_map = as_map(forward)
+            assert forward_map == as_map(reversed_rows)
+            assert sum(forward_map.values()) == cost
+            total_weight = sum(weights)
+            for line_id, weight_g in source:
+                floor_share, remainder = divmod(cost * weight_g, total_weight)
+                assert forward_map[line_id] in (floor_share, floor_share + (remainder > 0))
+                assert 0 <= forward_map[line_id] <= MAX_INT64
 
     print("SHARED LANDED-COST ALLOCATION TESTS PASSED")
 
