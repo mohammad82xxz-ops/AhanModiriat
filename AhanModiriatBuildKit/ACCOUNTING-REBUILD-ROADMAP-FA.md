@@ -1,6 +1,6 @@
 # نقشه بازطراحی منطق حسابداری آهن‌مدیریت
 
-> وضعیت: ممیزی اولیه انجام شده؛ اجرای فاز ۱ (T02-A) روی شاخه مستقل `rebuild/phase1-money-rial-foundation` در جریان است و تا پاس‌شدن CI آخرین commit پذیرفته‌شده محسوب نمی‌شود. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
+> وضعیت: ممیزی اولیه انجام شده؛ CI هر دو trigger روی آخرین commit فاز ۱ (`cf727c700ebbe6321819627ff19bd86dbe90b5fa`) موفق است. این نتیجه پذیرش خودکار همان SHA را ثبت می‌کند، نه تصویب سیاست‌های حسابداری، تأیید دستی migration یا پذیرش نهایی فاز. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
 > محدوده بررسی: کد شاخه‌های `work/phase2-validation-edge-cases` و `rebuild/phase1-money-rial-foundation`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌ها، به‌علاوه سند Word مرجع نیازمندی‌ها. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
 
 ## ۱) نتیجه ممیزی معماری فعلی
@@ -77,7 +77,7 @@
 **آزمون پذیرش:** بازبینی دستی گزارش ممیزی در برابر schema، مسیرهای POST و تست‌ها؛ هر ادعا باید به کد یا تست مشخص متصل باشد.
 
 ### فاز ۱ — واحد پول و محاسبات مالی دقیق (T02-A)
-**وضعیت: در حال اجرا — پذیرش نهایی منوط به CI آخرین commit**
+**وضعیت: CI آخرین commit موفق؛ پذیرش حسابداری نهایی هنوز باز**
 - ذخیره تمام ستون‌های پولی موجود در schema به ریال صحیح signed 64-bit و نمایش/ورودی تومان در رابط. جدول‌های چک هنوز وجود ندارند؛ هنگام ساخت چرخه چک در فاز ۸، ستون‌های آن نیز از ابتدا ریال صحیح خواهند بود.
 - تبدیل امن داده‌های قدیمی تومان به ریال با marker نسخه، اجرای idempotent، backup پیش از startup migration و rollback تراکنشی؛ ابتدا مقیاس ×۱۰ اعمال و سپس نوع ستون به INTEGER تبدیل می‌شود.
 - محاسبه هر مبلغ سطر با `Decimal` و `ROUND_HALF_UP`؛ ابتدا هر سطر جداگانه به ریال صحیح گرد می‌شود و بعد مجموع سطرها محاسبه می‌شود. جمع دفتر خرید/فروش، مانده اشخاص، سود و ارزش موجودی باید از همین مبلغ سطری استفاده کنند؛ جمع‌زدن حاصل‌ضرب‌های اعشاری مجاز نیست.
@@ -359,3 +359,13 @@
   - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41650149715/artifacts/13237362308)
 - هر دو trigger مستقل روی یک SHA دقیق موفق شده‌اند. این موفقیت فقط workflowهای موجود را تأیید می‌کند؛ هیچ امتیاز عددی Lighthouse یا شمارش violation در این ثبت ادعا نمی‌شود، و نتیجه به SHAهای بعدی تعمیم‌پذیر نیست.
 - CI موفق، یافته‌های حسابداری را نمی‌بندد، DEC-01 تا DEC-11 را تصویب نمی‌کند و جایگزین بازبینی دستی migration/محاسبات یا آزمون روی Windows واقعی، صفحه‌خوان و نمایشگر واقعی نیست.
+
+
+### پذیرش خودکار آخرین commit فاز ۱ — ۱۴۰۵/۰۸/۱۳
+
+- آخرین commit بررسی‌شده: `cf727c700ebbe6321819627ff19bd86dbe90b5fa`؛ اصلاح نمودارها برای حفظ دقت integer rial و افزودن regression test برای مبلغ بزرگ‌تر از (2^{53}).
+- اجرای push [Run #724](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499) و اجرای pull_request [Run #725](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666) روی همان SHA با نتیجهٔ `success` پایان یافتند.
+- در هر دو اجرا، jobهای `smoke-test` و `windows-onedir` موفق شدند؛ شامل Compile، تست‌های ایزوله، گردش‌های مرورگر، proxyهای keyboard/zoom، Lighthouse/axe-core، بارگذاری گزارش‌ها و ساخت بستهٔ Windows OneDir.
+- Artifactهای Run #724: [گزارش‌های Lighthouse/axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305457877)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305442962)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795905499/artifacts/13305921711).
+- Artifactهای Run #725: [گزارش‌های Lighthouse/axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13305182905)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13304638961)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41795910666/artifacts/13305387454).
+- این نتیجه فقط workflowهای موجود روی همین SHA را تأیید می‌کند. DEC-01 تا DEC-11 همچنان نیازمند تصمیم مالک‌اند؛ موتور ارزش‌گذاری موجودی، migration روی دیتابیس واقعی، و آزمون دستی نصب/اجرای Windows، صفحه‌خوان، صفحه‌کلید و بزرگ‌نمایی واقعی ۲۰۰٪ همچنان باز هستند. هیچ دیتابیس واقعی تغییر نکرده و `main` دست‌نخورده است.
