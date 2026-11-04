@@ -21,6 +21,7 @@ def main():
     assert weight_to_grams("1", "t") == 1_000_000
     assert weight_to_grams(" 2.5 ", "KG") == 2500
     assert weight_to_grams(str(MAX_INT64), "g") == MAX_INT64
+    assert weight_to_grams("9223372036854775.807", "kg") == MAX_INT64
 
     for value, unit in [
         ("", "kg"), ("abc", "kg"), ("NaN", "kg"), ("Infinity", "kg"),
@@ -32,7 +33,7 @@ def main():
         expect_error(ValueError, value, unit)
 
     expect_error(OverflowError, str(MAX_INT64 + 1), "g")
-    expect_error(OverflowError, "9223372036854.775808", "kg")
+    expect_error(OverflowError, "9223372036854775.808", "kg")
     print("EXACT WEIGHT UNIT TESTS PASSED")
 
 
