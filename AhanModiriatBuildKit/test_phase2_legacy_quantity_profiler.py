@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Synthetic tests for the read-only legacy quantity profiler."""
 from __future__ import annotations
+import csv
 import hashlib
 import importlib.util
 import shutil
@@ -36,7 +37,7 @@ def main() -> None:
                 sale_unit TEXT, sale_factor REAL, roll_weight REAL, sheet_area REAL
             );
             CREATE TABLE purchases(
-                id INTEGER PRIMARY KEY, date TEXT, product_id INTEGER REFERENCES products(id),
+                id INTEGER PRIMARY KEY, date TEXT, product_id INTEGER,
                 qty REAL NOT NULL
             );
             CREATE TABLE sales(
@@ -67,6 +68,14 @@ def main() -> None:
         """)
         c.commit()
         c.close()
+        # Simulate a legacy database with a missing FK declaration/enforcement:
+        # the profiler must detect the orphan even when it cannot rely on FK constraints.
+        orphan = sqlite3.connect(db)
+        orphan.execute("PRAGMA foreign_keys=OFF")
+        orphan.execute("INSERT INTO purchases VALUES (99, '2026-01-06', 999, 2)")
+        orphan.execute("INSERT INTO purchases VALUES (100, '2026-01-07', NULL, 1)")
+        orphan.commit()
+        orphan.close()
         before = digest(db)
         read_only = PROFILER.connect_readonly(db)
         try:
@@ -83,7 +92,7 @@ def main() -> None:
         assert result["source_unchanged"] is True
         assert digest(db) == before
         assert result["product_count"] == 2
-        assert result["result"] == "complete"
+        assert result["result"] == "complete"  # scan is complete; orphan is reported as a blocker exception
         assert (out / "checksums.txt").is_file()
         assert (out / "audit_manifest.json").is_file()
         units = (out / "unit_value_counts.csv").read_text(encoding="utf-8-sig")
@@ -97,9 +106,26 @@ def main() -> None:
         assert "FACTOR-001" in exceptions and "UNIT-002" in exceptions
         assert "LEDGER-002" in exceptions
         assert "FACTOR-003" in exceptions
+        assert "REL-001" not in exceptions  # no FK is declared on this legacy table
+        rel_exceptions = [row for row in csv.DictReader(exceptions.splitlines()) if row["code"] == "REL-002"]
+        assert len(rel_exceptions) == 2  # unknown and NULL product_id are both detected
+        assert any(row["product_id"] == "" for row in rel_exceptions)
+        assert result["orphan_movement_count"] == 2
 
         # A bad factor on a product with purchases must not produce a baseline.
         assert "UNRECONCILED" in reconciliation
+
+        # Reusing a non-empty output folder must be refused; stale artifacts cannot be
+        # silently mixed into a new audit package.
+        stale = root / "stale-report"
+        stale.mkdir()
+        (stale / "old.txt").write_text("stale", encoding="utf-8")
+        try:
+            PROFILER.audit(db, stale, "stale-output-fixture")
+            raise AssertionError("non-empty output directory unexpectedly accepted")
+        except ValueError as error:
+            assert "خالی باشد" in str(error)
+        assert digest(db) == before
 
         # Missing one movement table makes the entire movement reconstruction partial.
         incomplete_db = root / "incomplete.sqlite"
