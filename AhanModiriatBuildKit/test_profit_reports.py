@@ -49,6 +49,13 @@ def main():
         chart = app.dashboard_sales_chart(c,6)
         assert "روند فروش ماهانه" in chart and "فروش کالا" in chart
         assert f"{jy:04d}/{jm:02d}" in chart
+        # Dashboard aggregates must preserve integer-rial precision beyond binary64 exact range.
+        large_rial = 9007199254740995
+        c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,line_total,extra_cost,customer,received,notes,cost_basis)
+                     VALUES('2026-06-01',?,1,?,?,0,'Large value customer',0,'integer precision chart',0)""",
+                  (pid,large_rial,large_rial))
+        large_chart = app.dashboard_sales_chart(c,6)
+        assert app.money(large_rial) in large_chart, (app.money(large_rial), large_chart)
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("PROFIT REPORT TESTS PASSED")
 

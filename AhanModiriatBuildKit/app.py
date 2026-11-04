@@ -1263,8 +1263,9 @@ def dashboard_sales_chart(c, month_limit=6):
                 jy,jm,jd=gregorian_to_jalali(gy,gm,gd)
             except (TypeError,ValueError):
                 continue
-            b=buckets.setdefault((jy,jm),{"sales":0.0,"services":0.0})
-            b[key]+=sign*float(row["value"] or 0)
+            b=buckets.setdefault((jy,jm),{"sales":0,"services":0})
+            # Keep monetary totals as exact integer rials; float can lose low digits above 2**53.
+            b[key]+=sign*int(row["value"] or 0)
     add("SELECT date,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))) value FROM sales GROUP BY date","sales")
     add("SELECT date,SUM(return_value) value FROM sales_returns GROUP BY date","sales",-1)
     add("SELECT date,SUM(revenue) value FROM services GROUP BY date","services")
@@ -1770,8 +1771,8 @@ def prices(c, selected_product_id=0, search='', page_num=1):
         trend_rows=list(reversed(trend_rows))
     chart=""
     if trend_rows:
-        values=[float(r["market_price"] or 0) for r in trend_rows]
-        low=min(values); high=max(values); span=high-low or 1.0
+        values=[int(r["market_price"] or 0) for r in trend_rows]
+        low=min(values); high=max(values); span=high-low or 1
         width=760; left=56; right=738; top=22; bottom=160
         count=len(trend_rows)
         points=[]
@@ -1779,7 +1780,7 @@ def prices(c, selected_product_id=0, search='', page_num=1):
         labels=[]
         for i,r in enumerate(trend_rows):
             x=left+(right-left)*(i/(count-1) if count>1 else 0.5)
-            y=bottom-(float(r["market_price"] or 0)-low)/span*(bottom-top)
+            y=bottom-float((Decimal(int(r["market_price"] or 0)-low)/Decimal(span))*Decimal(bottom-top))
             points.append(f"{x:.1f},{y:.1f}")
             dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4"><title>{esc(show_date(r["date"]))}: {money(r["market_price"])} تومان</title></circle>')
             label=show_date(r["date"])
