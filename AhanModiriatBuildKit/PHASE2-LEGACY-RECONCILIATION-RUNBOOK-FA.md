@@ -33,7 +33,7 @@
 3. ممیزی روی کپی انجام شود و فایل منبع فقط read-only باز شود.
 4. نسخهٔ برنامه، schema version، تاریخ تهیهٔ backup و timezone نامعلوم/معلوم ثبت شود.
 5. پوشهٔ خروجی هر اجرا باید مستقل و خالی باشد؛ استفادهٔ مجدد از پوشهٔ گزارش قبلی ممنوع است تا فایل‌های قدیمی وارد checksum یا بستهٔ جدید نشوند.
-5. اگر backup رمزگذاری‌شده، ناقص یا ناسازگار است، ممیزی متوقف و exception ثبت شود.
+6. اگر backup رمزگذاری‌شده، ناقص یا ناسازگار است، ممیزی متوقف و exception ثبت شود.
 
 ## ۳. ثبت هویت منبع و زنجیرهٔ نگهداری
 
@@ -235,7 +235,7 @@ python phase2_legacy_quantity_profiler.py \
   --app-commit <application-commit>
 ```
 
-کد خروجی صفر یعنی ساختار شناخته‌شده و profiling کامل شده؛ کد ۱ یعنی گزارش partial یا schema ناقص؛ کد ۲ یعنی ممیزی متوقف/blocked شده است. حتی در حالت complete نیز این خروجی مجوز migration یا تأیید سیاست حسابداری نیست.
+کد خروجی صفر یعنی ساختار شناخته‌شده و مرحلهٔ profiling کامل شده است؛ این وضعیت به معنی پاک‌بودن داده یا نبود exception از نوع blocker نیست. پیش از هر استفاده، `exception_count`، `exception_counts_by_code`، `exception_counts_by_severity` و `orphan_movement_count` در manifest و تمام ردیف‌های `exceptions.csv` باید بررسی شوند. کد ۱ یعنی گزارش partial یا schema ناقص؛ کد ۲ یعنی ممیزی متوقف/blocked شده است. حتی در حالت complete نیز این خروجی مجوز migration یا تأیید سیاست حسابداری نیست.
 
 اتصال SQLite با URI `mode=ro` و `PRAGMA query_only=ON` انجام می‌شود. checksum فایل ورودی پیش و پس از ممیزی مقایسه می‌شود. پوشهٔ خروجی باید جدا از فایل ورودی باشد. گزارش‌ها شامل manifest، شمارش واحدهای خام، پروفایل مقدار اسناد، تطبیق حسابی مشروط، exceptionها، خلاصه و checksum خروجی‌ها هستند.
 
