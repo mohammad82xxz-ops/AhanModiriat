@@ -1,6 +1,6 @@
 # نقشه بازطراحی منطق حسابداری آهن‌مدیریت
 
-> وضعیت: ممیزی اولیه انجام شده؛ CI هر دو trigger روی آخرین commit مستندات (`548e49690c4531557df5d011a0ae3749ad76901b`) موفق است. CI مربوط به تغییر کد دقت ریال (`cf727c700ebbe6321819627ff19bd86dbe90b5fa`) نیز قبلاً موفق بوده است. موفقیت CI فقط پذیرش خودکار همان SHA را ثبت می‌کند، نه تصویب سیاست‌های حسابداری، تأیید دستی migration یا پذیرش نهایی فاز. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
+> وضعیت: ممیزی اولیه و زیرساخت T02-A پیاده‌سازی شده‌اند؛ آخرین commit شاخه `799bfc33a769f54a6d34c2ea0a84bd4f2071b245` در هر دو trigger CI با نتیجهٔ success تأیید شده است (Runهای `41797604560` و `41797611191`). موفقیت CI فقط workflowهای همان SHA را تأیید می‌کند؛ تصویب سیاست‌های حسابداری، پذیرش دستی migration و تکمیل T02-A را جایگزین نمی‌کند. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
 > محدوده بررسی: کد شاخه‌های `work/phase2-validation-edge-cases` و `rebuild/phase1-money-rial-foundation`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌ها، به‌علاوه سند Word مرجع نیازمندی‌ها. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
 
 ## ۱) نتیجه ممیزی معماری فعلی
@@ -9,7 +9,7 @@
 
 ### یافته‌های قطعی از کد
 
-1. **واحد پول با مشخصات مرجع یکی نیست.** ستون‌های پولی منتخب با مهاجرت به نوع `INTEGER` تبدیل می‌شوند، اما تست مهاجرت صریحاً آن را «INTEGER TOMAN» می‌نامد و فرم‌ها نیز تومان می‌گیرند/نمایش می‌دهند. سند مرجع پول را ریال صحیح و نمایش را تومان می‌خواهد. بنابراین تبدیل فعلی، مهاجرت به ریال نیست و نباید بدون برنامه تبدیل مقیاس انجام شود.
+1. **زیرساخت واحد پول در کد فعلی با قرارداد ریال/تومان هم‌راستا شده است.** `migrate_money_units_to_rial` یک‌بار مقادیر قدیمی تومان را با ضریب ۱۰ به ریال تبدیل می‌کند و marker نسخهٔ `rial-v1` مانع اجرای دوبارهٔ مقیاس‌دهی می‌شود؛ سپس `migrate_money_columns_to_integer` ستون‌های پولی منتخب را به `INTEGER` بازسازی می‌کند. توابع ورودی/نمایش رابط، تومان را به ریال صحیح تبدیل می‌کنند. تست‌های `test_money_schema_migration.py` و `test_money_units_ui.py` مقیاس‌دهی، marker، نوع ستون، rollback و قرارداد UI را پوشش می‌دهند. این پیشرفت، گیت‌های بازبینی دستی، تطبیق همهٔ مسیرهای مالی و آزمون migration روی clone را حذف نمی‌کند.
 2. **وزن و موجودی هنوز اعشاری‌اند.** ستون‌های `stock` و `qty` از نوع `REAL` باقی مانده‌اند؛ گرم صحیح به‌عنوان واحد پایه پیاده نشده است.
 3. **موجودی کالا هنوز مانده دستی/کش‌شده است.** ستون `products.stock` در ثبت خرید، فروش، برگشت و انبارگردانی مستقیم تغییر می‌کند. کارت گردش کالا حرکات را نشان می‌دهد، اما مانده پایه را از اختلاف موجودی فعلی و گردش‌ها استنتاج می‌کند؛ پس هنوز برابری موجودی با جمع دفتر حرکات تضمین یا قابل بازسازی نیست.
 4. **میانگین موزون تا حدی وجود دارد، اما موتور بهای تمام‌شده کامل نیست.** خرید میانگین را تغییر می‌دهد و فروش `cost_basis` را ذخیره می‌کند؛ ولی ارزش کل و وزن کل به‌عنوان مبنای مستقل نگهداری نمی‌شوند. اصلاح خرید قدیمی در صورت وجود گردش بعدی عمدتاً مسدود می‌شود، نه اینکه اسناد بعدی از تاریخ مؤثر دوباره محاسبه شوند.
@@ -239,7 +239,7 @@
 - دستورالعمل backup، shadow migration، cutover، پایش و rollback: [ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md](ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md).
 - دفتر ثبت و تصویب DEC-01 تا DEC-11: [ACCOUNTING-POLICY-DECISION-REGISTER-FA.md](ACCOUNTING-POLICY-DECISION-REGISTER-FA.md).
 - موفقیت CI فقط صحت تست‌ها و workflowهای موجود روی همین SHA را نشان می‌دهد؛ به‌تنهایی یافته‌های ممیزی حسابداری را نمی‌بندد یا تأیید دستی migration/محاسبات را جایگزین نمی‌کند.
-- وضعیت پذیرش T02-A: Run #640 روی SHA والد موفق است؛ CI روی commit مستنداتی جدید باید جداگانه پاس شود. بازبینی دستی migration/محاسبات و تأیید سیاست‌های وابسته همچنان گیت مستقل‌اند. DEC-01 تا DEC-11 در دفتر تصمیم‌ها Pending هستند و تا تصویب مالک، کدنویسی وابسته به آن‌ها آغاز نمی‌شود.
+- وضعیت T02-A: مهاجرت مقیاس ×۱۰ و تبدیل ستون‌های پولی منتخب به INTEGER ریال در کد و تست‌های fixture پیاده‌سازی شده‌اند؛ آخرین CIهای Push و Pull Request روی SHA `799bfc3` هر دو موفق‌اند. هنوز باید بازبینی مستقل کامل همهٔ touchpointهای مالی، اجرای restore/migration روی clone ناشناس‌سازی‌شده، تطبیق دفترها و پذیرش دستی انجام شود. DEC-01 تا DEC-11 Pending هستند؛ کدنویسی سیاست‌وابسته بدون تصویب مالک مجاز نیست.
 
 
 ### تکمیل اجرای CI شمارهٔ ۶۴۴ — ۱۴۰۵/۰۸/۰۹
@@ -371,20 +371,20 @@
 - این نتیجه فقط workflowهای موجود روی همین SHA را تأیید می‌کند. DEC-01 تا DEC-11 همچنان نیازمند تصمیم مالک‌اند؛ موتور ارزش‌گذاری موجودی، migration روی دیتابیس واقعی، و آزمون دستی نصب/اجرای Windows، صفحه‌خوان، صفحه‌کلید و بزرگ‌نمایی واقعی ۲۰۰٪ همچنان باز هستند. هیچ دیتابیس واقعی تغییر نکرده و `main` دست‌نخورده است.
 
 
-## ۹) شواهد CI آخرین commit مستندات
+## ۹) شواهد CI آخرین commit شاخه
 
-**SHA بررسی‌شده:** `548e49690c4531557df5d011a0ae3749ad76901b`
+**SHA بررسی‌شده:** `799bfc33a769f54a6d34c2ea0a84bd4f2071b245`
 
 هر دو اجرای مستقل روی همین SHA با نتیجهٔ `success` خاتمه یافته‌اند؛ هر دو job در هر اجرا موفق بوده‌اند:
 
 | Trigger | Run | نتیجه |
 |---|---:|---|
-| Push | [41796752650](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650) | موفق |
-| Pull Request | [41796760347](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347) | موفق |
+| Push | [41797604560](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797604560) | موفق |
+| Pull Request | [41797611191](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797611191) | موفق |
 
 در هر دو اجرا، `smoke-test` و `windows-onedir` موفق شده‌اند. هر اجرا سه artifact غیرمنقضی تولید کرده است: گزارش Lighthouse/axe-core، تصاویر رابط کاربری و بستهٔ Windows OneDir.
 
-- Push: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650/artifacts/13306051617)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650/artifacts/13306405302)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796752650/artifacts/13306220993)
-- Pull Request: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347/artifacts/13306235833)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347/artifacts/13306555015)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41796760347/artifacts/13306285741)
+- Push: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797604560/artifacts/13305184828)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797604560/artifacts/13306720288)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797604560/artifacts/13306316306)
+- Pull Request: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797611191/artifacts/13306192089)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797611191/artifacts/13306466425)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41797611191/artifacts/13306013556)
 
 **محدودیت پذیرش:** این شواهد، اجرای موفق CI و ساخت بسته را ثابت می‌کنند؛ جایگزین اجرای واقعی برنامه روی Windows تمیز، آزمون دستی بزرگ‌نمایی ۲۰۰٪، صفحه‌خوان، صفحه‌کلید و نمایشگر کوچک نیستند. همچنین هیچ‌یک مجوز اجرای migration روی دیتابیس واقعی یا تصویب DEC-01 تا DEC-11 محسوب نمی‌شوند.
