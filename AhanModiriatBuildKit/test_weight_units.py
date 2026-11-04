@@ -2,7 +2,7 @@
 """Isolated tests for exact canonical weight conversion; no database is used."""
 from decimal import Decimal
 
-from weight_units import MAX_INT64, weight_to_grams
+from weight_units import MAX_INT64, weight_to_grams, weighted_line_total_rial
 
 
 def expect_error(error_type, value, unit):
@@ -34,7 +34,32 @@ def main():
 
     expect_error(OverflowError, str(MAX_INT64 + 1), "g")
     expect_error(OverflowError, "9223372036854775.808", "kg")
-    print("EXACT WEIGHT UNIT TESTS PASSED")
+    # Word golden case T02-B-01: 1,000 kg × 40,000 rial/kg.
+    assert weighted_line_total_rial(1_000_000, 40_000) == 40_000_000
+
+    # Integer-only ROUND_HALF_UP behavior at half-rial boundaries.
+    assert weighted_line_total_rial(1, 499) == 0
+    assert weighted_line_total_rial(1, 500) == 1
+    assert weighted_line_total_rial(3, 500) == 2
+    assert weighted_line_total_rial(0, MAX_INT64) == 0
+
+    for weight, price in [(-1, 1000), (1, -1), (True, 1000), (1000, False),
+                          (1.0, 1000), (1000, 1.0), ("1000", 1000)]:
+        try:
+            weighted_line_total_rial(weight, price)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for {weight!r} g at {price!r} rial/kg")
+
+    try:
+        weighted_line_total_rial(MAX_INT64, 1000)
+    except OverflowError:
+        pass
+    else:
+        raise AssertionError("expected weighted line total overflow")
+
+    print("EXACT WEIGHT UNIT AND PRICING TESTS PASSED")
 
 
 if __name__ == "__main__":
