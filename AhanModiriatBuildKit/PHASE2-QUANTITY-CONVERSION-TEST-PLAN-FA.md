@@ -152,7 +152,7 @@
 | `test_inventory_ledger.py` | تعدیل، کارت گردش، اصلاح موجودی | خرید/فروش با factor متفاوت و تطبیق کامل مانده |
 | `test_returns.py` | سقف و اثر مرجوعی‌ها | ضریب خرید غیر۱، مرجوعی جزئی چندمرحله‌ای و invariant واحد پایه |
 | `test_purchase_advice.py` | فروش دوره و پیشنهاد سفارش ساده | مرجوعی فروش و سیاست تاریخ؛ فقط پس از تصویب تعریف تقاضای خالص |
-| `test_excel_io.py` | import/export کالا و رد برخی عددهای نامعتبر | unit alias، factor اعشاری/نامعتبر، preview و exception report |
+| `test_excel_io.py` و `test_phase2_xlsx_export_characterization.py` | import/export کالا، رد برخی عددهای نامعتبر؛ characterization دقیق ۱۵ ستون محصول و ۴ ستون شخص در خروجی HTTP | unit alias، factor اعشاری/نامعتبر، preview و exception report و قالب نسخه‌دار |
 | `test_phase2_validation_edges.py` | رد ورودی عددی malformed و عدم اثر جانبی | آزمون‌های منفی quantity/factor در routeهای خرید/فروش |
 
 این سند از وجود تست‌هایی فراتر از موارد ذکرشده ادعا نمی‌کند؛ پیش از پیاده‌سازی هر مورد باید فایل و fixtureهای واقعی دوباره خوانده شوند.
