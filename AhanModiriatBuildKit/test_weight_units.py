@@ -22,12 +22,14 @@ def main():
     assert weight_to_grams(" 2.5 ", "KG") == 2500
     assert weight_to_grams(str(MAX_INT64), "g") == MAX_INT64
     assert weight_to_grams("9223372036854775.807", "kg") == MAX_INT64
+    assert weight_to_grams(Decimal("0E+100000"), "g") == 0
 
     for value, unit in [
         ("", "kg"), ("abc", "kg"), ("NaN", "kg"), ("Infinity", "kg"),
         ("-1", "kg"), ("0.0005", "kg"), ("0.0001", "g"),
         ("0.999999999999999999999999999999", "kg"),
         ("1", "ton"), ("1", "کیلوگرم"), ("1", ""),
+        (Decimal("1E-100000"), "kg"),
         (True, "kg"), (0.1, "kg"),
     ]:
         expect_error(ValueError, value, unit)
@@ -42,6 +44,7 @@ def main():
     assert weighted_line_total_rial(1, 500) == 1
     assert weighted_line_total_rial(3, 500) == 2
     assert weighted_line_total_rial(0, MAX_INT64) == 0
+    assert weighted_line_total_rial(MAX_INT64, 0) == 0
 
     for weight, price in [(-1, 1000), (1, -1), (True, 1000), (1000, False),
                           (1.0, 1000), (1000, 1.0), ("1000", 1000)]:
@@ -51,6 +54,14 @@ def main():
             pass
         else:
             raise AssertionError(f"expected ValueError for {weight!r} g at {price!r} rial/kg")
+
+    for weight, price in [(MAX_INT64 + 1, 0), (0, MAX_INT64 + 1)]:
+        try:
+            weighted_line_total_rial(weight, price)
+        except OverflowError:
+            pass
+        else:
+            raise AssertionError("expected INTEGER input overflow")
 
     try:
         weighted_line_total_rial(MAX_INT64, 1001)
