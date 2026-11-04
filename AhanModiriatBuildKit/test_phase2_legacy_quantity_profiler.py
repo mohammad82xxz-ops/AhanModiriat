@@ -36,7 +36,7 @@ def main() -> None:
                 sale_unit TEXT, sale_factor REAL, roll_weight REAL, sheet_area REAL
             );
             CREATE TABLE purchases(
-                id INTEGER PRIMARY KEY, date TEXT, product_id INTEGER REFERENCES products(id),
+                id INTEGER PRIMARY KEY, date TEXT, product_id INTEGER,
                 qty REAL NOT NULL
             );
             CREATE TABLE sales(
@@ -90,7 +90,7 @@ def main() -> None:
         assert result["source_unchanged"] is True
         assert digest(db) == before
         assert result["product_count"] == 2
-        assert result["result"] == "partial"  # orphan also triggers the SQLite FK diagnostic
+        assert result["result"] == "complete"  # scan is complete; orphan is reported as a blocker exception
         assert (out / "checksums.txt").is_file()
         assert (out / "audit_manifest.json").is_file()
         units = (out / "unit_value_counts.csv").read_text(encoding="utf-8-sig")
@@ -104,8 +104,8 @@ def main() -> None:
         assert "FACTOR-001" in exceptions and "UNIT-002" in exceptions
         assert "LEDGER-002" in exceptions
         assert "FACTOR-003" in exceptions
-        assert "REL-001" in exceptions  # SQLite FK diagnostic
-        assert "REL-002" in exceptions  # explicit orphan scan, even without FK enforcement
+        assert "REL-001" not in exceptions  # no FK is declared on this legacy table
+        assert "REL-002" in exceptions  # explicit orphan scan works without FK constraints
         assert result["orphan_movement_count"] == 1
 
         # A bad factor on a product with purchases must not produce a baseline.
