@@ -203,6 +203,43 @@ def main():
                 )
                 assert after == after_first, (route, after_first, after)
                 assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        # Multi-stage partial returns must allocate the original integer-rial
+        # line total without losing or creating a rial through repeated rounding.
+        with app.conn() as c:
+            rounding_pid = c.execute(
+                """INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock,
+                           purchase_unit,purchase_factor,sale_unit,sale_factor)
+                   VALUES('partial return rounding steel','kg',5,100,503,0,'kg',1,'kg',1)"""
+            ).lastrowid
+            rounding_sale_id = c.execute(
+                """INSERT INTO sales(date,product_id,qty,unit_price,line_total,extra_cost,
+                           customer,received,notes,cost_basis)
+                   VALUES('2026-01-07',?,2,503,1005,0,'Rounding Customer',0,
+                          'partial return rounding',100)""",
+                (rounding_pid,),
+            ).lastrowid
+
+        for return_date in ("2026-01-08", "2026-01-09"):
+            post(port, "add_sales_return", {
+                "sale_id": rounding_sale_id, "date": return_date, "qty": "1",
+                "refund_amount": "0", "reason": "partial return rounding",
+            })
+
+        with app.conn() as c:
+            allocated = [
+                row[0] for row in c.execute(
+                    "SELECT return_value FROM sales_returns WHERE sale_id=? ORDER BY id",
+                    (rounding_sale_id,),
+                )
+            ]
+            assert allocated == [503, 502], allocated
+            assert sum(allocated) == 1005, allocated
+            assert c.execute(
+                "SELECT stock FROM products WHERE id=?", (rounding_pid,)
+            ).fetchone()[0] == 7
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
         with app.conn() as c:
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
