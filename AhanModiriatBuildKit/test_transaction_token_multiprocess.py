@@ -7,6 +7,7 @@ import tempfile
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 
 
@@ -60,7 +61,7 @@ def main():
         import app
 
         app.init()
-        with app.conn() as c:
+        with closing(app.conn()) as c, c:
             markup = app.submission_token(c, "add_settlement")
             token = markup.split('value="', 1)[1].split('"', 1)[0]
 
@@ -105,7 +106,7 @@ def main():
                 barrier.wait(timeout=15)
                 responses = [future.result(timeout=35) for future in futures]
 
-            with app.conn() as c:
+            with closing(app.conn()) as c, c:
                 settlements = c.execute(
                     "SELECT * FROM settlements WHERE party=?",
                     ("Multiprocess Token Party",),
