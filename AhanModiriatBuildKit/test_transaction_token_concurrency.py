@@ -95,6 +95,11 @@ def main():
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
         assert len(responses) == 2, responses
+        response_bodies = [body for _status, body in responses]
+        assert sum("تسویه ثبت شد و دفتر صندوق به‌روز شد." in body
+                   for body in response_bodies) == 1, response_bodies
+        assert sum("این فرم قبلاً ارسال شده یا منقضی است" in body
+                   for body in response_bodies) == 1, response_bodies
         print("SINGLE-PROCESS TOKEN CONCURRENCY CHARACTERIZATION PASSED")
     finally:
         server.shutdown()
