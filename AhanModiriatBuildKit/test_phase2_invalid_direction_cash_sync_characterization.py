@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Characterize invalid-direction handling in the isolated cash-sync helper.
+"""Regression test: invalid cash direction must not delete an existing mirror.
 
-This test records the helper's current ordering only. It does not define the
-transaction/rollback contract of its production callers.
+The test also verifies rollback when the error escapes a caller transaction.
 """
 import os
 import sys
