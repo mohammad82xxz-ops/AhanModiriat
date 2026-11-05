@@ -148,7 +148,10 @@ def test_settlement_sync_failure_rolls_back_everything():
             ).fetchall()
             assert len(mirrors) == 1, [dict(row) for row in mirrors]
             assert mirrors[0]["kind"] == "deposit"
-            assert mirrors[0]["amount"] == 1250
+            # Settlement form values are entered in toman; strict_money_int
+            # stores the equivalent integer-rial amount (×10) in both ledgers.
+            assert settlement[0]["amount"] == 12500
+            assert mirrors[0]["amount"] == 12500
             assert settlement[0]["person_id"]
             assert c.execute(
                 "SELECT COUNT(*) FROM audit_log WHERE action='add_settlement'"
