@@ -20,6 +20,8 @@
 
 | PR | اجرای CI | نتیجه |
 |---|---|---|
+| #29 | [Run #800](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41975799171) | موفق؛ تست مرز تراکنش و rollback در بستهٔ smoke |
+| #30 | [Run #804](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41976738489) | موفق؛ رقابت token در threadهای یک process |
 | #31 | [Run #807](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41987481572) | هر دو Job موفق؛ تست چندپردازه‌ای و ساخت Windows OneDir |
 | #32 | [Run #809](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41994019903) | هر دو Job موفق؛ تست action binding، مرورگر و ممیزی دسترس‌پذیری |
 | #33 | [Run #810](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41994383678) | هر دو Job موفق؛ تست‌های ایزوله، مرورگر، Lighthouse/axe-core، تست چندپردازه‌ای روی Windows و ساخت OneDir |
