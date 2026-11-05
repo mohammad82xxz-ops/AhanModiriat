@@ -16,6 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import app
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _post(port, fields):
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
@@ -27,8 +32,14 @@ def _post(port, fields):
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=10) as response:
-        return response.status, response.read().decode("utf-8")
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        response = opener.open(request, timeout=10)
+    except urllib.error.HTTPError as response:
+        if response.code != 303:
+            raise
+    with response:
+        return response.code, response.headers.get("Location", "")
 
 
 def main():
@@ -95,11 +106,15 @@ def main():
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
         assert len(responses) == 2, responses
-        response_bodies = [body for _status, body in responses]
-        assert sum("تسویه ثبت شد و دفتر صندوق به‌روز شد." in body
-                   for body in response_bodies) == 1, response_bodies
-        assert sum("این فرم قبلاً ارسال شده یا منقضی است" in body
-                   for body in response_bodies) == 1, response_bodies
+        assert all(status == 303 for status, _location in responses), responses
+        redirect_messages = [
+            urllib.parse.parse_qs(urllib.parse.urlparse(location).query).get("msg", [""])[0]
+            for _status, location in responses
+        ]
+        assert sum("تسویه ثبت شد و دفتر صندوق به‌روز شد." in message
+                   for message in redirect_messages) == 1, redirect_messages
+        assert sum("این فرم قبلاً ارسال شده یا منقضی است" in message
+                   for message in redirect_messages) == 1, redirect_messages
         print("SINGLE-PROCESS TOKEN CONCURRENCY CHARACTERIZATION PASSED")
     finally:
         server.shutdown()
