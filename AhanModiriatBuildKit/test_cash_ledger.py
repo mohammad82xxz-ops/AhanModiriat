@@ -30,6 +30,13 @@ def main():
         c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
                      VALUES('2026-01-08',?,?, 'legacy customer',0.1,250,120,0,250,'legacy sales return','explicit customer refund')""",
                   (sale_id, product_id))
+        # Positive return value alone is not evidence of a cash refund.
+        zero_purchase_return = c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
+                     VALUES('2026-01-10',?,?, 'legacy supplier',0.1,80,0,'non-cash purchase return','no cash received')""",
+                  (purchase_id, product_id)).lastrowid
+        zero_sales_return = c.execute("""INSERT INTO sales_returns(date,sale_id,product_id,customer,qty,return_value,cost_basis,extra_reversed,refund_amount,reason,notes)
+                     VALUES('2026-01-11',?,?, 'legacy customer',0.1,90,120,0,0,'non-cash sales return','no cash paid')""",
+                  (sale_id, product_id)).lastrowid
         c.execute("""INSERT INTO services(date,title,revenue,cost,received,customer,notes)
                      VALUES('2026-01-03','legacy service',5000,1000,1500,'legacy customer','service receipt')""")
         c.execute("""INSERT INTO expenses(date,category,amount,source,business,notes)
@@ -63,6 +70,14 @@ def main():
             ).fetchone()
             assert row is not None, f"missing migrated source: {table}"
             assert (row["kind"], row["amount"]) == (kind, amount), (table, dict(row))
+        for table, source_id in (
+            ("purchase_returns", zero_purchase_return),
+            ("sales_returns", zero_sales_return),
+        ):
+            assert c.execute(
+                "SELECT 1 FROM cash_movements WHERE source_table=? AND source_id=?",
+                (table, source_id),
+            ).fetchone() is None, f"non-cash return must not create a cash posting: {table} #{source_id}"
         # Explicit return refunds also post: +120 vendor refund and -250 customer refund.
         # Opening cash 20000 + 2500 + 1500 + 300 + 120 - 1000 - 750 - 500 - 250 - transfer 70.
         assert app.account_balance(c, 1) == 21850, app.account_balance(c, 1)
