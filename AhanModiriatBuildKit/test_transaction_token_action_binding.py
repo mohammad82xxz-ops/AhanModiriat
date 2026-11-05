@@ -3,6 +3,7 @@
 import os
 import sys
 import tempfile
+import threading
 import urllib.parse
 import urllib.request
 from contextlib import closing
@@ -64,6 +65,8 @@ def main():
 
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
     try:
         # A token issued for settlement must not authorize a different financial route.
         wrong_status, wrong_location = post(port, "add_cash_movement", {
@@ -161,7 +164,9 @@ def main():
 
         print("TOKEN ACTION-BINDING CHARACTERIZATION PASSED")
     finally:
+        server.shutdown()
         server.server_close()
+        server_thread.join(timeout=5)
         TMP.cleanup()
 
 
