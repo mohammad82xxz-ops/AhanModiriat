@@ -100,6 +100,93 @@ def main():
             assert c.execute("SELECT COUNT(*) FROM purchases WHERE id=?",(purchase_id,)).fetchone()[0] == 1
             assert c.execute("SELECT stock FROM products WHERE id=?", (pid,)).fetchone()[0] == 6
 
+        # Cash mirrors must follow edits and disappear when their source documents are deleted.
+        # Use fresh source documents without returns so lifecycle guards do not block the operation.
+        with app.conn() as c:
+            c.execute("UPDATE products SET stock=8,avg_cost=50 WHERE id=?", (pid,))
+            pc = c.execute("""INSERT INTO purchases(date,product_id,qty,unit_cost,extra_cost,supplier,paid,notes)
+                              VALUES('2026-02-01',?,2,50,0,'Lifecycle Seller',30,'before edit')""", (pid,))
+            lifecycle_purchase_id = pc.lastrowid
+            app.sync_cash_posting(c,"purchases",lifecycle_purchase_id,"2026-02-01",30,"out","Lifecycle Seller","before edit")
+        post(port,"update_purchase",{
+            "record_id":lifecycle_purchase_id,"qty":"3","unit_cost":"60","extra_cost":"0",
+            "paid":"45","supplier":"Lifecycle Seller Updated","notes":"after edit"
+        })
+        with app.conn() as c:
+            purchase_posting = c.execute(
+                "SELECT date,kind,amount,party,note FROM cash_movements WHERE source_table='purchases' AND source_id=?",
+                (lifecycle_purchase_id,),
+            ).fetchone()
+            assert purchase_posting is not None
+            assert (purchase_posting["kind"],purchase_posting["amount"],purchase_posting["party"],purchase_posting["note"]) == (
+                "withdraw",450,"Lifecycle Seller Updated","after edit"
+            ), dict(purchase_posting)
+            assert c.execute("SELECT stock FROM products WHERE id=?",(pid,)).fetchone()[0] == 9
+        post(port,"delete_purchase",{"record_id":lifecycle_purchase_id})
+        with app.conn() as c:
+            assert c.execute("SELECT 1 FROM purchases WHERE id=?",(lifecycle_purchase_id,)).fetchone() is None
+            assert c.execute(
+                "SELECT 1 FROM cash_movements WHERE source_table='purchases' AND source_id=?",
+                (lifecycle_purchase_id,),
+            ).fetchone() is None
+            assert c.execute("SELECT stock FROM products WHERE id=?",(pid,)).fetchone()[0] == 6
+
+            sc = c.execute("""INSERT INTO sales(date,product_id,qty,unit_price,line_total,extra_cost,customer,received,notes,cost_basis)
+                              VALUES('2026-02-02',?,1,100,100,0,'Lifecycle Customer',60,'before edit',50)""", (pid,))
+            lifecycle_sale_id = sc.lastrowid
+            c.execute("UPDATE products SET stock=stock-1 WHERE id=?",(pid,))
+            app.sync_cash_posting(c,"sales",lifecycle_sale_id,"2026-02-02",60,"in","Lifecycle Customer","before edit")
+        post(port,"update_sale",{
+            "record_id":lifecycle_sale_id,"qty":"2","unit_price":"110","extra_cost":"0",
+            "received":"75","customer":"Lifecycle Customer Updated","notes":"after edit"
+        })
+        with app.conn() as c:
+            sale_posting = c.execute(
+                "SELECT kind,amount,party,note FROM cash_movements WHERE source_table='sales' AND source_id=?",
+                (lifecycle_sale_id,),
+            ).fetchone()
+            assert sale_posting is not None
+            assert (sale_posting["kind"],sale_posting["amount"],sale_posting["party"],sale_posting["note"]) == (
+                "deposit",750,"Lifecycle Customer Updated","after edit"
+            ), dict(sale_posting)
+            assert c.execute("SELECT stock FROM products WHERE id=?",(pid,)).fetchone()[0] == 4
+        post(port,"delete_sale",{"record_id":lifecycle_sale_id})
+        with app.conn() as c:
+            assert c.execute("SELECT 1 FROM sales WHERE id=?",(lifecycle_sale_id,)).fetchone() is None
+            assert c.execute(
+                "SELECT 1 FROM cash_movements WHERE source_table='sales' AND source_id=?",
+                (lifecycle_sale_id,),
+            ).fetchone() is None
+            assert c.execute("SELECT stock FROM products WHERE id=?",(pid,)).fetchone()[0] == 6
+
+            ec = c.execute("""INSERT INTO expenses(date,category,amount,source,business,notes)
+                              VALUES('2026-02-02','Lifecycle expense',70,'Lifecycle source',1,'before edit')""")
+            lifecycle_expense_id = ec.lastrowid
+            app.sync_cash_posting(c,"expenses",lifecycle_expense_id,"2026-02-02",70,"out","Lifecycle source","before edit")
+        post(port,"update_expense",{
+            "record_id":lifecycle_expense_id,"date":"2026-02-03","category":"Updated lifecycle expense",
+            "amount":"9","source":"Updated lifecycle source","business":"1","notes":"after edit"
+        })
+        with app.conn() as c:
+            expense_posting = c.execute(
+                "SELECT date,kind,amount,party,note FROM cash_movements WHERE source_table='expenses' AND source_id=?",
+                (lifecycle_expense_id,),
+            ).fetchone()
+            assert expense_posting is not None
+            assert (expense_posting["date"],expense_posting["kind"],expense_posting["amount"],
+                    expense_posting["party"],expense_posting["note"]) == (
+                "2026-02-03","withdraw",90,"Updated lifecycle source","after edit"
+            ), dict(expense_posting)
+        post(port,"delete_expense",{"record_id":lifecycle_expense_id})
+        with app.conn() as c:
+            assert c.execute("SELECT 1 FROM expenses WHERE id=?",(lifecycle_expense_id,)).fetchone() is None
+            assert c.execute(
+                "SELECT 1 FROM cash_movements WHERE source_table='expenses' AND source_id=?",
+                (lifecycle_expense_id,),
+            ).fetchone() is None
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+
         # The refund cannot exceed the returned sales value.
         post(port, "add_sales_return", {
             "sale_id":sale_id,"date":"2026-01-05","qty":"0.5",
