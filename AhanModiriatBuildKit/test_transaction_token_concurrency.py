@@ -34,12 +34,13 @@ def _post(port, fields):
     )
     opener = urllib.request.build_opener(_NoRedirect)
     try:
-        response = opener.open(request, timeout=10)
-    except urllib.error.HTTPError as response:
-        if response.code != 303:
+        response_obj = opener.open(request, timeout=10)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 303:
             raise
-    with response:
-        return response.code, response.headers.get("Location", "")
+        response_obj = exc
+    with response_obj:
+        return response_obj.code, response_obj.headers.get("Location", "")
 
 
 def main():
