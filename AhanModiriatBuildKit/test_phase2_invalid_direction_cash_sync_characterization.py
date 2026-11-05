@@ -54,6 +54,36 @@ def main():
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
+    # When the same helper error escapes the SQLite connection context,
+    # the caller's transaction rolls back and preserves the prior mirror.
+    transactional_source_id = 9202603
+    with app.conn() as c:
+        app.sync_cash_posting(
+            c, source_table, transactional_source_id, "2026-02-03", 2100,
+            "in", "Invalid Direction Probe", "transaction baseline",
+        )
+
+    raised = False
+    try:
+        with app.conn() as c:
+            app.sync_cash_posting(
+                c, source_table, transactional_source_id, "2026-02-03", 700,
+                "sideways", "Invalid Direction Probe", "transactional invalid direction",
+            )
+    except ValueError as exc:
+        raised = "جهت گردش نقدی نامعتبر" in str(exc)
+    assert raised, "Invalid direction must escape the transaction context"
+
+    with app.conn() as c:
+        rows = c.execute(
+            "SELECT * FROM cash_movements WHERE source_table=? AND source_id=?",
+            (source_table, transactional_source_id),
+        ).fetchall()
+        assert len(rows) == 1, [dict(row) for row in rows]
+        assert rows[0]["amount"] == 2100, [dict(row) for row in rows]
+        assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+
     print("INVALID CASH DIRECTION CHARACTERIZATION PASSED")
 
 
