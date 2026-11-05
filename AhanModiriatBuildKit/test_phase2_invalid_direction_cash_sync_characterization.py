@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Characterize invalid-direction handling in the isolated cash-sync helper.
+"""Regression test: invalid cash direction must not delete an existing mirror.
 
-This test records the helper's current ordering only. It does not define the
-transaction/rollback contract of its production callers.
+The test also verifies rollback when the error escapes a caller transaction.
 """
 import os
 import sys
@@ -48,9 +47,10 @@ def main():
             (source_table, source_id),
         ).fetchall()
 
-        # Current helper deletes the previous mirror before validating direction.
-        # Keep this assertion explicitly labeled as characterization, not desired policy.
-        assert rows == [], [dict(row) for row in rows]
+        # Invalid input must be rejected before mutating the previous cash mirror.
+        assert len(rows) == 1, [dict(row) for row in rows]
+        assert rows[0]["amount"] == 1750, [dict(row) for row in rows]
+        assert rows[0]["kind"] == "deposit", [dict(row) for row in rows]
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 

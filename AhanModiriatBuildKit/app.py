@@ -883,6 +883,8 @@ def account_balance(c, account_id):
 
 def sync_cash_posting(c, source_table, source_id, date, amount, direction, party="", note=""):
     """Idempotently mirror explicit paid/received cash amounts into the cash ledger."""
+    if direction not in ("in", "out"):
+        raise ValueError("جهت گردش نقدی نامعتبر است.")
     c.execute("DELETE FROM cash_movements WHERE source_table=? AND source_id=?", (source_table, source_id))
     amount = money_int(amount or 0)
     if amount <= 0:
@@ -895,8 +897,7 @@ def sync_cash_posting(c, source_table, source_id, date, amount, direction, party
         c.execute("""INSERT INTO cash_movements(date,kind,from_account_id,amount,party,note,source_table,source_id)
                      VALUES(?,'withdraw',1,?,?,?,?,?)""",
                   (date, amount, normalize_person(party), str(note or ""), source_table, source_id))
-    else:
-        raise ValueError("جهت گردش نقدی نامعتبر است.")
+
 
 def backfill_legacy_cash_postings(c):
     """Backfill only explicit historical receipts/payments; never infer return refunds."""
