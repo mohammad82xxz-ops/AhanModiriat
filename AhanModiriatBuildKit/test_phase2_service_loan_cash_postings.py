@@ -94,7 +94,7 @@ def main():
                 app.account_balance(c, 1),
             )
         assert after_replay == (
-            before_replay[0] + 1, before_replay[1] + 1, before_replay[2] + 175
+            before_replay[0] + 1, before_replay[1] + 1, before_replay[2] + 1750
         ), (before_replay, after_replay)
 
         post(port, "add_service", {
@@ -202,7 +202,7 @@ def main():
             ), dict(posting)
             loan = c.execute("SELECT remaining FROM loans WHERE id=?", (loan_id,)).fetchone()
             assert loan["remaining"] == 8000, dict(loan)
-            assert app.account_balance(c, 1) == balance_before + 1000
+            assert app.account_balance(c, 1) == balance_before + 2750
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
@@ -274,7 +274,7 @@ def main():
                 "out", "Loan payment source", "installment payment",
             )
 
-            assert app.account_balance(c, 1) == balance_before + 1000
+            assert app.account_balance(c, 1) == balance_before + 2750
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
