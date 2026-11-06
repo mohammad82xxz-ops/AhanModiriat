@@ -83,6 +83,24 @@ def main():
                 (unpaid["id"],),
             ).fetchone() is None, "zero service receipt must not create a cash movement"
 
+        # A mismatched installment must be rejected without partially writing
+        # a payment, cash movement, or loan-balance update.
+        post(port, "add_payment", {
+            "loan_id": str(loan_id), "date": "2026-02-06",
+            "amount": "250", "principal_part": "200", "interest_part": "40",
+            "source": "Rejected loan payment", "notes": "amount mismatch",
+        })
+        with app.conn() as c:
+            assert c.execute(
+                "SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (loan_id,)
+            ).fetchone()[0] == 0
+            assert c.execute(
+                "SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments'"
+            ).fetchone()[0] == 0
+            assert c.execute(
+                "SELECT remaining FROM loans WHERE id=?", (loan_id,)
+            ).fetchone()["remaining"] == 10000
+
         post(port, "add_payment", {
             "loan_id": str(loan_id), "date": "2026-02-06",
             "amount": "250", "principal_part": "200", "interest_part": "50",
