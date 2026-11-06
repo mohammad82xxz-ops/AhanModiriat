@@ -15,12 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import app  # noqa: E402
 
 
-def post(port, path, fields):
+def post(port, path, fields, token=None):
     fields = dict(fields)
     if path in {"add_service", "add_payment"}:
-        with app.conn() as c:
-            token_markup = app.submission_token(c, path)
-            fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
+        if token is None:
+            with app.conn() as c:
+                token_markup = app.submission_token(c, path)
+                token = token_markup.split('value="', 1)[1].split('"', 1)[0]
+        fields["_submission_token"] = token
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}",
@@ -67,6 +69,33 @@ def main():
             assert tuple(posting) == (
                 "2026-02-04", "deposit", 3500, "Service customer", "service receipt"
             ), dict(posting)
+
+        # Replaying the exact same one-use form token must not create a second
+        # source record or a second cash posting.
+        with app.conn() as c:
+            token_markup = app.submission_token(c, "add_service")
+            replay_token = token_markup.split('value="', 1)[1].split('"', 1)[0]
+            before_replay = (
+                c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0],
+                app.account_balance(c, 1),
+            )
+        replay_fields = {
+            "date": "2026-02-04", "title": "Replay protected service",
+            "revenue": "400", "cost": "50", "received": "175",
+            "customer": "Replay customer", "notes": "one-use token replay",
+        }
+        post(port, "add_service", replay_fields, token=replay_token)
+        post(port, "add_service", replay_fields, token=replay_token)
+        with app.conn() as c:
+            after_replay = (
+                c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0],
+                app.account_balance(c, 1),
+            )
+        assert after_replay == (
+            before_replay[0] + 1, before_replay[1] + 1, before_replay[2] + 175
+        ), (before_replay, after_replay)
 
         post(port, "add_service", {
             "date": "2026-02-05", "title": "Unpaid cash mirror service",
@@ -248,6 +277,72 @@ def main():
             assert app.account_balance(c, 1) == balance_before + 1000
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+
+        # Force a failure after the source row and cash mirror have both been
+        # written. The request transaction must roll both writes back.
+        original_sync = app.sync_cash_posting
+
+        def fail_after_cash_mirror(*args, **kwargs):
+            original_sync(*args, **kwargs)
+            raise RuntimeError("injected failure after cash mirror")
+
+        with app.conn() as c:
+            before_service_rollback = (
+                c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0],
+                app.account_balance(c, 1),
+            )
+        app.sync_cash_posting = fail_after_cash_mirror
+        try:
+            post(port, "add_service", {
+                "date": "2026-02-07", "title": "Rollback service",
+                "revenue": "300", "cost": "20", "received": "125",
+                "customer": "Rollback customer", "notes": "injected rollback",
+            })
+        finally:
+            app.sync_cash_posting = original_sync
+        with app.conn() as c:
+            after_service_rollback = (
+                c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0],
+                app.account_balance(c, 1),
+            )
+        assert after_service_rollback == before_service_rollback, (
+            before_service_rollback, after_service_rollback
+        )
+
+        with app.conn() as c:
+            before_payment_rollback = (
+                c.execute("SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (loan_id,)).fetchone()[0],
+                c.execute(
+                    "SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments' AND source_id IN (SELECT id FROM loan_payments WHERE loan_id=?)",
+                    (loan_id,),
+                ).fetchone()[0],
+                c.execute("SELECT remaining FROM loans WHERE id=?", (loan_id,)).fetchone()["remaining"],
+                app.account_balance(c, 1),
+            )
+        app.sync_cash_posting = fail_after_cash_mirror
+        try:
+            post(port, "add_payment", {
+                "loan_id": str(loan_id), "date": "2026-02-07",
+                "amount": "100", "principal_part": "100", "interest_part": "0",
+                "source": "Rollback loan payment", "notes": "injected rollback",
+            })
+        finally:
+            app.sync_cash_posting = original_sync
+        with app.conn() as c:
+            after_payment_rollback = (
+                c.execute("SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (loan_id,)).fetchone()[0],
+                c.execute(
+                    "SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments' AND source_id IN (SELECT id FROM loan_payments WHERE loan_id=?)",
+                    (loan_id,),
+                ).fetchone()[0],
+                c.execute("SELECT remaining FROM loans WHERE id=?", (loan_id,)).fetchone()["remaining"],
+                app.account_balance(c, 1),
+            )
+        assert after_payment_rollback == before_payment_rollback, (
+            before_payment_rollback, after_payment_rollback
+        )
 
         print("SERVICE AND LOAN CASH MIRROR TESTS PASSED")
     finally:
