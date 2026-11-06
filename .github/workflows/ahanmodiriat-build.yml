@@ -44,6 +44,7 @@ jobs:
           python test_money_schema_migration.py
           python test_money_units_ui.py
           python test_accessibility_contrast.py
+          python test_form_control_ids.py
           python test_phase2_validation_edges.py
           python test_phase2_quantity_characterization.py
           python test_phase2_return_quantity_characterization.py
