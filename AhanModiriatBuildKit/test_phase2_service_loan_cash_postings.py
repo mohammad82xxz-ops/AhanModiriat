@@ -38,7 +38,7 @@ def main():
     with app.conn() as c:
         loan_cur = c.execute(
             """INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit)
-               VALUES('Cash mirror test loan',1000,1000,250,'2026-03-01','','',1,'month')"""
+               VALUES('Cash mirror test loan',10000,10000,2500,'2026-03-01','','',1,'month')"""
         )
         loan_id = loan_cur.lastrowid
         balance_before = app.account_balance(c, 1)
@@ -65,7 +65,7 @@ def main():
             ).fetchone()
             assert posting is not None, "service receipt must create its cash mirror"
             assert tuple(posting) == (
-                "2026-02-04", "deposit", 350, "Service customer", "service receipt"
+                "2026-02-04", "deposit", 3500, "Service customer", "service receipt"
             ), dict(posting)
 
         post(port, "add_service", {
@@ -101,11 +101,11 @@ def main():
             ).fetchone()
             assert posting is not None, "loan payment must create its cash mirror"
             assert tuple(posting) == (
-                "2026-02-06", "withdraw", 250, "Loan payment source", "installment payment"
+                "2026-02-06", "withdraw", 2500, "Loan payment source", "installment payment"
             ), dict(posting)
             loan = c.execute("SELECT remaining FROM loans WHERE id=?", (loan_id,)).fetchone()
-            assert loan["remaining"] == 800, dict(loan)
-            assert app.account_balance(c, 1) == balance_before + 100
+            assert loan["remaining"] == 8000, dict(loan)
+            assert app.account_balance(c, 1) == balance_before + 1000
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
