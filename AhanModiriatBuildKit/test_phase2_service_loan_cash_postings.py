@@ -127,6 +127,78 @@ def main():
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
 
+            # Re-syncing the same source must replace, not duplicate, its cash mirror.
+            service_id = c.execute(
+                "SELECT id FROM services WHERE title='Cash mirror service'"
+            ).fetchone()["id"]
+            payment_id = c.execute(
+                "SELECT id FROM loan_payments WHERE loan_id=?", (loan_id,)
+            ).fetchone()["id"]
+
+            # Simulate a legacy duplicate and verify the source sync repairs it.
+            c.execute(
+                """INSERT INTO cash_movements(date,kind,to_account_id,amount,source_table,source_id)
+                   VALUES('2026-02-04','deposit',1,3500,'services',?)""",
+                (service_id,),
+            )
+            assert c.execute(
+                "SELECT COUNT(*) FROM cash_movements WHERE source_table='services' AND source_id=?",
+                (service_id,),
+            ).fetchone()[0] == 2
+            app.sync_cash_posting(
+                c, "services", service_id, "2026-02-04", 4500,
+                "in", "Service customer", "re-synced service receipt",
+            )
+            service_postings = c.execute(
+                "SELECT amount,note FROM cash_movements WHERE source_table='services' AND source_id=?",
+                (service_id,),
+            ).fetchall()
+            assert len(service_postings) == 1
+            assert tuple(service_postings[0]) == (4500, "re-synced service receipt")
+
+            # Zero means the source no longer represents a cash movement.
+            app.sync_cash_posting(
+                c, "services", service_id, "2026-02-04", 0,
+                "in", "Service customer", "zero service receipt",
+            )
+            assert c.execute(
+                "SELECT COUNT(*) FROM cash_movements WHERE source_table='services' AND source_id=?",
+                (service_id,),
+            ).fetchone()[0] == 0
+            # Restore the original receipt for the final balance assertion.
+            app.sync_cash_posting(
+                c, "services", service_id, "2026-02-04", 3500,
+                "in", "Service customer", "service receipt",
+            )
+
+            # Loan-payment sync follows the same idempotent and zero-removal contract.
+            app.sync_cash_posting(
+                c, "loan_payments", payment_id, "2026-02-06", 2700,
+                "out", "Loan payment source", "re-synced installment",
+            )
+            loan_postings = c.execute(
+                "SELECT amount,note FROM cash_movements WHERE source_table='loan_payments' AND source_id=?",
+                (payment_id,),
+            ).fetchall()
+            assert len(loan_postings) == 1
+            assert tuple(loan_postings[0]) == (2700, "re-synced installment")
+            app.sync_cash_posting(
+                c, "loan_payments", payment_id, "2026-02-06", 0,
+                "out", "Loan payment source", "zero installment",
+            )
+            assert c.execute(
+                "SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments' AND source_id=?",
+                (payment_id,),
+            ).fetchone()[0] == 0
+            app.sync_cash_posting(
+                c, "loan_payments", payment_id, "2026-02-06", 2500,
+                "out", "Loan payment source", "installment payment",
+            )
+
+            assert app.account_balance(c, 1) == balance_before + 1000
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+
         print("SERVICE AND LOAN CASH MIRROR TESTS PASSED")
     finally:
         server.shutdown()
