@@ -112,6 +112,53 @@ def main():
                 (unpaid["id"],),
             ).fetchone() is None, "zero service receipt must not create a cash movement"
 
+        # Invalid service inputs must leave both the source table and cash ledger unchanged.
+        invalid_service_cases = [
+            {
+                "date": "2026-02-08", "title": "Zero revenue service",
+                "revenue": "0", "cost": "10", "received": "5",
+                "customer": "Invalid service customer", "notes": "zero revenue",
+            },
+            {
+                "date": "2026-02-08", "title": "Negative cost service",
+                "revenue": "100", "cost": "-1", "received": "5",
+                "customer": "Invalid service customer", "notes": "negative cost",
+            },
+            {
+                "date": "2026-02-08", "title": "Negative receipt service",
+                "revenue": "100", "cost": "10", "received": "-1",
+                "customer": "Invalid service customer", "notes": "negative receipt",
+            },
+            {
+                "date": "2026-02-31", "title": "Invalid date service",
+                "revenue": "100", "cost": "10", "received": "5",
+                "customer": "Invalid service customer", "notes": "invalid calendar date",
+            },
+            {
+                "date": "2026-02-08", "title": "",
+                "revenue": "100", "cost": "10", "received": "5",
+                "customer": "Invalid service customer", "notes": "missing title",
+            },
+        ]
+        for invalid_fields in invalid_service_cases:
+            with app.conn() as c:
+                before = (
+                    c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0],
+                    app.account_balance(c, 1),
+                )
+            post(port, "add_service", invalid_fields)
+            with app.conn() as c:
+                after = (
+                    c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+                    c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='services'").fetchone()[0],
+                    app.account_balance(c, 1),
+                )
+            assert after == before, (
+                f"invalid service input caused partial financial writes: {invalid_fields}; "
+                f"before={before}, after={after}"
+            )
+
         # A mismatched installment must be rejected without partially writing
         # a payment, cash movement, or loan-balance update.
         post(port, "add_payment", {
