@@ -56,7 +56,17 @@ def main():
                               help: v.help, helpUrl: v.helpUrl,
                               nodes: v.nodes.map(n => ({target: n.target, html: n.html.slice(0, 240), summary: n.failureSummary}))
                             })),
-                            passes: r.passes.length, incomplete: r.incomplete.length,
+                            passes: r.passes.length,
+                            incomplete: r.incomplete.map(v => ({
+                              id: v.id, impact: v.impact, description: v.description,
+                              help: v.help, helpUrl: v.helpUrl,
+                              nodes: v.nodes.map(n => ({
+                                target: n.target, html: n.html.slice(0, 240),
+                                any: n.any.map(x => ({id: x.id, message: x.message})),
+                                all: n.all.map(x => ({id: x.id, message: x.message})),
+                                none: n.none.map(x => ({id: x.id, message: x.message}))
+                              }))
+                            })),
                             inapplicable: r.inapplicable.length
                           };
                         }""")
@@ -109,11 +119,19 @@ def main():
         for row in lighthouse_rows:
             s = row["scores"]
             lines.append(f"| {row['route']} | {row['mode']} | {s.get('performance', 'n/a')} | {s.get('accessibility', 'n/a')} | {s.get('best-practices', 'n/a')} | {s.get('seo', 'n/a')} |")
-        lines += ["", "## axe-core results", "", "| Page | Passes | Violations | Critical/serious | Moderate/minor |", "|---|---:|---:|---:|---:|"]
+        lines += ["", "## axe-core results", "", "| Page | Passes | Violations | Manual review items | Critical/serious | Moderate/minor |", "|---|---:|---:|---:|---:|---:|"]
         for row in axe_results:
             serious = sum(v["impact"] in ("critical", "serious") for v in row["violations"])
             lower = sum(v["impact"] in ("moderate", "minor") for v in row["violations"])
-            lines.append(f"| {row['url']} | {row['passes']} | {len(row['violations'])} | {serious} | {lower} |")
+            lines.append(f"| {row['url']} | {row['passes']} | {len(row['violations'])} | {len(row['incomplete'])} | {serious} | {lower} |")
+        manual_items = [(row["url"], item) for row in axe_results for item in row["incomplete"]]
+        lines += ["", "## axe-core manual review queue", ""]
+        if manual_items:
+            for route, item in manual_items:
+                targets = [str(target) for node in item["nodes"] for target in node["target"]]
+                lines.append(f"- {route}: {item['id']} ({item.get('impact') or 'impact not determined'}); targets: {', '.join(targets) or 'not identified'}. {item['help']}")
+        else:
+            lines.append("No incomplete axe-core checks.")
         lines += ["", "## Gate failures", ""] + ([f"- {x}" for x in failures] if failures else ["None."])
         (ARTIFACTS / "audit-summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"AXE AUDIT: {len(axe_results)}/{len(AXE_ROUTES)} routes audited.")

@@ -232,22 +232,22 @@ def returns_page(c, search='', page_num=1):
       <div class="card"><h2>ثبت مرجوعی فروش از مشتری</h2>
         <form method="post" action="/add_sales_return">{submission_token(c,'add_sales_return')}<div class="formgrid">
           {selectfield("سند فروش اصلی","sale_id",sales_opts)}
-          {field("تاریخ مرجوعی","date","date",TODAY,True)}
-          {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001")}
+          {field("تاریخ مرجوعی","date","date",TODAY,True,field_id="sales-return-date")}
+          {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001",field_id="sales-return-qty")}
           {field("وجهی که واقعاً به مشتری برمی‌گردد (تومان)","refund_amount","number","0",True,"1")}
-          {field("علت مرجوعی","reason","text","",True)}
-          {field("یادداشت","notes")}
+          {field("علت مرجوعی","reason","text","",True,field_id="sales-return-reason")}
+          {field("یادداشت","notes",field_id="sales-return-notes")}
         </div><div class="actions"><button>ثبت مرجوعی فروش</button></div></form>
         <p class="small">کالا با بهای تمام‌شده ذخیره‌شده در فروش اصلی به موجودی برمی‌گردد؛ مبلغ برگشتی از فروش و سود همان تاریخ مرجوعی کم می‌شود.</p>
       </div>
       <div class="card"><h2>ثبت مرجوعی خرید به فروشنده</h2>
         <form method="post" action="/add_purchase_return">{submission_token(c,'add_purchase_return')}<div class="formgrid">
           {selectfield("سند خرید اصلی","purchase_id",purchase_opts)}
-          {field("تاریخ مرجوعی","date","date",TODAY,True)}
-          {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001")}
+          {field("تاریخ مرجوعی","date","date",TODAY,True,field_id="purchase-return-date")}
+          {field("مقدار برگشتی (واحد پایه کالا)","qty","number","1",True,"0.001",field_id="purchase-return-qty")}
           {field("وجهی که واقعاً از فروشنده دریافت می‌شود (تومان)","cash_refund","number","0",True,"1")}
-          {field("علت مرجوعی","reason","text","",True)}
-          {field("یادداشت","notes")}
+          {field("علت مرجوعی","reason","text","",True,field_id="purchase-return-reason")}
+          {field("یادداشت","notes",field_id="purchase-return-notes")}
         </div><div class="actions"><button>ثبت مرجوعی خرید</button></div></form>
         <p class="small">مقدار مرجوعی به واحد پایه وارد می‌شود. مانده حساب فروشنده بر اساس ارزش برگشتی کاهش می‌یابد؛ فقط مبلغی که واقعاً دریافت شده در صندوق ثبت می‌شود.</p>
       </div>
@@ -1156,13 +1156,13 @@ def parties_page(c, selected="", search="", page_num=1, statement_page=1):
     <form method="post" action="/import.xlsx" enctype="multipart/form-data"><input type="hidden" name="sheet" value="People"><div class="formgrid"><label>فایل XLSX اشخاص<input type="file" name="file" accept=".xlsx" required></label></div><div class="actions"><button>ورود اشخاص</button></div><p class="small">ستون‌های name، kind، phone و notes پشتیبانی می‌شوند. اشخاص با نام تکراری وارد نمی‌شوند.</p></form></div>
     <div class="card section"><h2>ثبت شخص جدید</h2><form method="post" action="/add_person"><div class="formgrid">
     {field("نام و نام خانوادگی/شرکت","name","text","",True)}
-    {selectfield("نوع طرف حساب","kind",[("customer","مشتری"),("supplier","فروشنده"),("both","هر دو")])}
-    {field("شماره تماس","phone")}{field("یادداشت","notes")}
+    {selectfield("نوع طرف حساب","kind",[("customer","مشتری"),("supplier","فروشنده"),("both","هر دو")],field_id="person-kind")}
+    {field("شماره تماس","phone")}{field("یادداشت","notes",field_id="person-notes")}
     </div><div class="actions"><button>ثبت طرف حساب</button></div></form></div>
     <div class="card section"><h2>ثبت تسویه با شخص</h2><form method="post" action="/add_settlement">{submission_token(c,'add_settlement')}<div class="formgrid">
-    {selectfield("طرف حساب","party",person_opts)}{selectfield("نوع تسویه","kind",[("receive","دریافت از مشتری"),("pay","پرداخت به فروشنده")])}
+    {selectfield("طرف حساب","party",person_opts)}{selectfield("نوع تسویه","kind",[("receive","دریافت از مشتری"),("pay","پرداخت به فروشنده")],field_id="settlement-kind")}
     {field("تاریخ","date","date",TODAY,True)}{field("مبلغ تسویه (تومان)","amount","number","0",True,"1")}
-    {field("شرح/یادداشت","notes")}
+    {field("شرح/یادداشت","notes",field_id="settlement-notes")}
     </div><div class="actions"><button>ثبت تسویه و به‌روزرسانی صندوق</button></div></form></div>
     <div class="card section"><h2>مانده اشخاص</h2>
     <form method="get" action="/parties" class="search-form"><label>جستجوی طرف حساب</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام، نوع، تماس یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
@@ -1329,7 +1329,7 @@ def design_page(c=None):
     return page('سیستم طراحی',body,'design')
 
 MONEY_FIELDS = {'unit_cost','unit_price','extra_cost','paid','received','revenue','cost','amount','principal','remaining','installment','principal_part','interest_part','market_price','avg_cost','capital','refund_amount','cash_refund'}
-def field(label,name,typ='text',value='',required=False,step=None,placeholder=''):
+def field(label,name,typ='text',value='',required=False,step=None,placeholder='',field_id=None):
     req='required' if required else ''
     st=' step="0.1"' if name in MONEY_FIELDS and typ == 'number' else (f' step="{step}"' if step and typ != 'date' else '')
     attrs=''
@@ -1347,12 +1347,14 @@ def field(label,name,typ='text',value='',required=False,step=None,placeholder=''
             attrs += ' data-money="true" data-unit="تومان"'
     ph=f' placeholder="{esc(placeholder)}"' if placeholder else ''
     safe_name=esc(name)
+    safe_id=esc(field_id or f'field-{name}')
     monetary = f'<span class="field-unit">تومان</span><span class="amount-words" data-words-for="{safe_name}" aria-live="polite"></span>' if name in MONEY_FIELDS and 'data-money="true"' in attrs else ''
-    return f'<div class="field"><label for="field-{safe_name}">{label}</label><div class="input-wrap"><input id="field-{safe_name}" name="{safe_name}" type="{typ}" value="{esc(value)}" {req}{st}{attrs}{ph}></div>{monetary}</div>'
-def selectfield(label,name,opts,required=True,value=None):
+    return f'<div class="field"><label for="{safe_id}">{label}</label><div class="input-wrap"><input id="{safe_id}" name="{safe_name}" type="{typ}" value="{esc(value)}" {req}{st}{attrs}{ph}></div>{monetary}</div>'
+def selectfield(label,name,opts,required=True,value=None,field_id=None):
     opt=''.join(f'<option value="{esc(v)}" {"selected" if value is not None and str(v)==str(value) else ""}>{esc(t)}</option>' for v,t in opts)
     safe_name=esc(name)
-    return f'<div class="field"><label for="field-{safe_name}">{label}</label><select id="field-{safe_name}" name="{safe_name}" {"required" if required else ""}>{opt}</select></div>'
+    safe_id=esc(field_id or f'field-{name}')
+    return f'<div class="field"><label for="{safe_id}">{label}</label><select id="{safe_id}" name="{safe_name}" {"required" if required else ""}>{opt}</select></div>'
 XLSX_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 XLSX_OFFICE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 XLSX_PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -1738,7 +1740,7 @@ def expenses(c, search='', page_num=1):
     body+=f'<div class="card section"><h2>پرداخت‌ها و برداشت‌ها</h2><form method="get" action="/expenses" class="search-form"><label>جستجوی هزینه</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، منبع یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows,total)}{page_nav("expenses",query,page_num,total,limit)}</div>'
     return page('هزینه‌ها',body,'expenses')
 def loans(c, search='', page_num=1):
-    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan">{submission_token(c,'add_loan')}<div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment">{submission_token(c,'add_payment')}<div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
+    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan">{submission_token(c,'add_loan')}<div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes',field_id='loan-notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment">{submission_token(c,'add_payment')}<div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes',field_id='loan-payment-notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
     limit,offset,page_num=page_window(page_num,50)
     query=str(search or '').strip(); pattern='%'+query+'%'
     total_loans=scalar(c,"SELECT COUNT(*) FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
@@ -1801,9 +1803,9 @@ def prices(c, selected_product_id=0, search='', page_num=1):
     total_prices=scalar(c,"SELECT COUNT(*) FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ?",(pattern,pattern))
     history_rows=c.execute("SELECT h.*,p.name FROM price_history h JOIN products p ON p.id=h.product_id WHERE p.name LIKE ? OR h.notes LIKE ? ORDER BY h.date DESC,h.id DESC LIMIT ? OFFSET ?",(pattern,pattern,limit,offset)).fetchall()
     body=f'''<h1>قیمت روز بازار</h1>
-    <div class="card section"><form method="post" action="/add_price">{submission_token(c,'add_price')}<div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options)}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
+    <div class="card section"><form method="post" action="/add_price">{submission_token(c,'add_price')}<div class="formgrid">{field('تاریخ قیمت','date','date',TODAY,True)}{selectfield('کالا','product_id',product_options,field_id='price-entry-product')}{field('قیمت بازار هر واحد (تومان)','market_price','number','0',True,'0.01')}{field('منبع/یادداشت','notes')}</div><div class="actions"><button>ثبت قیمت روز و به‌روزرسانی کالا</button></div></form>
     <p class="small">ثبت قیمت جدید، قیمت روز فعلی کالا را به‌روزرسانی می‌کند ولی سود تحقق‌یافته معاملات قبلی را تغییر نمی‌دهد.</p></div>
-    <div class="card section"><h2>انتخاب کالا برای نمودار قیمت</h2><form method="get" action="/prices"><div class="formgrid">{selectfield('کالا','product_id',product_options,value=selected_product_id)}<button>نمایش روند قیمت</button></div></form></div>
+    <div class="card section"><h2>انتخاب کالا برای نمودار قیمت</h2><form method="get" action="/prices"><div class="formgrid">{selectfield('کالا','product_id',product_options,value=selected_product_id,field_id='price-chart-product')}<button>نمایش روند قیمت</button></div></form></div>
     {chart}
     <div class="card section"><h2>تاریخچه قیمت‌ها</h2><form method="get" action="/prices" class="search-form"><label>جستجوی تاریخچه قیمت</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام کالا یا منبع قیمت"><input type="hidden" name="product_id" value="{selected_product_id}"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
     {table(["تاریخ","کالا","قیمت روز","یادداشت"],[[show_date(r['date']),esc(r['name']),money(r['market_price']),esc(r['notes'])] for r in history_rows],total_prices)}
