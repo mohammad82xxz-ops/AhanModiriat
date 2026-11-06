@@ -16,6 +16,11 @@ import app  # noqa: E402
 
 
 def post(port, path, fields):
+    fields = dict(fields)
+    if path in {"add_service", "add_payment"}:
+        with app.conn() as c:
+            token_markup = app.submission_token(c, path)
+            fields["_submission_token"] = token_markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}",
