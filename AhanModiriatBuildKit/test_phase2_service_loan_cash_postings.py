@@ -101,6 +101,56 @@ def main():
                 "SELECT remaining FROM loans WHERE id=?", (loan_id,)
             ).fetchone()["remaining"] == 10000
 
+        # Invalid loan-payment edge cases must leave every financial table unchanged.
+        invalid_payment_cases = [
+            {
+                "loan_id": "999999", "date": "2026-02-06",
+                "amount": "250", "principal_part": "200", "interest_part": "50",
+                "source": "Missing loan", "notes": "unknown loan",
+            },
+            {
+                "loan_id": str(loan_id), "date": "2026-02-06",
+                "amount": "10500", "principal_part": "10001", "interest_part": "499",
+                "source": "Over-principal payment", "notes": "principal exceeds balance",
+            },
+            {
+                "loan_id": str(loan_id), "date": "2026-02-06",
+                "amount": "250", "principal_part": "300", "interest_part": "-50",
+                "source": "Negative interest", "notes": "negative split",
+            },
+            {
+                "loan_id": str(loan_id), "date": "2026-02-31",
+                "amount": "250", "principal_part": "200", "interest_part": "50",
+                "source": "Invalid payment date", "notes": "invalid calendar date",
+            },
+        ]
+        for invalid_fields in invalid_payment_cases:
+            with app.conn() as c:
+                before = (
+                    c.execute("SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (loan_id,)).fetchone()[0],
+                    c.execute(
+                        "SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments' AND source_id IN (SELECT id FROM loan_payments WHERE loan_id=?)",
+                        (loan_id,),
+                    ).fetchone()[0],
+                    c.execute("SELECT remaining FROM loans WHERE id=?", (loan_id,)).fetchone()["remaining"],
+                    app.account_balance(c, 1),
+                )
+            post(port, "add_payment", invalid_fields)
+            with app.conn() as c:
+                after = (
+                    c.execute("SELECT COUNT(*) FROM loan_payments WHERE loan_id=?", (loan_id,)).fetchone()[0],
+                    c.execute(
+                        "SELECT COUNT(*) FROM cash_movements WHERE source_table='loan_payments' AND source_id IN (SELECT id FROM loan_payments WHERE loan_id=?)",
+                        (loan_id,),
+                    ).fetchone()[0],
+                    c.execute("SELECT remaining FROM loans WHERE id=?", (loan_id,)).fetchone()["remaining"],
+                    app.account_balance(c, 1),
+                )
+            assert after == before, (
+                f"invalid loan payment caused partial financial writes: {invalid_fields}; "
+                f"before={before}, after={after}"
+            )
+
         post(port, "add_payment", {
             "loan_id": str(loan_id), "date": "2026-02-06",
             "amount": "250", "principal_part": "200", "interest_part": "50",
