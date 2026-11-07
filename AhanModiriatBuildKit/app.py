@@ -2257,7 +2257,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         raw=raw_bytes.decode('utf-8')
         d={k:v[-1] for k,v in parse_qs(raw,keep_blank_values=True).items()}
-        def v(k,default=''):return d.get(k,default).strip()
+        def v(k,default=''):return str(d.get(k,default)).strip()
         try:
             with LOCK, conn() as c:
                 protected_financial_posts = {

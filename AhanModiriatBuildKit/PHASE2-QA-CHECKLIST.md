@@ -33,8 +33,11 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: a purchase-form token cannot authorize a sale or expense POST; purchase/sale/expense counts, cash movements, and stock remain unchanged. Extended sale+expense coverage passed in [Run #394 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953431465) and [Run #393 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953422226).
 - [x] Missing-token regression: direct POSTs to purchase-return and sales-return routes without a one-use submission token are rejected; return rows, cash movements, stock, and party balances remain unchanged. Passed in [Run #388 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951540783) and [Run #387 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951531647).
 - [x] Regression: purchase and sale POSTs with a nonexistent product ID or non-numeric quantity are rejected atomically; purchase/sale counts, cash movements, stock, and average cost remain unchanged, with SQLite foreign-key and integrity checks passing. Passed in [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) and [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220).
-- [ ] New regression suite added; pending CI: malformed/non-finite numeric input across product create/edit, purchase/sale/expense edits, service, expense, loan/payment, daily price, settlement, purchase/sales returns, inventory count, and cash movement; zero-price sale edits must follow the same rule as new sales; negative/malformed/blank opening capital must be rejected. All rejected requests must leave source records, stock, cash movements, balances, and audit data unchanged.
-- [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
+- [x] Malformed/non-finite numeric validation regression suite: product create/edit, purchase/sale/expense edits, service, expense, loan/payment, daily price, settlement, purchase/sales returns, inventory count, and cash movement; zero-price sale edits; negative/malformed/blank opening capital. Rejected requests assert unchanged source records, stock, cash movements, balances, and audit data. Executed in the isolated CI suite; passed in [Run #835](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42262349580).
+- [x] Optional numeric form defaults: omitted `purchase_factor`, `sale_factor`, and loan `interval_value` retain their documented defaults without raising an exception; HTTP regression test passed in [Run #835](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42262349580).
+- [x] Invalid calendar-date regression: impossible Gregorian dates and invalid Jalali leap-day dates are rejected atomically across purchase, service, expense, loan, installment payment, price history, settlement, both return types, inventory count, cash movement, and opening capital; invalid cash-movement kinds/account selectors and same-account transfers are also rejected without mutation. Passed in [Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485).
+- [x] Required-reference/description regression: missing product references for purchase, sale, daily price, and inventory count; missing loan reference for installment payment; missing party for settlement; missing source-document references/reason for returns; and blank service title are rejected atomically. Regression asserts no financial, inventory, cash, or audit mutation. Passed in [Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868).
+- [ ] Other invalid/missing-value paths beyond the explicitly listed cases are not fully covered yet; continue expanding the matrix as new endpoints or fields are introduced.
 
 Negative-path findings and resolutions:
 - [Run #274](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904421556) caught an empty sale price being converted to zero and accepted. The server guard was tightened from `price < 0` to `price <= 0`; [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed.
@@ -46,6 +49,7 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
+- [x] Latest complete PR CI: [Run #844](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686) passed both `smoke-test` and `windows-onedir` on head commit `6bf6c5309bb271db41ad828a62734f4e5059cabc`; includes Compile, isolated regression tests (including required-reference atomicity and omitted optional numeric defaults), 17-route browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe-core audit, Windows cross-process token characterization, and Windows OneDir packaging. Both jobs completed successfully; all three artifacts were uploaded. The 17-route axe-core report records 708 passes, zero violations, and zero incomplete/manual-review items. Lighthouse Performance, Accessibility, and Best Practices scores are 100 on all 10 desktop/mobile reports; SEO is 82. Lighthouse scores are diagnostic, not acceptance thresholds. Run #843 remains the successful code-test run for commit `9f05aaebb4eec4c1aa00acbb2b21085e14e7a0f0`; Run #844 validates the subsequent QA-evidence documentation head.
 - [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
 - [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
 - [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
@@ -67,6 +71,21 @@ Negative-path findings and resolutions:
 
 ### Latest run artifacts
 
+- [Lighthouse + axe-core reports — Run #844](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686/artifacts/13579533408)
+- [UI screenshots — Run #844](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686/artifacts/13579543341)
+- [Windows OneDir build — Run #844](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686/artifacts/13579894458)
+- [Lighthouse + axe-core reports — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579698525)
+- [UI screenshots — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13580072340)
+- [Windows OneDir build — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579973114)
+- [Lighthouse + axe-core reports — Run #841](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42360312180/artifacts/13570140074)
+- [UI screenshots — Run #841](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42360312180/artifacts/13570045190)
+- [Windows OneDir build — Run #841](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42360312180/artifacts/13569472972)
+- [Lighthouse + axe-core reports — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569246367)
+- [UI screenshots — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569510046)
+- [Windows OneDir build — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569032570)
+- [Lighthouse + axe-core reports — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568956803)
+- [UI screenshots — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568991721)
+- [Windows OneDir build — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568732468)
 - [Lighthouse + axe-core reports — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12924155523)
 - [UI screenshots — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923611890)
 - [Windows OneDir build — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923920707)
@@ -82,9 +101,21 @@ Negative-path findings and resolutions:
 
 The items above are marked complete based on the user's explicit confirmation; they are not represented as independently observed by CI or the assistant.
 
+## Final owner acceptance — current candidate (Run #844)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #844 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #844 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686/artifacts/13579894458).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
 ## Guardrails
 
 - All test data must use isolated temporary storage; never point tests at a user's real business database.
 - Do not merge this QA work into `main` without explicit authorization.
-- Keep phase 2 on `qa/phase2-workflow-accessibility-hardening`; preserve phase 1 branch and its draft PR.
+- Keep PR #41 on `fix/phase2-optional-form-defaults`, stacked on `test/phase2-service-loan-cash-postings` (PR #40); preserve the earlier phase branch and its Draft PR.
 - Report automated and manual results separately. Do not mark manual items complete based only on CI.
