@@ -292,6 +292,27 @@ def main() -> None:
                 "date": "2026-01-04", "kind": "deposit",
                 "to_account_id": "1", "amount": "inf",
             }),
+            # Date parsing and cash-movement selectors must fail atomically.
+            ("add_purchase", {
+                "date": "1403/13/01", "product_id": product_id, "qty": "1",
+                "unit_cost": "5", "extra_cost": "0", "paid": "0",
+            }),
+            ("add_cash_movement", {
+                "date": "2026-01-04", "kind": "unknown",
+                "to_account_id": "1", "amount": "10",
+            }),
+            ("add_cash_movement", {
+                "date": "2026-01-04", "kind": "deposit",
+                "to_account_id": "", "amount": "10",
+            }),
+            ("add_cash_movement", {
+                "date": "2026-01-04", "kind": "withdraw",
+                "from_account_id": "not-an-id", "amount": "10",
+            }),
+            ("add_cash_movement", {
+                "date": "2026-01-04", "kind": "transfer",
+                "from_account_id": "1", "to_account_id": "1", "amount": "10",
+            }),
         ]
         for route, fields in invalid_route_cases:
             before = fingerprint()
