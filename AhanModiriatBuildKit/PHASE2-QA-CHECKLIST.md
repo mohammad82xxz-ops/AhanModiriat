@@ -35,6 +35,7 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: purchase and sale POSTs with a nonexistent product ID or non-numeric quantity are rejected atomically; purchase/sale counts, cash movements, stock, and average cost remain unchanged, with SQLite foreign-key and integrity checks passing. Passed in [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) and [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220).
 - [x] Malformed/non-finite numeric validation regression suite: product create/edit, purchase/sale/expense edits, service, expense, loan/payment, daily price, settlement, purchase/sales returns, inventory count, and cash movement; zero-price sale edits; negative/malformed/blank opening capital. Rejected requests assert unchanged source records, stock, cash movements, balances, and audit data. Executed in the isolated CI suite; passed in [Run #835](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42262349580).
 - [x] Optional numeric form defaults: omitted `purchase_factor`, `sale_factor`, and loan `interval_value` retain their documented defaults without raising an exception; HTTP regression test passed in [Run #835](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42262349580).
+- [x] Invalid calendar-date regression: impossible Gregorian dates and invalid Jalali leap-day dates are rejected atomically across purchase, service, expense, loan, installment payment, price history, settlement, both return types, inventory count, cash movement, and opening capital; invalid cash-movement kinds/account selectors and same-account transfers are also rejected without mutation. Passed in [Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485).
 - [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
 
 Negative-path findings and resolutions:
@@ -47,6 +48,7 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
+- [x] Latest complete PR CI: [Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485) passed both `smoke-test` and `windows-onedir` on commit `701621a43a0ac26bd6ea2e987f79d6b3b7175cf1`; includes the invalid-date and cash-movement-selector atomicity regressions, browser finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe audit, screenshots, Windows token characterization, and OneDir packaging.
 - [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
 - [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
 - [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
@@ -68,6 +70,10 @@ Negative-path findings and resolutions:
 
 ### Latest run artifacts
 
+
+- [Lighthouse + axe-core reports — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568956803)
+- [UI screenshots — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568991721)
+- [Windows OneDir build — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568732468)
 - [Lighthouse + axe-core reports — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12924155523)
 - [UI screenshots — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923611890)
 - [Windows OneDir build — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923920707)
