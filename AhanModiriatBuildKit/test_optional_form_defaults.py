@@ -77,7 +77,17 @@ def main() -> None:
             assert loan is not None, "loan with omitted interval fields was not saved"
             assert tuple(loan) == (1, "month"), tuple(loan)
 
-        assert app.conn
+        # Check persisted state and audit evidence, not merely that the connection
+        # factory exists (the previous assertion did not exercise the database).
+        with app.conn() as c:
+            assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            assert c.execute("PRAGMA foreign_key_check").fetchall() == []
+            audit_actions = dict(c.execute(
+                """SELECT action,COUNT(*) FROM audit_log
+                   WHERE action IN ('add_product','add_loan') GROUP BY action"""
+            ))
+            assert audit_actions == {"add_product": 1, "add_loan": 1}, audit_actions
+
         print("OPTIONAL FORM DEFAULTS TESTS PASSED")
     finally:
         server.shutdown()
