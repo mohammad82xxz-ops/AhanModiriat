@@ -292,6 +292,46 @@ def main() -> None:
                 "date": "2026-01-04", "kind": "deposit",
                 "to_account_id": "1", "amount": "inf",
             }),
+            # Missing required foreign keys and descriptions must fail atomically.
+            ("add_purchase", {
+                "date": "2026-01-04", "product_id": "", "qty": "1",
+                "unit_cost": "5", "extra_cost": "0", "paid": "0",
+            }),
+            ("add_sale", {
+                "date": "2026-01-04", "product_id": "", "qty": "1",
+                "unit_price": "20", "extra_cost": "0", "received": "0",
+            }),
+            ("add_service", {
+                "date": "2026-01-04", "title": "", "revenue": "100",
+                "cost": "0", "received": "0",
+            }),
+            ("add_payment", {
+                "loan_id": "", "date": "2026-01-04", "amount": "10",
+                "principal_part": "10", "interest_part": "0",
+            }),
+            ("add_price", {
+                "product_id": "", "date": "2026-01-04", "market_price": "21",
+            }),
+            ("add_settlement", {
+                "party": "", "kind": "receive", "amount": "10",
+                "date": "2026-01-04",
+            }),
+            ("add_sales_return", {
+                "sale_id": "", "date": "2026-01-04", "qty": "0.1",
+                "refund_amount": "0", "reason": "missing source",
+            }),
+            ("add_sales_return", {
+                "sale_id": sale_id, "date": "2026-01-04", "qty": "0.1",
+                "refund_amount": "0", "reason": "",
+            }),
+            ("add_purchase_return", {
+                "purchase_id": "", "date": "2026-01-04", "qty": "0.1",
+                "cash_refund": "0", "reason": "missing source",
+            }),
+            ("inventory_adjust", {
+                "date": "2026-01-04", "product_id": "",
+                "counted_qty": "11", "reason": "missing product",
+            }),
             # Invalid dates must be rejected atomically on every date-bearing create/edit route.
             ("add_purchase", {
                 "date": "2026/02/30", "product_id": product_id, "qty": "1",
