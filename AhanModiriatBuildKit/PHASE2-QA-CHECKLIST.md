@@ -48,7 +48,7 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
-- [x] Latest complete PR CI: [Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485) passed both `smoke-test` and `windows-onedir` on commit `701621a43a0ac26bd6ea2e987f79d6b3b7175cf1`; includes the invalid-date and cash-movement-selector atomicity regressions, browser finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe audit, screenshots, Windows token characterization, and OneDir packaging.
+- [x] Latest complete PR CI: [Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793) passed both `smoke-test` and `windows-onedir` on commit `91a2c3ff43594186fb2d4e7d533f4e4412d2a921`; includes all isolated tests, 17-route browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, zero axe-core violations on all 17 audited routes, 10 Lighthouse reports, Windows cross-process token characterization, and OneDir packaging. Lighthouse performance/accessibility/best-practices scored 100 on all 10 reports (SEO 82).
 - [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
 - [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
 - [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
@@ -71,6 +71,9 @@ Negative-path findings and resolutions:
 ### Latest run artifacts
 
 
+- [Lighthouse + axe-core reports — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569246367)
+- [UI screenshots — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569510046)
+- [Windows OneDir build — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569032570)
 - [Lighthouse + axe-core reports — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568956803)
 - [UI screenshots — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568991721)
 - [Windows OneDir build — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568732468)
@@ -89,9 +92,21 @@ Negative-path findings and resolutions:
 
 The items above are marked complete based on the user's explicit confirmation; they are not represented as independently observed by CI or the assistant.
 
+## Final owner acceptance — current candidate (Run #839)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #839 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #839 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569032570).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
 ## Guardrails
 
 - All test data must use isolated temporary storage; never point tests at a user's real business database.
 - Do not merge this QA work into `main` without explicit authorization.
-- Keep phase 2 on `qa/phase2-workflow-accessibility-hardening`; preserve phase 1 branch and its draft PR.
+- Keep PR #41 on `fix/phase2-optional-form-defaults`, stacked on `test/phase2-service-loan-cash-postings` (PR #40); preserve the earlier phase branch and its Draft PR.
 - Report automated and manual results separately. Do not mark manual items complete based only on CI.
