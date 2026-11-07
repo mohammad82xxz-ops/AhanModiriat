@@ -292,6 +292,54 @@ def main() -> None:
                 "date": "2026-01-04", "kind": "deposit",
                 "to_account_id": "1", "amount": "inf",
             }),
+            # Invalid dates must be rejected atomically on every date-bearing create/edit route.
+            ("add_purchase", {
+                "date": "2026/02/30", "product_id": product_id, "qty": "1",
+                "unit_cost": "5", "extra_cost": "0", "paid": "0",
+            }),
+            ("add_service", {
+                "date": "2026/02/30", "title": "invalid service date",
+                "revenue": "100", "cost": "0", "received": "0",
+            }),
+            ("add_expense", {
+                "date": "1404/12/30", "category": "invalid Jalali date",
+                "amount": "10", "business": "1", "source": "validation",
+            }),
+            ("add_loan", {
+                "title": "invalid loan due date", "principal": "100",
+                "remaining": "100", "installment": "10",
+                "next_date": "1404/12/30", "interval_value": "1", "interval_unit": "month",
+            }),
+            ("add_payment", {
+                "loan_id": loan_id, "date": "2026/02/30", "amount": "10",
+                "principal_part": "10", "interest_part": "0",
+            }),
+            ("add_price", {
+                "product_id": product_id, "date": "2026/02/30", "market_price": "21",
+            }),
+            ("add_settlement", {
+                "party": "Validation customer", "kind": "receive",
+                "amount": "10", "date": "2026/02/30",
+            }),
+            ("add_sales_return", {
+                "sale_id": sale_id, "date": "2026/02/30", "qty": "0.1",
+                "refund_amount": "0", "reason": "invalid date",
+            }),
+            ("add_purchase_return", {
+                "purchase_id": purchase_id, "date": "1404/12/30", "qty": "0.1",
+                "cash_refund": "0", "reason": "invalid Jalali date",
+            }),
+            ("inventory_adjust", {
+                "product_id": product_id, "date": "2026/02/30",
+                "counted_qty": "11", "reason": "invalid date",
+            }),
+            ("add_cash_movement", {
+                "date": "2026/02/30", "kind": "deposit",
+                "to_account_id": "1", "amount": "10",
+            }),
+            ("save_capital", {
+                "date": "1404/12/30", "amount": "100",
+            }),
             # Date parsing and cash-movement selectors must fail atomically.
             ("add_purchase", {
                 "date": "1403/13/01", "product_id": product_id, "qty": "1",
