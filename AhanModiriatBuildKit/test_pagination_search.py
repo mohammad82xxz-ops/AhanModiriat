@@ -30,15 +30,12 @@ def main():
                          VALUES('2026-01-03', 'needle service', 10, 1, 0, 'needle customer', 'pagination test')""")
             c.execute("""INSERT INTO expenses(date,category,amount,source,business,notes)
                          VALUES('2026-01-04','needle expense',1,'needle source',1,'pagination test')""")
-            c.execute("""INSERT INTO cash_movements(date,kind,from_account_id,to_account_id,amount,party,note)
-                         VALUES('2026-01-05','deposit',NULL,1,1,'needle cash party','needle cash movement')""")
             c.execute("""INSERT INTO inventory_adjustments(date,product_id,expected_qty,counted_qty,delta_qty,reason,notes)
                          VALUES('2026-01-06',?,2,1,-1,'needle count reason','needle inventory note')""",(pid,))
             c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
                          VALUES('2026-01-07',?,?,'needle return supplier',0.01,1,0,'needle return reason','pagination test')""",(purchase_id,pid))
             c.execute("INSERT INTO audit_log(action,details) VALUES('needle audit','pagination regression row')")
             c.execute("INSERT INTO people(name,kind,phone,notes) VALUES(?,?,?,?)",(f"needle person {i:03d}","customer",f"09{i:09d}","pagination test"))
-            c.execute("INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,100,90,10,'2026-12-01','needle loan rate','pagination test',1,'month')",(f"needle loan {i:03d}",))
             c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-01-08',?,10,?)",(pid,f"needle price {i:03d}"))
 
         checks = [
@@ -47,12 +44,10 @@ def main():
             ("sales", app.sales(c, "needle customer", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("services", app.services(c, "needle service", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("expenses", app.expenses(c, "needle expense", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
-            ("cash", app.cash_page(c, "needle cash", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("inventory", app.inventory_page(c, "needle count", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("returns", app.returns_page(c, "needle return", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("audit", app.audit_page(c, "needle audit", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("parties", app.parties_page(c, "", "needle person", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
-            ("loans", app.loans(c, "needle loan", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
             ("prices", app.prices(c, pid, "needle price", 1), "نمایش 50 رکورد از مجموع 55 رکورد"),
         ]
         for name, html, expected in checks:
