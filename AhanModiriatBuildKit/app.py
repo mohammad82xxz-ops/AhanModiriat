@@ -1946,7 +1946,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'parties':parties_page,'inventory':inventory_page,'returns':returns_page,'audit':audit_page}
             fn=pages.get(path)
-            if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
+            if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'),status=404);return
             if path=='parties':
                 try:
                     page_num=int(q.get('page',['1'])[0])
