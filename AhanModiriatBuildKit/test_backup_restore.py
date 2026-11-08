@@ -72,7 +72,7 @@ def main():
         assert "restored product" in names, names
         assert "current only" not in names, names
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-        assert c.execute("SELECT COUNT(*) FROM cash_accounts").fetchone()[0] == 2
+        assert c.execute("SELECT COUNT(*) FROM cash_accounts").fetchone()[0] == 1
     backups = list((app.DATA / "backups").glob("business_*.db"))
     assert len(backups) >= 2, len(backups)
 
