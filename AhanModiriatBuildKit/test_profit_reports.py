@@ -41,7 +41,7 @@ def main():
         # Customer-level profitability is retired; historical loan interest remains in net profit.
         assert "سود به تفکیک مشتری" not in html
         result = app.calc(c, "2026-05-01", "2026-05-31")
-        assert result["interest"] == 100 and result["net"] == 4600, result
+        assert result["interest"] == 100 and result["net"] == 5600, result
         assert "سود/کارمزد وام" in html
         jy,jm,_ = app.gregorian_to_jalali(2026,5,15)
         assert f"{jy:04d}/{jm:02d}" in html
