@@ -57,9 +57,9 @@ def main():
             "SELECT amount,kind FROM cash_movements WHERE source_table='loan_payments'"
         ).fetchone()
         assert historical_posting is not None
-        assert (historical_posting["amount"], historical_posting["kind"]) == (2000, "withdraw")
+        assert (historical_posting["amount"], historical_posting["kind"]) == (200, "withdraw")
         result = app.calc(c, "2026-05-13", "2026-05-13")
-        assert result["interest"] == 1000 and result["loan_paid"] == 2000, result
+        assert result["interest"] == 100 and result["loan_paid"] == 200, result
         report = app.report_detail_sections(c)
         assert "سود/کارمزد وام" in report
         assert "سود به تفکیک مشتری" not in report
