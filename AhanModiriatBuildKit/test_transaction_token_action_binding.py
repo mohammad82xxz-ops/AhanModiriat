@@ -69,13 +69,11 @@ def main():
     server_thread.start()
     try:
         # A token issued for settlement must not authorize a different financial route.
-        wrong_status, wrong_location = post(port, "add_cash_movement", {
+        wrong_status, wrong_location = post(port, "add_price", {
             "date": "2026-02-05",
-            "kind": "deposit",
-            "to_account_id": "1",
-            "amount": "900",
-            "party": "Wrong Route Token Party",
-            "note": "action-binding-negative-control",
+            "product_id": "1",
+            "market_price": "900",
+            "notes": "action-binding-negative-control",
             "_submission_token": token,
         })
         assert wrong_status == 303, (wrong_status, wrong_location)
