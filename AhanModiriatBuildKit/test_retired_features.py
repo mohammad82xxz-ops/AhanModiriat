@@ -67,7 +67,14 @@ def main():
         assert "وام‌ها و اقساط آینده" not in dashboard
         assert "مانده اصل وام‌ها" not in dashboard
         assert "کل اقساط پرداخت‌شده" not in dashboard
+        assert 'href="/loans"' not in dashboard
+        assert 'href="/cash"' not in dashboard
+        assert 'href="/buy-advice"' not in dashboard
         assert "low stock preserved" in dashboard
+        command_palette = (Path(app.__file__).resolve().parent / "static" / "app.js").read_text(encoding="utf-8")
+        assert "/loans" not in command_palette
+        assert "/cash" not in command_palette
+        assert "/buy-advice" not in command_palette
         assert not hasattr(app, "loans")
         assert not hasattr(app, "cash_page")
         assert not hasattr(app, "purchase_advice")
