@@ -15,6 +15,8 @@ import app
 def main():
     app.init()
     with app.conn() as c:
+        # Simulate a legacy bank account that must remain intact after the UI is retired.
+        c.execute("INSERT INTO cash_accounts(id,name,account_type,opening_balance) VALUES(2,'legacy bank','bank',0)")
         c.execute("UPDATE opening_capital SET amount=20000,date='2026-01-01' WHERE id=1")
         c.execute("INSERT INTO products(name,unit,stock,avg_cost,market_price,min_stock) VALUES('legacy product','عدد',0,0,1000,0)")
         product_id = c.execute("SELECT id FROM products WHERE name='legacy product'").fetchone()[0]
