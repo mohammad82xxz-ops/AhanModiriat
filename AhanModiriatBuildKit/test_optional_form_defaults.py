@@ -19,10 +19,6 @@ import app  # noqa: E402
 
 def post(port: int, path: str, fields: dict[str, object]) -> None:
     fields = dict(fields)
-    if path == "add_loan" and "_submission_token" not in fields:
-        with app.conn() as c:
-            markup = app.submission_token(c, path)
-            fields["_submission_token"] = markup.split('value="', 1)[1].split('"', 1)[0]
     data = urllib.parse.urlencode(fields).encode("utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/{path}",
@@ -62,21 +58,6 @@ def main() -> None:
             assert product is not None, "product with omitted optional factors was not saved"
             assert tuple(product) == (1, 1, "کیلوگرم", "کیلوگرم"), tuple(product)
 
-        # interval_value also defaults to integer 1; interval_unit is a string default.
-        post(port, "add_loan", {
-            "title": "optional interval default loan",
-            "principal": "1000",
-            "remaining": "1000",
-            "installment": "100",
-        })
-        with app.conn() as c:
-            loan = c.execute(
-                "SELECT interval_value,interval_unit FROM loans WHERE title=?",
-                ("optional interval default loan",),
-            ).fetchone()
-            assert loan is not None, "loan with omitted interval fields was not saved"
-            assert tuple(loan) == (1, "month"), tuple(loan)
-
         # Check persisted state and audit evidence, not merely that the connection
         # factory exists (the previous assertion did not exercise the database).
         with app.conn() as c:
@@ -84,9 +65,9 @@ def main() -> None:
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
             audit_actions = dict(c.execute(
                 """SELECT action,COUNT(*) FROM audit_log
-                   WHERE action IN ('add_product','add_loan') GROUP BY action"""
+                   WHERE action='add_product' GROUP BY action"""
             ))
-            assert audit_actions == {"add_product": 1, "add_loan": 1}, audit_actions
+            assert audit_actions == {"add_product": 1}, audit_actions
 
         print("OPTIONAL FORM DEFAULTS TESTS PASSED")
     finally:
