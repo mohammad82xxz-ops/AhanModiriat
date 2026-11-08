@@ -21,7 +21,7 @@ def post(port: int, path: str, fields: dict[str, object], auto_token: bool = Tru
     fields = dict(fields)
     protected = {
         "add_purchase", "add_sale", "add_expense", "add_sales_return", "add_purchase_return",
-        "add_service", "add_loan", "add_payment", "add_price", "add_settlement", "add_cash_movement",
+        "add_service", "add_price", "add_settlement",
         "inventory_adjust",
     }
     if auto_token and path in protected and "_submission_token" not in fields:
@@ -90,11 +90,6 @@ def main() -> None:
             (product_id,),
         )
         sale_id = sale_cur.lastrowid
-        loan_cur = c.execute(
-            """INSERT INTO loans(title,principal,remaining,installment,next_date,interval_value,interval_unit)
-               VALUES('validation loan',100,100,20,'2026-02-01',1,'month')"""
-        )
-        loan_id = loan_cur.lastrowid
         expense_cur = c.execute(
             """INSERT INTO expenses(date,category,amount,source,business,notes)
                VALUES('2026-01-02','baseline expense',5,'Validation source',1,'baseline expense')"""
@@ -254,20 +249,6 @@ def main() -> None:
                 "title": "blank required service receipt", "revenue": "100",
                 "cost": "0", "received": "",
             }),
-            ("add_loan", {
-                "title": "invalid nonfinite loan", "principal": "nan",
-                "remaining": "100", "installment": "20",
-                "interval_value": "1", "interval_unit": "month",
-            }),
-            ("add_loan", {
-                "title": "invalid fractional interval", "principal": "100",
-                "remaining": "100", "installment": "20",
-                "interval_value": "1.5", "interval_unit": "month",
-            }),
-            ("add_payment", {
-                "loan_id": loan_id, "amount": "nan", "principal_part": "0",
-                "interest_part": "0", "date": "2026-01-04",
-            }),
             ("add_price", {
                 "product_id": product_id, "market_price": "nan",
                 "date": "2026-01-04",
@@ -288,10 +269,6 @@ def main() -> None:
                 "product_id": product_id, "counted_qty": "nan",
                 "reason": "invalid physical count",
             }),
-            ("add_cash_movement", {
-                "date": "2026-01-04", "kind": "deposit",
-                "to_account_id": "1", "amount": "inf",
-            }),
             # Missing required foreign keys and descriptions must fail atomically.
             ("add_purchase", {
                 "date": "2026-01-04", "product_id": "", "qty": "1",
@@ -304,10 +281,6 @@ def main() -> None:
             ("add_service", {
                 "date": "2026-01-04", "title": "", "revenue": "100",
                 "cost": "0", "received": "0",
-            }),
-            ("add_payment", {
-                "loan_id": "", "date": "2026-01-04", "amount": "10",
-                "principal_part": "10", "interest_part": "0",
             }),
             ("add_price", {
                 "product_id": "", "date": "2026-01-04", "market_price": "21",
@@ -345,15 +318,6 @@ def main() -> None:
                 "date": "1404/12/30", "category": "invalid Jalali date",
                 "amount": "10", "business": "1", "source": "validation",
             }),
-            ("add_loan", {
-                "title": "invalid loan due date", "principal": "100",
-                "remaining": "100", "installment": "10",
-                "next_date": "1404/12/30", "interval_value": "1", "interval_unit": "month",
-            }),
-            ("add_payment", {
-                "loan_id": loan_id, "date": "2026/02/30", "amount": "10",
-                "principal_part": "10", "interest_part": "0",
-            }),
             ("add_price", {
                 "product_id": product_id, "date": "2026/02/30", "market_price": "21",
             }),
@@ -373,10 +337,6 @@ def main() -> None:
                 "product_id": product_id, "date": "2026/02/30",
                 "counted_qty": "11", "reason": "invalid date",
             }),
-            ("add_cash_movement", {
-                "date": "2026/02/30", "kind": "deposit",
-                "to_account_id": "1", "amount": "10",
-            }),
             ("save_capital", {
                 "date": "1404/12/30", "amount": "100",
             }),
@@ -384,22 +344,6 @@ def main() -> None:
             ("add_purchase", {
                 "date": "1403/13/01", "product_id": product_id, "qty": "1",
                 "unit_cost": "5", "extra_cost": "0", "paid": "0",
-            }),
-            ("add_cash_movement", {
-                "date": "2026-01-04", "kind": "unknown",
-                "to_account_id": "1", "amount": "10",
-            }),
-            ("add_cash_movement", {
-                "date": "2026-01-04", "kind": "deposit",
-                "to_account_id": "", "amount": "10",
-            }),
-            ("add_cash_movement", {
-                "date": "2026-01-04", "kind": "withdraw",
-                "from_account_id": "not-an-id", "amount": "10",
-            }),
-            ("add_cash_movement", {
-                "date": "2026-01-04", "kind": "transfer",
-                "from_account_id": "1", "to_account_id": "1", "amount": "10",
             }),
         ]
         for route, fields in invalid_route_cases:
@@ -416,25 +360,12 @@ def main() -> None:
                 "date": "2026-01-05", "title": "replay service", "revenue": "100",
                 "cost": "10", "received": "50", "customer": "Validation customer",
             }),
-            ("add_loan", {
-                "title": "replay loan", "principal": "100", "remaining": "100",
-                "installment": "20", "next_date": "2026-03-01",
-                "interval_value": "1", "interval_unit": "month",
-            }),
-            ("add_payment", {
-                "loan_id": loan_id, "date": "2026-01-05", "amount": "5",
-                "principal_part": "5", "interest_part": "0",
-            }),
             ("add_price", {
                 "product_id": product_id, "date": "2026-01-05", "market_price": "21",
             }),
             ("add_settlement", {
                 "party": "Validation customer", "kind": "receive",
                 "date": "2026-01-05", "amount": "10",
-            }),
-            ("add_cash_movement", {
-                "date": "2026-01-05", "kind": "deposit",
-                "to_account_id": "1", "amount": "10", "party": "Replay guard",
             }),
             ("inventory_adjust", {
                 "date": "2026-01-05", "product_id": product_id,
@@ -443,11 +374,8 @@ def main() -> None:
         ]
         expected_table = {
             "add_service": "services",
-            "add_loan": "loans",
-            "add_payment": "loan_payments",
             "add_price": "price_history",
             "add_settlement": "settlements",
-            "add_cash_movement": "cash_movements",
             "inventory_adjust": "inventory_adjustments",
         }
         for route, fields in replay_cases:
@@ -479,8 +407,7 @@ def main() -> None:
         with app.conn() as c:
             audit_html = app.audit_page(c)
             for localized_action in (
-                "ثبت درآمد خدماتی", "ثبت وام", "ثبت پرداخت قسط",
-                "ثبت قیمت روز", "ثبت تسویه", "گردش دستی صندوق",
+                "ثبت درآمد خدماتی", "ثبت قیمت روز", "ثبت تسویه",
             ):
                 assert localized_action in audit_html, (
                     f"financial audit action label is not localized: {localized_action}"
