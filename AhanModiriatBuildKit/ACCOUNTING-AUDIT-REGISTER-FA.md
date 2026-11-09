@@ -160,8 +160,9 @@
 - شاخهٔ کاری: `fix/phase2-optional-form-defaults`
 - PR #41: باز و Draft؛ شاخهٔ مقصد `test/phase2-service-loan-cash-postings` است.
 - commit مستنداتی `5bf9f5bb8af93f1151c8eae40515464cfbddf81a` شواهد QA و Artifactهای Run #874 را به‌روز کرده است؛ commitهای مستنداتی بعدی فقط وضعیت و دقت همین شواهد را اصلاح کرده‌اند.
-- آخرین CI کاملِ تأییدشده روی کد شاخه: Run #874، روی commit قبلی `d2420797d7e4a7726c42937bbaba885fb865bdbb`؛ هر دو Job یعنی `smoke-test` و `windows-onedir` موفق‌اند.
-- commit مستنداتی `5bf9f5b` پس از Run #874 ایجاد شده و در زمان ثبت این یادداشت اجرای CI جداگانه‌ای برای آن مشاهده نشده است؛ بنابراین Run #874 را به‌عنوان CI همان commit مستنداتی معرفی نمی‌کنیم.
+- آخرین CI کاملِ تأییدشده برای اصلاحات کد این شاخه: [Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597)، روی commit `692c43be6367582d0aca876c02fa6070c3e09b6e`؛ هر دو Job یعنی `smoke-test` و `windows-onedir` موفق‌اند. تست رگرسیون ACC-62 و ممیزی Lighthouse/axe نیز در همین اجرا موفق شدند.
+- Run #886 برای commit مستنداتی `d49258bc6a6047db95e5894874b49199e0a53557` در زمان آخرین بررسی در حال اجرا بود؛ نتیجهٔ آن هنوز نباید به‌عنوان موفقیت ثبت شود: [Run #886](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628561387).
+- Run #874 روی commit قدیمی‌تر `d2420797d7e4a7726c42937bbaba885fb865bdbb` همچنان سابقهٔ معتبر CI است، اما دیگر آخرین اجرای کامل این شاخه نیست.
 - هیچ Merge به `main` یا شاخهٔ مقصد انجام نشده و هیچ migration روی دیتابیس واقعی اجرا نشده است.
 - ACC-48 / DEC-01 همچنان باز است؛ تست characterization فقط رفتار فعلی مرجوعی خرید را ثبت می‌کند و سیاست حسابداری را تصویب نمی‌کند.
 - بررسی دستی روی Windows واقعی، صفحه‌خوان، بزرگ‌نمایی ۲۰۰٪ و نمایشگر کوچک همچنان شرط پذیرش انسانی است.
