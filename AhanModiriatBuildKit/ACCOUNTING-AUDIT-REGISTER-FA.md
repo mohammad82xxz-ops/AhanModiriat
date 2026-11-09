@@ -158,7 +158,7 @@
 - مخزن: `mohammad82xxz-ops/AhanModiriat`
 - شاخهٔ کاری: `fix/phase2-optional-form-defaults`
 - PR #41: باز و Draft؛ شاخهٔ مقصد `test/phase2-service-loan-cash-postings` است.
-- آخرین commit مستنداتی این شاخه: `5bf9f5bb8af93f1151c8eae40515464cfbddf81a`؛ به‌روزرسانی شواهد QA و Artifactهای Run #874.
+- commit مستنداتی `5bf9f5bb8af93f1151c8eae40515464cfbddf81a` شواهد QA و Artifactهای Run #874 را به‌روز کرده است؛ commitهای مستنداتی بعدی فقط وضعیت و دقت همین شواهد را اصلاح کرده‌اند.
 - آخرین CI کاملِ تأییدشده روی کد شاخه: Run #874، روی commit قبلی `d2420797d7e4a7726c42937bbaba885fb865bdbb`؛ هر دو Job یعنی `smoke-test` و `windows-onedir` موفق‌اند.
 - commit مستنداتی `5bf9f5b` پس از Run #874 ایجاد شده و در زمان ثبت این یادداشت اجرای CI جداگانه‌ای برای آن مشاهده نشده است؛ بنابراین Run #874 را به‌عنوان CI همان commit مستنداتی معرفی نمی‌کنیم.
 - هیچ Merge به `main` یا شاخهٔ مقصد انجام نشده و هیچ migration روی دیتابیس واقعی اجرا نشده است.
