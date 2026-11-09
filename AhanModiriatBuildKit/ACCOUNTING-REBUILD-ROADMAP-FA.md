@@ -5,12 +5,14 @@
 
 ## وضعیت جاری شاخه اجرایی — 2026-11-09
 
-این بخش مکمل یافته‌های ممیزی است و آن‌ها را حذف یا به‌صورت ضمنی تأیید نمی‌کند.
+این بخش مکمل یافته‌های ممیزی است و آن‌ها را حذف یا به‌صورت ضمنی تأیید نمی‌کند. وضعیت CI فقط به SHA دقیق همان اجرا مربوط است.
 
 - PR اجرایی فعلی: [PR #41](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/41)، شاخهٔ `fix/phase2-optional-form-defaults` به پایهٔ `test/phase2-service-loan-cash-postings`؛ PR باز و Draft است.
 - دامنهٔ رابط در این شاخه: ۱۴ مسیر فعال؛ صفحه‌های صندوق، وام و پیشنهاد خرید و گزارش سود به تفکیک مشتری بازنشسته شده‌اند. حداقل موجودی و هشدار کمبود فعال باقی مانده است.
 - بازنشستگی رابط به معنی حذف سوابق نیست: جداول و داده‌های تاریخی وام/اقساط، حساب‌های بانکی قدیمی و گردش‌های نقدی حفظ می‌شوند؛ ثبت خودکار آثار نقدی اسناد عملیاتی و اثر سود/کارمزد تاریخی در سود خالص باقی است.
-- [Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902) روی آخرین commit حاوی کد `8d0ca1df9e4992c127e4934a81e6f1995614c2e4`؛ commitهای بعدی شاخه فقط مستنداتی بوده‌اند با نتیجهٔ موفق برای هر دو Job یعنی `smoke-test` و `windows-onedir` تکمیل شده است؛ بسته Windows OneDir، گزارش Lighthouse/axe و اسکرین‌شات‌ها برای همین SHA ذخیره شده‌اند. اصلاح کد ACC-62 پیش‌تر در [Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597) روی commit `692c43be6367582d0aca876c02fa6070c3e09b6e` آزموده و تأیید شده بود.
+- آخرین اجرای کامل کد، [Run #893](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391)، روی SHA `be107dfbf7e4a950115349e4e367c7d3a70fee04` با نتیجهٔ `success` تکمیل شد. هر دو Job یعنی `smoke-test` و `windows-onedir` موفق شدند؛ مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse/axe-core، ساخت Windows OneDir و بارگذاری Artifactها موفق شدند.
+- Artifactهای Run #893: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)، [تصاویر UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557).
+- Commit مستنداتی `b41e73c2c92ddad077831b90fee71fbb17a1e679` چک‌لیست QA را برای ثبت Run #893 به‌روز کرد. اجرای [Run #894](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632387012) برای همین SHA مستنداتی در زمان این به‌روزرسانی هنوز در حال اجراست؛ نتیجهٔ آن تا پایان نباید موفق فرض شود.
 - ACC-48 / DEC-01 و سیاست ارزش‌گذاری مرجوعی خرید همچنان باز هستند؛ تست characterization فقط رفتار فعلی را ثبت می‌کند، نه سیاست هدف را.
 - هیچ merge به `main`، اجرای migration روی دیتابیس واقعی یا پذیرش دستی Windows/صفحه‌خوان/بزرگ‌نمایی ۲۰۰٪ ثبت نشده است.
 
