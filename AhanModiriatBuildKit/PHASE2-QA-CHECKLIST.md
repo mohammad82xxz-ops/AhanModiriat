@@ -131,11 +131,23 @@ The items above are marked complete based on the user's explicit confirmation; t
 
 Artifacts: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13617215817) · [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616918346) · [56 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616858656).
 
-## Final owner acceptance — current candidate (Run #889)
+## Latest automated evidence — Run #893 (2026-11-09)
 
-The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #889 artifact before accepting the candidate:
+- [x] GitHub Actions [Run #893](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391) completed with conclusion `success` on code SHA `be107dfbf7e4a950115349e4e367c7d3a70fee04`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] The smoke-test job completed compile, isolated smoke tests, browser UI matrix, browser finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse/axe-core audit, and report/screenshot uploads.
+- [x] The Windows job passed cross-process token characterization, PyInstaller installation, OneDir build, and artifact upload.
+- [x] Artifacts for this exact run:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)
+  - [Lighthouse and axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557)
+- [ ] The automated run does not establish owner acceptance of the packaged Windows app, nor does it approve accounting policy decisions or database migration.
 
-- [ ] Download and extract the [Run #889 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13680317286).
+## Final owner acceptance — current candidate (Run #893)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #893 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #893 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601).
 - [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
 - [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
 - [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
