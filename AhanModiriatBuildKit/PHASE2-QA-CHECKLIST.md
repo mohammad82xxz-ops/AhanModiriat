@@ -103,11 +103,22 @@ Negative-path findings and resolutions:
 
 The items above are marked complete based on the user's explicit confirmation; they are not represented as independently observed by CI or the assistant.
 
-## Final owner acceptance — current candidate (Run #844)
+## Latest automated evidence for PR #41 — Run #872
 
-The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #844 artifact before accepting the candidate:
+- [x] Run #872 passed both `smoke-test` and `windows-onedir` on head commit `5f0a094f85319bef9889a0fbc87549f4de02cd38`.
+- [x] Isolated regression suite passed, including retired-route guards, preservation of historical loan/cash records, historical loan interest in profit reports, single default cashbox, backup/restore, and retained low-stock warnings.
+- [x] Browser acceptance passed on all 14 active routes, two viewport sizes and two themes; 56 screenshots generated.
+- [x] Browser transaction workflows and keyboard/200% zoom proxies passed.
+- [x] axe-core audited 14/14 active routes with zero violations; Lighthouse generated 10 reports. Performance and accessibility were 100 on all reports; best-practices 96 and SEO 90.
+- [x] Windows OneDir packaging completed and artifact uploaded.
 
-- [ ] Download and extract the [Run #844 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686/artifacts/13579894458).
+Artifacts: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13617215817) · [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616918346) · [56 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616858656).
+
+## Final owner acceptance — current candidate (Run #872)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #872 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #872 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13617215817).
 - [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
 - [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
 - [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
