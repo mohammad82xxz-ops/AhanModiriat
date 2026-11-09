@@ -81,9 +81,9 @@ Negative-path findings and resolutions:
 
 ## Latest automated evidence for current PR head — Run #889
 
-- [x] Run #889 passed both `smoke-test` and `windows-onedir` on current PR head `8d0ca1df9e4992c127e4934a81e6f1995614c2e4`.
+- [x] Run #889 passed both `smoke-test` and `windows-onedir` on the latest code-bearing commit `8d0ca1df9e4992c127e4934a81e6f1995614c2e4`; the later commits `0ff03aabb4559a51e3c9ecedcc9224c03729b42e` and `424b8ea63bd2546f278069b75355eb10cb4c5bad` update documentation only and do not change application code.
 - [x] Compile, isolated regression tests, 14-route browser matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe-core audit, Windows cross-process token characterization, and Windows OneDir packaging all completed successfully.
-- [x] All three artifacts were uploaded for this exact head: Windows OneDir, Lighthouse/axe reports, and UI screenshots.
+- [x] All three artifacts were uploaded for this exact code-bearing commit: Windows OneDir, Lighthouse/axe reports, and UI screenshots.
 - [ ] Owner acceptance of this exact build on a real Windows environment remains outstanding; automated CI does not replace manual acceptance.
 
 Run: [#889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902).
@@ -133,7 +133,7 @@ Artifacts: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/ac
 
 ## Final owner acceptance — current candidate (Run #889)
 
-The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #872 artifact before accepting the candidate:
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #889 artifact before accepting the candidate:
 
 - [ ] Download and extract the [Run #889 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13680317286).
 - [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
