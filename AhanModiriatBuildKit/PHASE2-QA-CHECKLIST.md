@@ -51,7 +51,7 @@ Negative-path findings and resolutions:
 
 ## Latest complete CI evidence — Run #874
 
-- [x] Run #874 validates the current PR head `d2420797d7e4a7726c42937bbaba885fb865bdbb` and completed successfully on 2026-11-09.
+- [x] Run #874 validates the tested code head `d2420797d7e4a7726c42937bbaba885fb865bdbb` and completed successfully on 2026-11-09.
 - [x] Both jobs passed: `smoke-test` and `windows-onedir`. The smoke job completed compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse, and axe-core audit.
 - [x] The Windows job completed cross-process token characterization, PyInstaller OneDir build, and artifact upload.
 - [x] All three artifacts were uploaded: Lighthouse + accessibility reports, browser UI screenshots, and Windows OneDir package. See artifact links below.
@@ -59,7 +59,7 @@ Negative-path findings and resolutions:
 
 ## Latest automated CI evidence
 
-- [x] Latest complete PR CI: [Run #874](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42596980810) passed both `smoke-test` and `windows-onedir` on current PR head `d2420797d7e4a7726c42937bbaba885fb865bdbb`. The smoke job passed Compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse, and axe-core; the Windows job passed cross-process token characterization and Windows OneDir packaging. All three artifacts were uploaded. This is the current-head CI evidence; Run #844 and earlier runs remain historical evidence only.
+- [x] Latest complete PR CI: [Run #874](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42596980810) passed both `smoke-test` and `windows-onedir` on tested code head `d2420797d7e4a7726c42937bbaba885fb865bdbb`. The smoke job passed Compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse, and axe-core; the Windows job passed cross-process token characterization and Windows OneDir packaging. All three artifacts were uploaded. This is the current-head CI evidence; Run #844 and earlier runs remain historical evidence only.
 - [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
 - [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
 - [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
