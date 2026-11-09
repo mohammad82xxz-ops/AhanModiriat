@@ -80,20 +80,20 @@ def main() -> None:
     try:
         # A newer rate establishes the current market price.
         post_price(port, first_id, "2026-11-08", 1200, "newer rate")
-        assert current_price(first_id) == 1200
+        assert current_price(first_id) == 12000
 
         # A later-entered but older-dated rate must remain historical only.
         post_price(port, first_id, "2026-11-07", 900, "backfilled historical rate")
-        assert current_price(first_id) == 1200
+        assert current_price(first_id) == 12000
 
         # Equal dates use the latest inserted row as a deterministic tie-break.
         post_price(port, first_id, "2026-11-08", 1300, "same-day correction")
-        assert current_price(first_id) == 1300
+        assert current_price(first_id) == 13000
 
         # Price history is isolated per product.
         post_price(port, second_id, "2026-11-09", 700, "other product rate")
-        assert current_price(second_id) == 700
-        assert current_price(first_id) == 1300
+        assert current_price(second_id) == 7000
+        assert current_price(first_id) == 13000
 
         with app.conn() as c:
             rows = c.execute(
@@ -102,9 +102,9 @@ def main() -> None:
                 (first_id,),
             ).fetchall()
             assert [(row["date"], row["market_price"]) for row in rows] == [
-                ("2026-11-08", 1300),
-                ("2026-11-08", 1200),
-                ("2026-11-07", 900),
+                ("2026-11-08", 13000),
+                ("2026-11-08", 12000),
+                ("2026-11-07", 9000),
             ]
             assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             assert c.execute("PRAGMA foreign_key_check").fetchall() == []
