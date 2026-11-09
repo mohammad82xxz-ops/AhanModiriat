@@ -10,7 +10,7 @@
 - PR اجرایی فعلی: [PR #41](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/41)، شاخهٔ `fix/phase2-optional-form-defaults` به پایهٔ `test/phase2-service-loan-cash-postings`؛ PR باز و Draft است.
 - دامنهٔ رابط در این شاخه: ۱۴ مسیر فعال؛ صفحه‌های صندوق، وام و پیشنهاد خرید و گزارش سود به تفکیک مشتری بازنشسته شده‌اند. حداقل موجودی و هشدار کمبود فعال باقی مانده است.
 - بازنشستگی رابط به معنی حذف سوابق نیست: جداول و داده‌های تاریخی وام/اقساط، حساب‌های بانکی قدیمی و گردش‌های نقدی حفظ می‌شوند؛ ثبت خودکار آثار نقدی اسناد عملیاتی و اثر سود/کارمزد تاریخی در سود خالص باقی است.
-- [Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597) روی commit کد `692c43be6367582d0aca876c02fa6070c3e09b6e` با نتیجهٔ موفق برای هر دو Job یعنی `smoke-test` و `windows-onedir` تکمیل شده است؛ تست رگرسیون ACC-62 نیز در آن موفق بود. اجرای #886 روی commit مستنداتی `d49258bc6a6047db95e5894874b49199e0a53557` جداگانه آغاز شده بود و نباید موفق فرض شود.
+- [Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902) روی head فعلی PR یعنی commit مستنداتی `8d0ca1df9e4992c127e4934a81e6f1995614c2e4` با نتیجهٔ موفق برای هر دو Job یعنی `smoke-test` و `windows-onedir` تکمیل شده است؛ بسته Windows OneDir، گزارش Lighthouse/axe و اسکرین‌شات‌ها برای همین SHA ذخیره شده‌اند. اصلاح کد ACC-62 پیش‌تر در [Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597) روی commit `692c43be6367582d0aca876c02fa6070c3e09b6e` آزموده و تأیید شده بود.
 - ACC-48 / DEC-01 و سیاست ارزش‌گذاری مرجوعی خرید همچنان باز هستند؛ تست characterization فقط رفتار فعلی را ثبت می‌کند، نه سیاست هدف را.
 - هیچ merge به `main`، اجرای migration روی دیتابیس واقعی یا پذیرش دستی Windows/صفحه‌خوان/بزرگ‌نمایی ۲۰۰٪ ثبت نشده است.
 
