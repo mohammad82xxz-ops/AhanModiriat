@@ -39,6 +39,12 @@ def post_price(port: int, product_id: int, date: str, price: int, note: str) -> 
     )
     with urllib.request.urlopen(request, timeout=5) as response:
         assert response.status == 200
+        body = response.read().decode("utf-8")
+        if "قیمت روز ثبت شد." not in body:
+            raise AssertionError(
+                f"price submission was rejected; final URL={response.geturl()!r}; "
+                f"response excerpt={body[:1200]!r}"
+            )
 
 
 def current_price(product_id: int) -> int:
