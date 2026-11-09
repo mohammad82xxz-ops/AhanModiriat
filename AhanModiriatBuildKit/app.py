@@ -2210,9 +2210,15 @@ class Handler(BaseHTTPRequestHandler):
                     pid=int(v('product_id')); price=strict_money_int(v('market_price'),'قیمت روز'); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
                     if price<=0: raise ValueError('قیمت روز باید بیشتر از صفر باشد.')
-                    price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')))
+                    price_date=to_iso_date(v('date',jalali_today()))
+                    price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(price_date,pid,price,v('notes')))
                     price_id=price_cur.lastrowid
-                    c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
+                    # Historical entries must not roll the current market price backwards.
+                    # For equal dates, the latest inserted history row wins deterministically.
+                    latest=c.execute("SELECT market_price FROM price_history WHERE product_id=? ORDER BY date DESC,id DESC LIMIT 1",(pid,)).fetchone()
+                    if latest is not None:
+                        c.execute('UPDATE products SET market_price=? WHERE id=?',(latest["market_price"],pid))
+                    dest='/prices';msg='قیمت روز ثبت شد.'
                 elif path=='add_person':
                     name=normalize_person(v('name')); kind=v('kind','both')
                     if not name: raise ValueError('نام طرف حساب الزامی است.')
