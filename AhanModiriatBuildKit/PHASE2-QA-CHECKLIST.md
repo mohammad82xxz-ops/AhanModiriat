@@ -49,6 +49,15 @@ Negative-path findings and resolutions:
 - Negative purchase extra cost and negative sale received amount passed in [Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609).
 - Negative purchase paid amount and negative sale extra cost passed in [Run #310](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and PR-triggered [Run #311](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983).
 
+## Newer partial CI evidence — Run #873
+
+- [x] Run #873 on code commit `897b77cc915439aac36c1473e32127309d227fda`: `smoke-test` completed successfully, including compile, isolated tests, browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse, and axe-core audit.
+- [x] The Run #873 axe-core artifact covers all 14 active routes: 0 violations and 0 incomplete/manual-review checks. Lighthouse generated 10 mobile/desktop reports; Performance and Accessibility are 100 throughout, Best Practices 96, SEO 90 (except mobile purchases Performance 99). Scores are diagnostic, not acceptance thresholds.
+- [ ] Run #873 `windows-onedir` was still queued at the latest recorded inspection; no Windows build result is claimed.
+- [ ] Run #873 validates code commit `897b77c...`, not the later documentation-only head `5d3b37b2364b46edd29ccf3fe4e67868b9a13b86`. No CI run is currently visible for that latest head. Do not treat this partial run as replacing the latest complete run below.
+
+Artifacts: [Lighthouse + axe-core reports — Run #873](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42594692826) · [UI screenshots — Run #873](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42594692826).
+
 ## Latest automated CI evidence
 
 - [x] Latest complete PR CI: [Run #844](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42387431686) passed both `smoke-test` and `windows-onedir` on head commit `6bf6c5309bb271db41ad828a62734f4e5059cabc`; includes Compile, isolated regression tests (including required-reference atomicity and omitted optional numeric defaults), 17-route browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe-core audit, Windows cross-process token characterization, and Windows OneDir packaging. Both jobs completed successfully; all three artifacts were uploaded. The 17-route axe-core report records 708 passes, zero violations, and zero incomplete/manual-review items. Lighthouse Performance, Accessibility, and Best Practices scores are 100 on all 10 desktop/mobile reports; SEO is 82. Lighthouse scores are diagnostic, not acceptance thresholds. Run #843 remains the successful code-test run for commit `9f05aaebb4eec4c1aa00acbb2b21085e14e7a0f0`; Run #844 validates the subsequent QA-evidence documentation head.
