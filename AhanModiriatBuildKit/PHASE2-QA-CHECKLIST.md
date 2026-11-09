@@ -79,11 +79,20 @@ Negative-path findings and resolutions:
 - [Run #331 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408) passed on an earlier commit and is retained as historical evidence only.
 - [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed on the older commit `ac12541c99b389e2b187757a3a0aa60746a57185`; they remain historical evidence only.
 
+## Latest automated evidence for current PR head — Run #889
+
+- [x] Run #889 passed both `smoke-test` and `windows-onedir` on current PR head `8d0ca1df9e4992c127e4934a81e6f1995614c2e4`.
+- [x] Compile, isolated regression tests, 14-route browser matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe-core audit, Windows cross-process token characterization, and Windows OneDir packaging all completed successfully.
+- [x] All three artifacts were uploaded for this exact head: Windows OneDir, Lighthouse/axe reports, and UI screenshots.
+- [ ] Owner acceptance of this exact build on a real Windows environment remains outstanding; automated CI does not replace manual acceptance.
+
+Run: [#889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902).
+
 ### Latest run artifacts
 
-- [Lighthouse + axe-core reports — Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597/artifacts/13679197067)
-- [UI screenshots — Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597/artifacts/13679831349)
-- [Windows OneDir build — Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597/artifacts/13678639721)
+- [Lighthouse + axe-core reports — Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13679673145)
+- [UI screenshots — Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13679983842)
+- [Windows OneDir build — Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13680317286)
 - [Lighthouse + axe-core reports — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579698525)
 - [UI screenshots — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13580072340)
 - [Windows OneDir build — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579973114)
@@ -111,7 +120,7 @@ Negative-path findings and resolutions:
 
 The items above are marked complete based on the user's explicit confirmation; they are not represented as independently observed by CI or the assistant.
 
-## Latest automated evidence for PR #41 — Run #872
+## Historical automated evidence for PR #41 — Run #872
 
 - [x] Run #872 passed both `smoke-test` and `windows-onedir` on head commit `5f0a094f85319bef9889a0fbc87549f4de02cd38`.
 - [x] Isolated regression suite passed, including retired-route guards, preservation of historical loan/cash records, historical loan interest in profit reports, single default cashbox, backup/restore, and retained low-stock warnings.
@@ -122,11 +131,11 @@ The items above are marked complete based on the user's explicit confirmation; t
 
 Artifacts: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13617215817) · [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616918346) · [56 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616858656).
 
-## Final owner acceptance — current candidate (Run #872)
+## Final owner acceptance — current candidate (Run #889)
 
 The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #872 artifact before accepting the candidate:
 
-- [ ] Download and extract the [Run #872 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13617215817).
+- [ ] Download and extract the [Run #889 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13680317286).
 - [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
 - [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
 - [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
