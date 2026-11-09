@@ -49,17 +49,17 @@ Negative-path findings and resolutions:
 - Negative purchase extra cost and negative sale received amount passed in [Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609).
 - Negative purchase paid amount and negative sale extra cost passed in [Run #310](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and PR-triggered [Run #311](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983).
 
-## Latest complete CI evidence — Run #874
+## Latest complete CI evidence — Run #885
 
-- [x] Run #874 validates the tested code head `d2420797d7e4a7726c42937bbaba885fb865bdbb` and completed successfully on 2026-11-09.
+- [x] Run #885 validates code head `692c43be6367582d0aca876c02fa6070c3e09b6e` and completed successfully on 2026-11-09.
 - [x] Both jobs passed: `smoke-test` and `windows-onedir`. The smoke job completed compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse, and axe-core audit.
 - [x] The Windows job completed cross-process token characterization, PyInstaller OneDir build, and artifact upload.
 - [x] All three artifacts were uploaded: Lighthouse + accessibility reports, browser UI screenshots, and Windows OneDir package. See artifact links below.
-- [x] Run #874 supersedes the earlier partial Run #873 evidence for the current head. The older run remains historical evidence only.
+- [x] Run #885 supersedes Run #874 as the latest complete CI evidence for the code changes. Run #886 separately validates documentation commit `d49258bc6a6047db95e5894874b49199e0a53557`; at last inspection it was still in progress and is not counted as passed: [Run #886](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628561387).
 
 ## Latest automated CI evidence
 
-- [x] Latest complete PR CI: [Run #874](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42596980810) passed both `smoke-test` and `windows-onedir` on tested code head `d2420797d7e4a7726c42937bbaba885fb865bdbb`. The smoke job passed Compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse, and axe-core; the Windows job passed cross-process token characterization and Windows OneDir packaging. All three artifacts were uploaded. This is the current-head CI evidence; Run #844 and earlier runs remain historical evidence only.
+- [x] Latest complete PR CI: [Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597) passed both `smoke-test` and `windows-onedir` on tested code head `692c43be6367582d0aca876c02fa6070c3e09b6e`. The smoke job passed Compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse, and axe-core; the Windows job passed cross-process token characterization and Windows OneDir packaging. All three artifacts were uploaded. This is the latest complete CI evidence for the code changes; Run #874 and earlier runs remain historical evidence only.
 - [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
 - [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
 - [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
@@ -81,9 +81,9 @@ Negative-path findings and resolutions:
 
 ### Latest run artifacts
 
-- [Lighthouse + axe-core reports — Run #874](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42596980810/artifacts/13663334651)
-- [UI screenshots — Run #874](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42596980810/artifacts/13664112751)
-- [Windows OneDir build — Run #874](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42596980810/artifacts/13664940807)
+- [Lighthouse + axe-core reports — Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597/artifacts/13679197067)
+- [UI screenshots — Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597/artifacts/13679831349)
+- [Windows OneDir build — Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597/artifacts/13678639721)
 - [Lighthouse + axe-core reports — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579698525)
 - [UI screenshots — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13580072340)
 - [Windows OneDir build — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579973114)
