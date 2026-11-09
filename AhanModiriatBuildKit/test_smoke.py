@@ -27,6 +27,8 @@ def main():
             pages.append(app.product_ledger_page(c, product_id["id"]))
         for html in pages:
             assert "<html" in html and "</html>" in html
+            assert 'rel="icon" type="image/svg+xml" href="/static/favicon.svg"' in html
+        assert (Path(app.__file__).resolve().parent / "static" / "favicon.svg").is_file()
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("GitHub branch smoke tests passed.")
     _TMP.cleanup()
