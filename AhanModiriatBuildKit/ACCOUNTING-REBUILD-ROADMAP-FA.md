@@ -397,3 +397,25 @@
 - در هر دو اجرا، compile، isolated smoke tests، browser UI matrix، browser finance/inventory workflows، keyboard/zoom accessibility proxies و Lighthouse/axe-core موفق شدند.
 - Artifactهای Push: [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772430840/artifacts/13742273207)، [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772430840/artifacts/13741993998). Artifactهای Pull Request: [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772439718/artifacts/13741619699)، [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772439718/artifacts/13742068792). هر چهار artifact در زمان ثبت این یادداشت موجود و غیرمنقضی بودند.
 - این نتیجه صرفاً CI است؛ پذیرش دستی Windows OneDir، تصمیم‌های سیاست حسابداری، migration دیتابیس واقعی و ادغام PR انجام نشده‌اند.
+
+
+### تکمیل اعتبارسنجی CI روی SHA `205f41decda7cc5fa400f85e4596e1487cf45720` — ۱۴۰۵/۰۸/۱۹
+
+- هر دو trigger مستقل GitHub Actions روی همین SHA با نتیجهٔ نهایی `success` تکمیل شدند:
+  - [Push Run #904](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772998428)
+  - [Pull Request Run #903](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42773004324)
+- در هر دو اجرا، jobهای `smoke-test` و `windows-onedir` موفق‌اند؛ هیچ مرحلهٔ ناموفقی در jobها گزارش نشده است.
+- پوشش `smoke-test`: Compile، isolated smoke tests، ماتریس UI مرورگر، گردش‌کار مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، Lighthouse و axe-core و بارگذاری گزارش‌ها و تصاویر.
+- ساخت Windows OneDir با PyInstaller و بارگذاری Artifact در هر دو اجرا موفق شد.
+- Artifactهای اجرای Push #904:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772998428/artifacts/13742319928)
+  - [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772998428/artifacts/13743500043)
+  - [تصاویر UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772998428/artifacts/13742504005)
+- Artifactهای اجرای Pull Request #903:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42773004324/artifacts/13743081049)
+  - [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42773004324/artifacts/13742891654)
+  - [تصاویر UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42773004324/artifacts/13742209941)
+- وضعیت PR #9 هنگام ثبت این یادداشت: باز، Draft، ادغام‌نشده؛ head همان SHA بالا، base برابر `work/phase2-validation-edge-cases` و GitHub مقدار `mergeable_state=clean` گزارش کرده است.
+- این شواهد فقط CI و بسته‌سازی خودکار روی همین SHA را تأیید می‌کند. آزمون دستی روی Windows واقعی (نصب تمیز، اجرای برنامه، خرید/فروش، backup/restore، صفحه‌کلید، screen reader، بزرگ‌نمایی ۲۰۰٪ و نمایشگر کوچک) هنوز انجام‌نشده/تأییدنشده است.
+- DEC-01 تا DEC-12 همچنان Pending هستند؛ به‌ویژه سیاست برگشت خرید و روش ارزش‌گذاری موجودی برای ادامهٔ موتور بهای تمام‌شده نیازمند تصمیم مالک‌اند. این commit مستنداتی هیچ سیاست حسابداری را تصویب یا پیاده‌سازی نمی‌کند.
+- هیچ migration روی دیتابیس واقعی اجرا نشده و هیچ تغییری در `main` یا ادغام PR انجام نشده است.
