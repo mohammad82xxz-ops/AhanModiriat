@@ -259,3 +259,14 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [x] Artifactها بارگذاری شدند: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386/artifacts/13745593423)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386/artifacts/13745788526)، [اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386/artifacts/13745992758).
 
 **مرز پذیرش:** CI و بازبینی عددی DEC-01 تکمیل شده‌اند؛ اجرای دستی بستهٔ Windows روی رایانهٔ مالک، صفحه‌خوان واقعی، بزرگ‌نمایی ۲۰۰٪، نمایشگر کوچک و backup/restore انسانی همچنان باز است. این موارد فقط با اجرای واقعی قابل علامت‌گذاری‌اند و مانع ادعای «پذیرش نهایی کل محصول» هستند.
+
+### اجرای نهایی CI روی head فعلی PR #43 — Run #925 (2026-11-10)
+
+- [x] Run [#925](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525) روی SHA دقیق `a85f59059d92377491d1c7bf8585dbfd1f090e90` با conclusion برابر `success` تکمیل شد.
+- [x] هر دو Job موفق شدند: `smoke-test` و `windows-onedir`.
+- [x] تست‌های Compile و isolated smoke، تست DEC-01، گردش‌های مالی/انبار، ۱۴ مسیر UI در دو viewport و دو theme (۵۶ تصویر)، و keyboard/zoom proxies روی ۷ مسیر موفق شدند.
+- [x] axe-core هر ۱۴ مسیر را بدون violation ممیزی کرد؛ ۱۰ گزارش Lighthouse تولید شد. در هر ۱۰ گزارش Performance، Accessibility و Best Practices برابر ۱۰۰ و SEO برابر ۹۰ بود.
+- [x] آزمون cross-process token روی Windows و ساخت PyInstaller OneDir موفق شدند.
+- [x] Artifactهای همین Run: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525/artifacts/13783515005)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525/artifacts/13782711559)، [۵۶ اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525/artifacts/13783070777).
+
+**مرز پذیرش دستی:** این Run پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
