@@ -198,7 +198,7 @@ The automated Windows OneDir build is not a substitute for launching and exercis
   - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741791454)
 - [ ] This automated success does not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
 
-## Final owner acceptance — current candidate (Run #898)
+## Final owner acceptance — previous candidate (Run #898)
 
 The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #898 artifact before accepting the candidate:
 
@@ -210,3 +210,32 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
 - [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
 
+
+
+## Latest complete CI evidence — Runs #899 and #901 (2026-11-10)
+
+- [x] Push [Run #899](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583) completed with conclusion `success` on exact head `59fe32844a7a77965d5468390d4a71dcb22a6ff9`.
+- [x] Pull Request [Run #901](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526) completed with conclusion `success` on the same exact head.
+- [x] Both runs passed `smoke-test` and `windows-onedir`. The smoke-test job passed compile, isolated smoke tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads.
+- [x] Both Windows jobs passed cross-process token characterization, PyInstaller installation, Windows OneDir build, and artifact upload.
+- [x] Push Run #899 artifacts:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583/artifacts/13742221762)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583/artifacts/13742147399)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583/artifacts/13741499056)
+- [x] Pull Request Run #901 artifacts:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742164135)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742840372)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13741944411)
+- [ ] These automated successes do not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
+
+## Final owner acceptance — current candidate (Run #901)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #901 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #901 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742164135).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
