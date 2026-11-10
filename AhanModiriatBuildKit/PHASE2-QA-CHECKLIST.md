@@ -243,7 +243,6 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 
 ## DEC-01 — آزمون پذیرش سیاست مرجوعی خرید (شاخهٔ مستقل)
 
-<badge> </badge>
 - [x] CI روی شاخهٔ `fix/dec01-purchase-return-valuation-ci` با هر دو Job موفق شد؛ Run #921 روی SHA دقیق زیر سبز است.
 - [x] مرجوعی جزئی با ضریب تبدیل خرید، هزینهٔ جانبی و بهای تاریخی آزمون شد.
 - [x] چند مرجوعی از یک خرید آزمون شد؛ تخصیص تجمعی، مجموع ارزش را دقیقاً با سهم برگشتی خرید برابر نگه داشت.
