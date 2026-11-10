@@ -239,3 +239,17 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
 - [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
 - [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
++
++## DEC-01 — آزمون پذیرش سیاست مرجوعی خرید (شاخهٔ مستقل)
++
++- [ ] CI روی شاخهٔ `fix/dec01-purchase-return-valuation` با هر دو Job موفق شود.
++- [ ] مرجوعی جزئی با ضریب تبدیل خرید، هزینه جانبی و محاسبه بهای تاریخی را بررسی کن.
++- [ ] دو یا چند مرجوعی از یک خرید را ثبت کن؛ مجموع ارزش مرجوعی باید دقیقاً با سهم تجمعی خرید برابر باشد.
++- [ ] پس از هر مرجوعی، موجودی و میانگین بهای باقی‌مانده را با محاسبه دستی تطبیق بده.
++- [ ] درخواست مرجوعی با ارزش بیش از ارزش دفتری باید بدون درج سند یا گردش نقدی رد شود.
++- [ ] صفرشدن موجودی با ارزش دفتری باقیمانده باید رد شود؛ هیچ ارزش موجودی نباید بی‌مرجع حذف شود.
++- [ ] مبلغ نقدی دریافتی از فروشنده باید فقط به اندازهٔ وجه واقعی در دفتر نقدی ثبت شود و با ارزش مرجوعی اشتباه نشود.
++- [ ] تست‌های integrity و foreign_key پس از سناریوها موفق باشند.
++- [ ] نتیجه CI و SHA دقیق در همین چک‌لیست ثبت شود؛ CI جای پذیرش انسانی Windows را نمی‌گیرد.
++
