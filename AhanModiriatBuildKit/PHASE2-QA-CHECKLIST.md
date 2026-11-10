@@ -143,7 +143,7 @@ Artifacts: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/ac
   - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557)
 - [ ] The automated run does not establish owner acceptance of the packaged Windows app, nor does it approve accounting policy decisions or database migration.
 
-## Historical owner acceptance checklist — Run #893 (superseded by Run #896)
+## Historical owner acceptance checklist — Run #893 (superseded by Run #897)
 
 The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #893 artifact before accepting the candidate:
 
@@ -155,23 +155,23 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
 - [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
 
-## Latest complete CI evidence — Run #896 (2026-11-09)
+## Latest complete CI evidence — Run #897 (2026-11-09)
 
-- [x] GitHub Actions [Run #896](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632696950) completed with conclusion `success` on the exact PR head `bb897fc2ffcb936e9da5684be9aeeb468f6deb9d`.
+- [x] GitHub Actions [Run #897](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270) completed with conclusion `success` on the exact PR head `836a67f64b0e5fdb62fd57568b19e97eebc4ac04`.
 - [x] Both jobs passed: `smoke-test` and `windows-onedir`.
 - [x] The smoke-test job passed compile, isolated smoke tests, browser UI matrix, browser finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and both report/screenshot uploads.
 - [x] The Windows job passed cross-process token characterization, PyInstaller installation, Windows OneDir build, and artifact upload.
 - [x] All three artifacts were uploaded for this exact head:
-  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632696950/artifacts/13681697038)
-  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632696950/artifacts/13680674755)
-  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632696950/artifacts/13682595034)
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13680779444)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13681988069)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13681368623)
 - [ ] This automated success does not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
 
-## Final owner acceptance — current candidate (Run #896)
+## Final owner acceptance — current candidate (Run #897)
 
-The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #896 artifact before accepting the candidate:
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #897 artifact before accepting the candidate:
 
-- [ ] Download and extract the [Run #896 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632696950/artifacts/13681697038).
+- [ ] Download and extract the [Run #897 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13680779444).
 - [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
 - [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
 - [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
