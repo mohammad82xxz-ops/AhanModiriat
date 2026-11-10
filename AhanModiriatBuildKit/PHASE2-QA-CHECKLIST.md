@@ -185,3 +185,28 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - Do not merge this QA work into `main` without explicit authorization.
 - Keep PR #41 on `fix/phase2-optional-form-defaults`, stacked on `test/phase2-service-loan-cash-postings` (PR #40); preserve the earlier phase branch and its Draft PR.
 - Report automated and manual results separately. Do not mark manual items complete based only on CI.
+
+## Latest complete CI evidence — Run #898 (2026-11-10)
+
+- [x] GitHub Actions [Run #898](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654) completed with conclusion `success` on the exact PR head `68a108108a9cbcf8397a050f2d5ab2561d728d6b`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] The smoke-test job passed compile, isolated smoke tests, browser UI matrix/screenshots, finance and inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads.
+- [x] The Windows job passed cross-process token characterization, PyInstaller installation, Windows OneDir build, and artifact upload.
+- [x] All three artifacts were uploaded for this exact head:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741283445)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13742090958)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741791454)
+- [ ] This automated success does not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
+
+## Final owner acceptance — current candidate (Run #898)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #898 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #898 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741283445).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
