@@ -7,13 +7,14 @@
 
 این بخش مکمل یافته‌های ممیزی است و آن‌ها را حذف یا به‌صورت ضمنی تأیید نمی‌کند. وضعیت CI فقط به SHA دقیق همان اجرا مربوط است.
 
-- PR اجرایی فعلی: [PR #41](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/41)، شاخهٔ `fix/phase2-optional-form-defaults` به پایهٔ `test/phase2-service-loan-cash-postings`؛ PR باز و Draft است.
+- PR پایهٔ زنجیره: [PR #41](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/41)، شاخهٔ `fix/phase2-optional-form-defaults` به پایهٔ `test/phase2-service-loan-cash-postings`؛ باز و Draft است. تغییر DEC-01 در [PR #43](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/43)، شاخهٔ `fix/dec01-purchase-return-valuation-ci` به‌صورت stacked روی #41 قرار دارد؛ آن هم باز و Draft است.
 - دامنهٔ رابط در این شاخه: ۱۴ مسیر فعال؛ صفحه‌های صندوق، وام و پیشنهاد خرید و گزارش سود به تفکیک مشتری بازنشسته شده‌اند. حداقل موجودی و هشدار کمبود فعال باقی مانده است.
 - بازنشستگی رابط به معنی حذف سوابق نیست: جداول و داده‌های تاریخی وام/اقساط، حساب‌های بانکی قدیمی و گردش‌های نقدی حفظ می‌شوند؛ ثبت خودکار آثار نقدی اسناد عملیاتی و اثر سود/کارمزد تاریخی در سود خالص باقی است.
-- آخرین اجرای کامل کد، [Run #893](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391)، روی SHA `be107dfbf7e4a950115349e4e367c7d3a70fee04` با نتیجهٔ `success` تکمیل شد. هر دو Job یعنی `smoke-test` و `windows-onedir` موفق شدند؛ مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse/axe-core، ساخت Windows OneDir و بارگذاری Artifactها موفق شدند.
+- شواهد تاریخی اجرای کد PR #41، [Run #893](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391)، روی SHA `be107dfbf7e4a950115349e4e367c7d3a70fee04` با نتیجهٔ `success` تکمیل شد. هر دو Job یعنی `smoke-test` و `windows-onedir` موفق شدند؛ مراحل Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، ممیزی Lighthouse/axe-core، ساخت Windows OneDir و بارگذاری Artifactها موفق شدند.
 - Artifactهای Run #893: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)، [تصاویر UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557).
 - Commit مستنداتی `b41e73c2c92ddad077831b90fee71fbb17a1e679` چک‌لیست QA را برای ثبت Run #893 به‌روز کرد. اجرای [Run #894](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632387012) برای همین SHA مستنداتی در زمان این به‌روزرسانی هنوز در حال اجراست؛ نتیجهٔ آن تا پایان نباید موفق فرض شود.
 - DEC-01 با تأیید مالک Approved و در PR #43 پیاده‌سازی شده است؛ ACC-48 فقط در محدودهٔ همین تصمیم بسته شده است. DEC-04 و سایر P0ها/سیاست‌های Pending مستقل باقی‌اند.
+- آخرین CI کامل PR #43، [Run #925](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525)، روی SHA `a85f59059d92377491d1c7bf8585dbfd1f090e90` با هر دو Job موفق شد. پس از آن، مستندات PR به‌روزرسانی شده‌اند و اجرای CI روی SHA جدید مستنداتی جداگانه لازم است.
 - هیچ merge به `main`، اجرای migration روی دیتابیس واقعی یا پذیرش دستی Windows/صفحه‌خوان/بزرگ‌نمایی ۲۰۰٪ ثبت نشده است.
 
 
