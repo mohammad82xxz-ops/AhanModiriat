@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parent
 ARTIFACTS = ROOT / "artifacts" / "accessibility-lighthouse"
 AXE_SCRIPT = ROOT / "node_modules" / "axe-core" / "axe.min.js"
 LIGHTHOUSE_BIN = ROOT / "node_modules" / ".bin" / ("lighthouse.cmd" if os.name == "nt" else "lighthouse")
-AXE_ROUTES = ("/", "/products", "/purchases", "/sales", "/services", "/expenses", "/loans",
-              "/prices", "/reports", "/settings", "/design", "/cash", "/parties",
-              "/inventory", "/buy-advice", "/returns", "/audit")
+AXE_ROUTES = ("/", "/products", "/purchases", "/sales", "/services", "/expenses",
+              "/prices", "/reports", "/settings", "/design", "/parties",
+              "/inventory", "/returns", "/audit")
 LIGHTHOUSE_ROUTES = (("/", "dashboard"), ("/sales", "sales"), ("/purchases", "purchases"),
                      ("/reports", "reports"), ("/settings", "settings"))
 def main():

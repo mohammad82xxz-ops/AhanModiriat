@@ -143,56 +143,6 @@ def conn():
     c.execute('PRAGMA synchronous=NORMAL')
     return c
 
-def add_interval_date(date_value, interval_value=1, interval_unit="month"):
-    """Advance a due date by a configurable interval; clamp month/year dates safely."""
-    if not date_value:
-        return ""
-    try:
-        day = datetime.date.fromisoformat(str(date_value)[:10])
-    except (TypeError, ValueError):
-        return ""
-    value = int(interval_value or 1)
-    if value < 1 or value > 365:
-        raise ValueError("فاصلهٔ سررسید باید بین ۱ تا ۳۶۵ باشد.")
-    unit = str(interval_unit or "month").lower()
-    if unit == "day":
-        return (day + datetime.timedelta(days=value)).isoformat()
-    if unit == "week":
-        return (day + datetime.timedelta(days=value*7)).isoformat()
-    if unit == "month":
-        month_index = day.year*12 + (day.month-1) + value
-        year, month0 = divmod(month_index, 12)
-        month = month0 + 1
-        return datetime.date(year, month, min(day.day, calendar.monthrange(year, month)[1])).isoformat()
-    if unit == "year":
-        year = day.year + value
-        return datetime.date(year, day.month, min(day.day, calendar.monthrange(year, day.month)[1])).isoformat()
-    raise ValueError("واحد فاصلهٔ سررسید معتبر نیست.")
-
-def compute_purchase_advice(c, window_days=30):
-    """Heuristic: stock target = min-stock reserve + recent daily sales × coverage window."""
-    window_days = max(1, min(int(window_days), 365))
-    today = datetime.date.today()
-    start = (today - datetime.timedelta(days=window_days-1)).isoformat()
-    rows = []
-    for p in c.execute("""SELECT p.*,COALESCE(SUM(s.qty),0) AS sold_window
-                          FROM products p LEFT JOIN sales s
-                            ON s.product_id=p.id AND s.date>=? AND s.date<=?
-                          GROUP BY p.id ORDER BY p.name""",(start,today.isoformat())):
-        sold = float(p["sold_window"] or 0)
-        daily = sold/window_days
-        target = float(p["min_stock"] or 0) + daily*window_days
-        recommend = max(0.0, target-float(p["stock"] or 0))
-        coverage = (float(p["stock"] or 0)/daily) if daily>0 else None
-        rows.append({
-            "id":p["id"],"name":p["name"],"unit":p["unit"],"stock":float(p["stock"] or 0),
-            "min_stock":float(p["min_stock"] or 0),"sold":sold,"daily":daily,
-            "target":target,"recommend":recommend,"coverage":coverage,
-            "priority":0 if float(p["stock"] or 0)<=float(p["min_stock"] or 0) else 1,
-        })
-    rows.sort(key=lambda r:(r["priority"],-r["recommend"],r["name"].casefold()))
-    return rows
-
 def returns_page(c, search='', page_num=1):
     sales_opts=[]
     for r in c.execute("""SELECT s.id,s.date,s.qty,s.unit_price,s.customer,p.name,p.unit,
@@ -257,22 +207,6 @@ def returns_page(c, search='', page_num=1):
     {table(["تاریخ","نوع","کالا","مقدار","ارزش سند","وجه واقعی","طرف حساب","علت"],rows,total)}
     {page_nav("returns",query,page_num,total,limit)}</div>'''
     return page("مرجوعی‌ها",body,"returns")
-
-def purchase_advice(c):
-    data = compute_purchase_advice(c,30)
-    rows = []
-    for r in data:
-        cover = f'{r["coverage"]:.1f} روز' if r["coverage"] is not None else "بدون فروش ثبت‌شده"
-        urgency = "کمتر از حداقل" if r["stock"]<=r["min_stock"] else ("نیاز به سفارش" if r["recommend"]>0 else "کافی")
-        rows.append([esc(r["name"]),f'{r["stock"]:g} {esc(r["unit"])}',f'{r["min_stock"]:g}',
-                     f'{r["sold"]:g} {esc(r["unit"])}',f'{r["daily"]:.3f}',cover,
-                     f'{r["target"]:.3f}',f'{r["recommend"]:.3f} {esc(r["unit"])}',urgency])
-    body=f'''<h1>پیشنهاد خرید کالا</h1>
-    <div class="notice">برآورد ساده بر پایهٔ فروش ثبت‌شدهٔ ۳۰ روز اخیر است: هدف موجودی = حداقل موجودی ایمن + فروش ۳۰ روز اخیر. این محاسبه جایگزین بررسی موجودی فیزیکی، سفارش‌های در راه و زمان واقعی تأمین نیست.</div>
-    <div class="card section"><h2>پیشنهاد سفارش</h2>
-    {table(["کالا","موجودی فعلی","حداقل ایمن","فروش ۳۰ روز","میانگین روزانه","پوشش موجودی","هدف موجودی","مقدار پیشنهادی سفارش","وضعیت"],rows)}
-    </div>'''
-    return page("پیشنهاد خرید",body,"buy-advice")
 
 def restore_database_from_file(source_path):
     """Validate an uploaded database, snapshot current data, then restore through SQLite backup API."""
@@ -596,8 +530,9 @@ def init():
         );
         CREATE INDEX IF NOT EXISTS ix_cash_movements_date ON cash_movements(date,id);
         CREATE INDEX IF NOT EXISTS ix_cash_movements_source ON cash_movements(source_table,source_id);
+        -- New databases start with one cashbox; existing bank rows and historical movements are retained.
         INSERT OR IGNORE INTO cash_accounts(id,name,account_type,opening_balance) VALUES
-            (1,'صندوق نقدی','cash',0),(2,'حساب بانکی','bank',0);
+            (1,'صندوق نقدی','cash',0);
         ''')
     # Safe additive migration; existing transactions and history are preserved.
     with conn() as c:
@@ -1037,56 +972,6 @@ def product_ledger_page(c, product_id, search="", page_num=1):
     <div class="actions"><a class="btn secondary" href="/products">بازگشت به کالاها</a></div></div>'''
     return page("کارت گردش کالا",body,"products")
 
-def cash_page(c, search='', page_num=1):
-    limit,offset,page_num=page_window(page_num,50)
-    query=str(search or '').strip(); pattern='%'+query+'%'
-    total=scalar(c,"""SELECT COUNT(*) FROM cash_movements m
-        LEFT JOIN cash_accounts fa ON fa.id=m.from_account_id
-        LEFT JOIN cash_accounts ta ON ta.id=m.to_account_id
-        WHERE COALESCE(fa.name,'') LIKE ? OR COALESCE(ta.name,'') LIKE ?
-           OR COALESCE(m.party,'') LIKE ? OR COALESCE(m.note,'') LIKE ? OR m.kind LIKE ?""",
-        (pattern,pattern,pattern,pattern,pattern))
-    accounts = c.execute("SELECT * FROM cash_accounts ORDER BY id").fetchall()
-    opts = "".join(f'<option value="{r["id"]}">{esc(r["name"])}</option>' for r in accounts)
-    metrics = "".join(
-        f'<div class="card metric"><div class="label">{esc(r["name"])}</div><div class="value">{money(account_balance(c,r["id"]))} تومان</div><div class="muted">مانده افتتاحیه: {money(r["opening_balance"])} تومان</div></div>'
-        for r in accounts
-    )
-    rows = []
-    for r in c.execute("""SELECT m.*,fa.name AS from_name,ta.name AS to_name
-                          FROM cash_movements m
-                          LEFT JOIN cash_accounts fa ON fa.id=m.from_account_id
-                          LEFT JOIN cash_accounts ta ON ta.id=m.to_account_id
-                          WHERE COALESCE(fa.name,'') LIKE ? OR COALESCE(ta.name,'') LIKE ?
-                             OR COALESCE(m.party,'') LIKE ? OR COALESCE(m.note,'') LIKE ? OR m.kind LIKE ?
-                          ORDER BY m.date DESC,m.id DESC LIMIT ? OFFSET ?""",
-                       (pattern,pattern,pattern,pattern,pattern,limit,offset)):
-        label = {"deposit":"واریز/دریافت","withdraw":"برداشت/پرداخت","transfer":"انتقال بین حساب‌ها"}.get(r["kind"],r["kind"])
-        rows.append([show_date(r["date"]),label,esc(r["from_name"] or "—"),esc(r["to_name"] or "—"),
-                     money(r["amount"]),esc(r["party"]),esc(r["note"]),
-                     "ثبت خودکار" if r["source_table"] else "ثبت دستی"])
-    body = f'''<h1>صندوق و حساب‌های بانکی</h1>
-    <div class="grid section">{metrics}</div>
-    <div class="card section"><h2>ثبت گردش دستی</h2>
-      <form method="post" action="/add_cash_movement">{submission_token(c,'add_cash_movement')}
-        <div class="formgrid">{field("تاریخ","date","date",TODAY,True)}
-          {selectfield("نوع گردش","kind",[("deposit","واریز به حساب"),("withdraw","برداشت از حساب"),("transfer","انتقال بین حساب‌ها")])}
-          <label>حساب مبدأ<select name="from_account_id"><option value="">— انتخاب حساب —</option>{opts}</select></label>
-          <label>حساب مقصد<select name="to_account_id"><option value="">— انتخاب حساب —</option>{opts}</select></label>
-          {field("مبلغ (تومان)","amount","number","0",True,"1")}
-          {field("طرف حساب","party")}{field("شرح","note")}
-        </div><div class="actions"><button>ثبت گردش</button></div>
-      </form>
-      <p class="small">مبالغ گردش صندوق به تومانِ صحیح ثبت می‌شوند. مبالغ پرداخت/دریافت ثبت‌شده در سندهای خرید، فروش، خدمات، هزینه و اقساط به‌طور خودکار وارد دفتر می‌شوند.</p>
-    </div>
-    <div class="card section"><h2>گردش‌های صندوق و بانک</h2>
-    <form method="get" action="/cash" class="search-form"><label>جستجوی گردش</label><div class="formgrid">
-    <input type="search" name="q" value="{esc(query)}" placeholder="حساب، طرف حساب یا شرح">
-    <input type="hidden" name="page" value="1"><button>جستجو</button></div></form>
-    {table(["تاریخ","نوع","از حساب","به حساب","مبلغ","طرف حساب","شرح","منبع"],rows,total)}
-    {page_nav("cash",query,page_num,total,limit)}</div>'''
-    return page("صندوق و بانک",body,"cash")
-
 def ensure_person(c, name, kind="both", phone="", notes=""):
     name = normalize_person(name)
     if not name:
@@ -1288,10 +1173,10 @@ def dashboard_sales_chart(c, month_limit=6):
 
 NAV_GROUPS=[
     ('روزانه',[('sales','فروش','receipt'),('purchases','خرید','cart'),('returns','مرجوعی‌ها','refresh-cw'),('services','خدمات','tool'),('expenses','هزینه‌ها','wallet')]),
-    ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('buy-advice','پیشنهاد خرید','cart'),('prices','قیمت روز','chart')]),
+    ('انبار',[('products','کالاها و موجودی','box'),('inventory','انبارگردانی','receipt'),('prices','قیمت روز','chart')]),
     ('گزارش‌ها',[('reports','گزارش‌ها','chart')]),
-    ('مالی',[('cash','صندوق و بانک','wallet'),('parties','طرف حساب‌ها','users')]),
-    ('مدیریت',[('loans','وام‌ها','calendar'),('audit','گزارش ممیزی','shield-check'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
+    ('مالی',[('parties','طرف حساب‌ها','users')]),
+    ('مدیریت',[('audit','گزارش ممیزی','shield-check'),('settings','تنظیمات','settings'),('design','سیستم طراحی','grid')]),
 ]
 def svg_icon(name, cls='icon'):
     return f'<svg class="{cls}" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{esc(name)}"></use></svg>'
@@ -1311,7 +1196,7 @@ def page(title, body, active='', msg=''):
         backup_class='backup-chip stale' if age.days>=7 else 'backup-chip'
         backup_label='آخرین پشتیبان: '+('کمتر از یک ساعت پیش' if age.total_seconds()<3600 else (f'{age.days} روز پیش' if age.days else f'{age.seconds//3600} ساعت پیش'))
     today_label=show_date(TODAY)
-    return f'''<!doctype html><html lang="fa" dir="rtl" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{esc(title)} | آهن‌مدیریت</title><link rel="stylesheet" href="/static/tokens.css"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head><body>
+    return f'''<!doctype html><html lang="fa" dir="rtl" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><title>{esc(title)} | آهن‌مدیریت</title><link rel="stylesheet" href="/static/tokens.css"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head><body>
     <div class="app-shell"><aside class="sidebar" id="app-sidebar"><a class="brand" href="/"><span class="brand-mark">{svg_icon('grid')}</span><span>آهن‌مدیریت</span></a><button type="button" class="secondary sidebar-collapse" id="sidebar-collapse" aria-label="جمع کردن منو">{svg_icon('chevron')}</button><nav class="nav-groups">{"".join(groups)}</nav><div class="sidebar-bottom"><span class="status-chip">{svg_icon('shield')}اطلاعات روی همین دستگاه ذخیره می‌شود</span></div></aside>
     <div class="app-main"><header class="topbar"><button type="button" class="secondary mobile-menu" id="mobile-menu" aria-label="باز کردن منو">{svg_icon('menu')}</button><div class="topbar-heading"><strong>{esc(title)}</strong><span class="breadcrumb">خانه / {esc(title)}</span></div><label class="global-search">{svg_icon('search')}<input id="global-search" type="search" placeholder="جستجوی صفحه یا اقدام" aria-label="جستجوی سراسری"><kbd>Ctrl K</kbd></label><div class="topbar-actions"><span class="date-chip">{svg_icon('calendar')}<span>امروز {esc(today_label)}</span></span><span class="{backup_class}">{svg_icon('backup')}{esc(backup_label)}</span><button type="button" class="secondary" id="theme-toggle" aria-label="تغییر تم" title="تغییر تم">{svg_icon('moon')}</button><details class="quick-menu"><summary class="btn" title="ثبت سریع">{svg_icon('plus')}ثبت سریع</summary><div class="quick-items"><a href="/sales">فروش جدید</a><a href="/purchases">خرید جدید</a><a href="/expenses">ثبت هزینه</a><a href="/settings">پشتیبان‌گیری</a></div></details><button type="button" class="secondary" id="command-open" aria-label="جستجوی فرمان‌ها" title="جستجوی فرمان‌ها">{svg_icon('command')}</button></div></header>
     <main><div class="page-body">{f'<div class="success" role="status">{esc(msg)}</div>' if msg else ''}{body}</div></main><footer class="statusbar"><span>پایگاه داده: {esc(DB.name)}</span><span>همه‌چیز روی همین دستگاه ذخیره می‌شود</span><span>آهن‌مدیریت · نسخه ۳</span></footer></div></div>
@@ -1547,24 +1432,20 @@ def page_nav(path, query, page_num, total, per_page=50, extra_params=None, query
     if page_num<pages: links.append(f'<a class="btn secondary sm" href="{href(page_num+1)}">صفحه بعدی</a>')
     return '<nav class="pagination" aria-label="صفحه‌بندی">'+' '.join(links)+'</nav>'
 def options_products(c): return [(r['id'],f"{r['name']} (موجودی: {r['stock']:g} {r['unit']})") for r in c.execute('SELECT * FROM products ORDER BY name')]
-def options_loans(c): return [(r['id'],r['title']) for r in c.execute('SELECT * FROM loans ORDER BY title')]
 def dash(c):
-    now=datetime.date.today(); week=(now-datetime.timedelta(days=now.weekday())).isoformat(); month=jalali_month_start_iso(); year=jalali_year_start_iso()
+    now=datetime.date.today(); month=jalali_month_start_iso(); year=jalali_year_start_iso()
     d=calc(c,now.isoformat(),now.isoformat()); m=calc(c,month,now.isoformat()); y=calc(c,year,now.isoformat())
     stock_value=scalar(c,'SELECT SUM(money_line_total(stock,avg_cost)) FROM products'); market_value=scalar(c,'SELECT SUM(money_line_total(stock,market_price)) FROM products'); stock_delta=market_value-stock_value
-    cash_in=scalar(c,'SELECT COALESCE(SUM(received),0) FROM sales')+scalar(c,'SELECT COALESCE(SUM(received),0) FROM services')
-    cash_out=scalar(c,'SELECT COALESCE(SUM(paid),0) FROM purchases')+scalar(c,'SELECT COALESCE(SUM(amount),0) FROM expenses')+scalar(c,'SELECT COALESCE(SUM(amount),0) FROM loan_payments')
     sales_chart=dashboard_sales_chart(c,6)
     low=c.execute('SELECT name,stock,min_stock,unit FROM products WHERE stock<=min_stock ORDER BY name').fetchall()
-    due=c.execute("SELECT title,installment,next_date FROM loans WHERE remaining>0 ORDER BY next_date LIMIT 5").fetchall()
     def metric(label,val,note='',cls=''):
         return f'<div class="card metric"><div class="label">{label}</div><div class="value {cls}">{money(val)} تومان</div><div class="muted">{note}</div></div>'
     body=f'''<h1>داشبورد مدیریتی</h1><div class="small">تاریخ شمسی: {show_date(now.isoformat())} · مبالغ به تومان هستند. اعداد فقط بر اساس تراکنش‌های ثبت‌شده محاسبه می‌شوند.</div>
-    <div class="grid section">{metric('سود خالص امروز',d['net'],'فروش و خدمات منهای هزینه‌ها و سود وام','positive' if d['net']>=0 else 'negative')}{metric('سود خالص این ماه',m['net'],'از ابتدای ماه تا امروز','positive' if m['net']>=0 else 'negative')}{metric('سود خالص امسال',y['net'],'از ابتدای سال شمسی تا امروز','positive' if y['net']>=0 else 'negative')}{metric('ارزش موجودی به بهای خرید',stock_value,'برآورد بر اساس میانگین بهای ثبت‌شده')}</div>
-    <div class="grid section">{metric('ارزش موجودی به قیمت روز',market_value,'با آخرین قیمت روز واردشده')}{metric('تغییر ارزش برآوردی انبار',stock_delta,'جدا از سود نقدی فروش','positive' if stock_delta>=0 else 'negative')}{metric('کل اقساط پرداخت‌شده',scalar(c,'SELECT COALESCE(SUM(amount),0) FROM loan_payments'),'اصل و سود؛ خروج وجه نقد')}{metric('مانده اصل وام‌ها',scalar(c,'SELECT COALESCE(SUM(remaining),0) FROM loans'),'مانده ثبت‌شده وام‌ها')}</div>
-    <div class="twocol section"><div class="card"><h2>هشدار موجودی کم</h2>{table(['کالا','موجودی','حداقل'],[[esc(r['name']),f"{r['stock']:g} {esc(r['unit'])}",f"{r['min_stock']:g}"] for r in low])}</div><div class="card"><h2>وام‌ها و اقساط آینده</h2>{table(['وام','قسط','سررسید بعدی'],[[esc(r['title']),money(r['installment'])+' تومان',esc(show_date(r['next_date']) if r['next_date'] else 'ثبت نشده')] for r in due])}</div></div>
+    <div class="grid section">{metric('سود خالص امروز',d['net'],'فروش و خدمات منهای هزینه‌ها و هزینه مالی تاریخی','positive' if d['net']>=0 else 'negative')}{metric('سود خالص این ماه',m['net'],'از ابتدای ماه تا امروز','positive' if m['net']>=0 else 'negative')}{metric('سود خالص امسال',y['net'],'از ابتدای سال شمسی تا امروز','positive' if y['net']>=0 else 'negative')}{metric('ارزش موجودی به بهای خرید',stock_value,'برآورد بر اساس میانگین بهای ثبت‌شده')}</div>
+    <div class="grid section">{metric('ارزش موجودی به قیمت روز',market_value,'با آخرین قیمت روز واردشده')}{metric('تغییر ارزش برآوردی انبار',stock_delta,'جدا از سود نقدی فروش','positive' if stock_delta>=0 else 'negative')}</div>
+    <div class="card section"><h2>هشدار موجودی کم</h2>{table(['کالا','موجودی','حداقل'],[[esc(r['name']),f"{r['stock']:g} {esc(r['unit'])}",f"{r['min_stock']:g}"] for r in low])}</div>
     {sales_chart}
-    <div class="notice section"><b>تفسیر درست:</b> سود خالص با تغییر ارزش انبار یکی نیست. خرید کالا به‌خودی‌خود هزینه کامل سودوزیان محسوب نمی‌شود؛ بهای کالا هنگام فروش در سود معامله منظور می‌شود. پرداخت اصل وام نیز هزینه سودوزیان نیست، اما از نقدینگی کم می‌کند. این نسخه «بودجه خرج امن» را به‌صورت قطعی تعیین نمی‌کند مگر اینکه موجودی نقد آغاز دوره، مطالبات، بدهی‌های سررسیدشده و ذخیره خرید مجدد را هم دقیق ثبت کنی.</div>'''
+    <div class="notice section"><b>تفسیر درست:</b> سود خالص با تغییر ارزش انبار یکی نیست. خرید کالا به‌خودی‌خود هزینه کامل سودوزیان محسوب نمی‌شود؛ بهای کالا هنگام فروش در سود معامله منظور می‌شود. پرداخت اصل بدهی نیز هزینه سودوزیان نیست، اما از نقدینگی کم می‌کند. این نسخه «بودجه خرج امن» را به‌صورت قطعی تعیین نمی‌کند مگر اینکه موجودی نقد آغاز دوره، مطالبات، بدهی‌های سررسیدشده و ذخیره خرید مجدد را هم دقیق ثبت کنی.</div>'''
     return page('داشبورد',body,'')
 
 def products(c, search='', page_num=1):
@@ -1739,20 +1620,6 @@ def expenses(c, search='', page_num=1):
     rows=[[show_date(r['date']),esc(r['category']),money(r['amount']), 'هزینه کسب‌وکار' if r['business'] else 'برداشت شخصی',esc(r['source']),esc(r['notes']),record_actions(r['id'],'edit_expense','delete_expense','هزینه')] for r in c.execute('SELECT * FROM expenses WHERE category LIKE ? OR source LIKE ? OR notes LIKE ? ORDER BY date DESC,id DESC LIMIT ? OFFSET ?',(pattern,pattern,pattern,limit,offset))]
     body+=f'<div class="card section"><h2>پرداخت‌ها و برداشت‌ها</h2><form method="get" action="/expenses" class="search-form"><label>جستجوی هزینه</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="شرح، منبع یا یادداشت"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["تاریخ","شرح","مبلغ","نوع","منبع","توضیحات","عملیات"],rows,total)}{page_nav("expenses",query,page_num,total,limit)}</div>'
     return page('هزینه‌ها',body,'expenses')
-def loans(c, search='', page_num=1):
-    body=f'''<h1>وام‌ها و اقساط</h1><div class="twocol section"><div class="card"><h2>ثبت وام</h2><form method="post" action="/add_loan">{submission_token(c,'add_loan')}<div class="formgrid">{field('نام وام','title',required=True)}{field('مبلغ اولیه وام','principal','number','0',True,'0.01')}{field('مانده اصل بدهی','remaining','number','0',True,'0.01')}{field('مبلغ قسط','installment','number','0',True,'0.01')}{field('سررسید بعدی','next_date','date',TODAY)}{field('فاصلهٔ هر سررسید','interval_value','number','1',True,'1')}{selectfield('واحد فاصلهٔ سررسید','interval_unit',[('day','روز'),('week','هفته'),('month','ماه'),('year','سال')])}{field('توضیح نرخ/شرایط','rate_note')}{field('یادداشت','notes',field_id='loan-notes')}</div><div class="actions"><button>ثبت وام</button></div></form></div><div class="card"><h2>ثبت پرداخت قسط</h2><form method="post" action="/add_payment">{submission_token(c,'add_payment')}<div class="formgrid">{selectfield('وام','loan_id',options_loans(c))}{field('تاریخ پرداخت','date','date',TODAY,True)}{field('کل مبلغ پرداخت','amount','number','0',True,'0.01')}{field('سهم اصل وام','principal_part','number','0',True,'0.01')}{field('سهم سود/کارمزد','interest_part','number','0',True,'0.01')}{selectfield('منبع پرداخت','source',[('سود/درآمد جاری','سود/درآمد جاری'),('سرمایه/پس‌انداز','سرمایه/پس‌انداز'),('نامشخص','نامشخص')])}{field('یادداشت','notes',field_id='loan-payment-notes')}</div><div class="actions"><button>ثبت پرداخت قسط</button></div></form><p class="small">مبلغ قسط باید برابر مجموع سهم اصل و سهم سود/کارمزد باشد. فقط سود/کارمزد هزینه سودوزیان است؛ اصل قسط بدهی را کم می‌کند.</p></div></div>'''
-    limit,offset,page_num=page_window(page_num,50)
-    query=str(search or '').strip(); pattern='%'+query+'%'
-    total_loans=scalar(c,"SELECT COUNT(*) FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ?",(pattern,pattern,pattern))
-    rows=[]
-    for r in c.execute("SELECT * FROM loans WHERE title LIKE ? OR rate_note LIKE ? OR notes LIKE ? ORDER BY next_date LIMIT ? OFFSET ?",(pattern,pattern,pattern,limit,offset)):
-        interval_label={"day":"روز","week":"هفته","month":"ماه","year":"سال"}.get(r["interval_unit"],r["interval_unit"])
-        rows.append([r['title'],money(r['principal']),money(r['remaining']),money(r['installment']),esc(show_date(r['next_date']) if r['next_date'] else ''),f'{r["interval_value"]} {interval_label}',esc(r['rate_note'])])
-    body+=f'<div class="card section"><h2>وضعیت وام‌ها</h2><form method="get" action="/loans" class="search-form"><label>جستجوی وام</label><div class="formgrid"><input type="search" name="q" value="{esc(query)}" placeholder="نام وام یا شرایط"><input type="hidden" name="page" value="1"><button>جستجو</button></div></form>{table(["وام","اصل اولیه","مانده اصل","مبلغ قسط","سررسید بعدی","دوره پرداخت","شرایط"],rows,total_loans)}{page_nav("loans",query,page_num,total_loans,limit)}</div>'
-    total_payments=scalar(c,"SELECT COUNT(*) FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id WHERE l.title LIKE ? OR lp.source LIKE ? OR lp.notes LIKE ?",(pattern,pattern,pattern))
-    payments=[[show_date(r['date']),esc(r['title']),money(r['amount']),money(r['principal_part']),money(r['interest_part']),esc(r['source'])] for r in c.execute("SELECT lp.*,l.title FROM loan_payments lp JOIN loans l ON l.id=lp.loan_id WHERE l.title LIKE ? OR lp.source LIKE ? OR lp.notes LIKE ? ORDER BY lp.date DESC,lp.id DESC LIMIT ? OFFSET ?",(pattern,pattern,pattern,limit,offset))]
-    body+=f'<div class="card section"><h2>تاریخچه پرداخت اقساط</h2>{table(["تاریخ","وام","پرداخت کل","اصل","سود/کارمزد","منبع"],payments,total_payments)}{page_nav("loans",query,page_num,total_payments,limit)}</div>'
-    return page('وام‌ها',body,'loans')
 def prices(c, selected_product_id=0, search='', page_num=1):
     product_options=options_products(c)
     try:
@@ -1828,30 +1695,6 @@ def report_detail_sections(c):
     product_metrics.sort(key=lambda item:item["profit"],reverse=True)
     product_rows=[[esc(r["name"]),money(r["revenue"]),money(r["cost"]),money(r["extra"]),money(r["profit"])] for r in product_metrics]
 
-    # Customer profit includes goods, returned goods, and services.
-    customer_stats={}
-    def customer_bucket(name):
-        name=normalize_person(name) or "(بدون نام)"
-        return customer_stats.setdefault(name,{"sales_rev":0,"sales_cost":0,"sales_extra":0,"service_rev":0,"service_cost":0})
-    for r in c.execute("SELECT TRIM(customer) customer,SUM(COALESCE(NULLIF(line_total,0),money_line_total(qty,unit_price))) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_cost) extra FROM sales GROUP BY TRIM(customer)"):
-        b=customer_bucket(r["customer"])
-        b["sales_rev"]+=int(r["rev"] or 0); b["sales_cost"]+=int(r["cost"] or 0); b["sales_extra"]+=int(r["extra"] or 0)
-    for r in c.execute("SELECT TRIM(customer) customer,SUM(return_value) rev,SUM(money_line_total(qty,cost_basis)) cost,SUM(extra_reversed) extra FROM sales_returns GROUP BY TRIM(customer)"):
-        b=customer_bucket(r["customer"])
-        b["sales_rev"]-=int(r["rev"] or 0); b["sales_cost"]-=int(r["cost"] or 0); b["sales_extra"]-=int(r["extra"] or 0)
-    for r in c.execute("SELECT TRIM(customer) customer,SUM(revenue) rev,SUM(cost) cost FROM services GROUP BY TRIM(customer)"):
-        b=customer_bucket(r["customer"])
-        b["service_rev"]+=int(r["rev"] or 0); b["service_cost"]+=int(r["cost"] or 0)
-    customer_metrics=[]
-    for name,b in customer_stats.items():
-        sales_profit=b["sales_rev"]-b["sales_cost"]-b["sales_extra"]
-        service_profit=b["service_rev"]-b["service_cost"]
-        customer_metrics.append({"name":name,"sales_rev":b["sales_rev"],"sales_profit":sales_profit,
-                                 "service_rev":b["service_rev"],"service_profit":service_profit,
-                                 "profit":sales_profit+service_profit})
-    customer_metrics.sort(key=lambda item:item["profit"],reverse=True)
-    customer_rows=[[esc(r["name"]),money(r["sales_rev"]),money(r["sales_profit"]),money(r["service_rev"]),money(r["service_profit"]),money(r["profit"])] for r in customer_metrics]
-
     # Aggregate by Jalali month, converting stored Gregorian ISO dates at the boundary.
     months={}
     def month_bucket(key):
@@ -1890,8 +1733,7 @@ def report_detail_sections(c):
         monthly_rows.append([f"{jy:04d}/{jm:02d}",money(b["sales_rev"]),money(sales_profit),money(service_profit),
                              money(b["expenses"]),money(b["interest"]),money(net)])
     return f'''<div class="card section"><h2>سود تفصیلی به تفکیک کالا</h2><p class="small">مرجوعی فروش از فروش، بهای تمام‌شده و هزینه مستقیم کسر شده است.</p>{table(["کالا","فروش خالص","بهای تمام‌شده خالص","هزینه مستقیم خالص","سود فروش کالا"],product_rows,len(product_rows))}</div>
-    <div class="card section"><h2>سود به تفکیک مشتری</h2>{table(["مشتری","فروش کالای خالص","سود فروش کالا","درآمد خدمات","سود خدمات","سود کل مشتری"],customer_rows,len(customer_rows))}</div>
-    <div class="card section"><h2>سود خالص ماهانه (تقویم شمسی)</h2>{table(["ماه شمسی","فروش کالای خالص","سود فروش کالا","سود خدمات","هزینه کسب‌وکار","سود/کارمزد وام","سود خالص"],monthly_rows,len(monthly_rows))}</div>'''
+        <div class="card section"><h2>سود خالص ماهانه (تقویم شمسی)</h2>{table(["ماه شمسی","فروش کالای خالص","سود فروش کالا","سود خدمات","هزینه کسب‌وکار","سود/کارمزد وام","سود خالص"],monthly_rows,len(monthly_rows))}</div>'''
 
 def reports(c):
     start=html.escape(jalali_month_start_iso()); end=TODAY
@@ -2102,9 +1944,9 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     self.send(page('خطا','<div class="notice">شناسه سند نامعتبر است.</div>'))
                 return
-            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'loans':loans,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'cash':cash_page,'parties':parties_page,'inventory':inventory_page,'buy-advice':purchase_advice,'returns':returns_page,'audit':audit_page}
+            pages={'':dash,'products':products,'purchases':purchases,'sales':sales,'services':services,'expenses':expenses,'prices':prices,'reports':reports,'settings':settings,'design':design_page,'parties':parties_page,'inventory':inventory_page,'returns':returns_page,'audit':audit_page}
             fn=pages.get(path)
-            if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'));return
+            if not fn:self.send(page('یافت نشد','<h1>صفحه پیدا نشد</h1>'),status=404);return
             if path=='parties':
                 try:
                     page_num=int(q.get('page',['1'])[0])
@@ -2112,7 +1954,7 @@ class Handler(BaseHTTPRequestHandler):
                 except (TypeError,ValueError):
                     page_num=1; statement_page=1
                 self.send(parties_page(c,q.get('name',[''])[0],q.get('q',[''])[0],page_num,statement_page))
-            elif path in ('products','purchases','sales','services','expenses','cash','inventory','audit','returns'):
+            elif path in ('products','purchases','sales','services','expenses','inventory','audit','returns'):
                 try: page_num=int(q.get('page',['1'])[0])
                 except (TypeError,ValueError): page_num=1
                 rendered=fn(c,q.get('q',[''])[0],page_num)
@@ -2127,10 +1969,6 @@ class Handler(BaseHTTPRequestHandler):
                 except (TypeError,ValueError):
                     selected_product_id=0; page_num=1
                 self.send(prices(c,selected_product_id,q.get('q',[''])[0],page_num))
-            elif path=='loans':
-                try: page_num=int(q.get('page',['1'])[0])
-                except (TypeError,ValueError): page_num=1
-                self.send(loans(c,q.get('q',[''])[0],page_num))
             else:
                 self.send(fn(c))
     def do_POST(self):
@@ -2139,6 +1977,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send("درخواست رد شد.","text/plain; charset=utf-8",403)
             return
         path=urlparse(self.path).path.strip('/')
+        if path in {'add_loan','add_payment','add_cash_movement'}:
+            self.send('این عملیات غیرفعال شده است؛ سوابق تاریخی فقط برای گزارش‌گیری نگهداری می‌شوند.', 'text/plain; charset=utf-8', 410)
+            return
         try:
             n=int(self.headers.get('Content-Length','0'))
         except (TypeError,ValueError):
@@ -2257,12 +2098,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         raw=raw_bytes.decode('utf-8')
         d={k:v[-1] for k,v in parse_qs(raw,keep_blank_values=True).items()}
-        def v(k,default=''):return d.get(k,default).strip()
+        def v(k,default=''):return str(d.get(k,default)).strip()
         try:
             with LOCK, conn() as c:
                 protected_financial_posts = {
                     'add_purchase','add_sale','add_expense','add_sales_return','add_purchase_return',
-                    'add_service','add_loan','add_payment','add_price','add_settlement','add_cash_movement',
+                    'add_service','add_price','add_settlement',
                     'inventory_adjust',
                 }
                 if path in protected_financial_posts:
@@ -2365,37 +2206,19 @@ class Handler(BaseHTTPRequestHandler):
                     expense_id=expense_cur.lastrowid
                     sync_cash_posting(c,"expenses",expense_id,date,amount,"out",source,v('notes') or "پرداخت هزینه")
                     dest='/expenses';msg='پرداخت هزینه ثبت شد.'
-                elif path=='add_loan':
-                    interval_number=strict_number(v('interval_value',1),'فاصله سررسید')
-                    if not interval_number.is_integer(): raise ValueError('فاصله سررسید باید عدد صحیح باشد.')
-                    interval_value=int(interval_number)
-                    interval_unit=v('interval_unit','month')
-                    if interval_value<1 or interval_value>365 or interval_unit not in ('day','week','month','year'):
-                        raise ValueError('فاصله سررسید باید بین ۱ تا ۳۶۵ و واحد آن معتبر باشد.')
-                    title=normalize_person(v('title')); principal=strict_money_int(v('principal'),'اصل وام'); remaining=strict_money_int(v('remaining'),'مانده وام'); installment=strict_money_int(v('installment'),'مبلغ قسط')
-                    if not title or principal<=0 or remaining<0 or remaining>principal or installment<=0:
-                        raise ValueError('عنوان وام و قسط باید معتبر باشند؛ اصل و قسط باید مثبت و مانده بین صفر و اصل وام باشد.')
-                    loan_cur=c.execute('INSERT INTO loans(title,principal,remaining,installment,next_date,rate_note,notes,interval_value,interval_unit) VALUES(?,?,?,?,?,?,?,?,?)',(title,principal,remaining,installment,to_iso_date(v('next_date')) if v('next_date') else '',v('rate_note'),v('notes'),interval_value,interval_unit))
-                    new_loan_id=loan_cur.lastrowid
-                    dest='/loans';msg='وام ثبت شد.'
-                elif path=='add_payment':
-                    lid=int(v('loan_id')); amount=strict_money_int(v('amount'),'مبلغ قسط'); principal=strict_money_int(v('principal_part'),'سهم اصل قسط'); interest=strict_money_int(v('interest_part'),'سهم سود/کارمزد'); loan=c.execute('SELECT * FROM loans WHERE id=?',(lid,)).fetchone()
-                    if not loan:raise ValueError('وام انتخاب‌شده پیدا نشد.')
-                    if amount<=0 or principal<0 or interest<0: raise ValueError('مبلغ قسط باید مثبت و سهم اصل و سود/کارمزد نباید منفی باشد.')
-                    if abs(amount-principal-interest)>1:raise ValueError('مبلغ قسط باید با مجموع اصل و سود/کارمزد برابر باشد.')
-                    if principal>loan['remaining']+0.01:raise ValueError('سهم اصل قسط از مانده اصل وام بیشتر است.')
-                    payment_cur=c.execute('INSERT INTO loan_payments(loan_id,date,amount,principal_part,interest_part,source,notes) VALUES(?,?,?,?,?,?,?)',(lid,to_iso_date(v('date',jalali_today())),amount,principal,interest,v('source','نامشخص'),v('notes')))
-                    payment_id=payment_cur.lastrowid
-                    sync_cash_posting(c,"loan_payments",payment_id,to_iso_date(v('date',jalali_today())),amount,"out",v('source'),v('notes') or "پرداخت قسط وام")
-                    nextdate=add_interval_date(loan['next_date'],loan['interval_value'],loan['interval_unit'])
-                    c.execute('UPDATE loans SET remaining=MAX(0,remaining-?),next_date=? WHERE id=?',(principal,nextdate,lid));dest='/loans';msg='پرداخت قسط ثبت شد و مانده اصل و سررسید بعدی به‌روزرسانی شد.'
                 elif path=='add_price':
                     pid=int(v('product_id')); price=strict_money_int(v('market_price'),'قیمت روز'); p=c.execute('SELECT id FROM products WHERE id=?',(pid,)).fetchone()
                     if not p:raise ValueError('کالا پیدا نشد.')
                     if price<=0: raise ValueError('قیمت روز باید بیشتر از صفر باشد.')
-                    price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(to_iso_date(v('date',jalali_today())),pid,price,v('notes')))
+                    price_date=to_iso_date(v('date',jalali_today()))
+                    price_cur=c.execute('INSERT INTO price_history(date,product_id,market_price,notes) VALUES(?,?,?,?)',(price_date,pid,price,v('notes')))
                     price_id=price_cur.lastrowid
-                    c.execute('UPDATE products SET market_price=? WHERE id=?',(price,pid));dest='/prices';msg='قیمت روز ثبت شد.'
+                    # Historical entries must not roll the current market price backwards.
+                    # For equal dates, the latest inserted history row wins deterministically.
+                    latest=c.execute("SELECT market_price FROM price_history WHERE product_id=? ORDER BY date DESC,id DESC LIMIT 1",(pid,)).fetchone()
+                    if latest is not None:
+                        c.execute('UPDATE products SET market_price=? WHERE id=?',(latest["market_price"],pid))
+                    dest='/prices';msg='قیمت روز ثبت شد.'
                 elif path=='add_person':
                     name=normalize_person(v('name')); kind=v('kind','both')
                     if not name: raise ValueError('نام طرف حساب الزامی است.')
@@ -2576,23 +2399,6 @@ class Handler(BaseHTTPRequestHandler):
                     adjustment_id=adjustment_cur.lastrowid
                     c.execute("UPDATE products SET stock=? WHERE id=?",(counted,pid))
                     dest='/inventory';msg=f'انبارگردانی ثبت شد؛ اختلاف {delta:+g} {product["unit"]} اعمال شد.'
-                elif path=='add_cash_movement':
-                    kind=v('kind'); amount=strict_money_int(v('amount'),'مبلغ گردش')
-                    if amount<=0: raise ValueError('مبلغ گردش باید عدد صحیح بزرگ‌تر از صفر باشد.')
-                    date=to_iso_date(v('date',jalali_today())); src=v('from_account_id'); dst=v('to_account_id')
-                    src_id=int(src) if src else None; dst_id=int(dst) if dst else None
-                    if kind=='deposit':
-                        if not dst_id: raise ValueError('حساب مقصد برای واریز را انتخاب کن.')
-                        c.execute("INSERT INTO cash_movements(date,kind,to_account_id,amount,party,note) VALUES(?,'deposit',?,?,?,?)",(date,dst_id,amount,normalize_person(v('party')),v('note')))
-                    elif kind=='withdraw':
-                        if not src_id: raise ValueError('حساب مبدأ برای برداشت را انتخاب کن.')
-                        c.execute("INSERT INTO cash_movements(date,kind,from_account_id,amount,party,note) VALUES(?,'withdraw',?,?,?,?)",(date,src_id,amount,normalize_person(v('party')),v('note')))
-                    elif kind=='transfer':
-                        if not src_id or not dst_id or src_id==dst_id: raise ValueError('برای انتقال، دو حساب متفاوت انتخاب کن.')
-                        c.execute("INSERT INTO cash_movements(date,kind,from_account_id,to_account_id,amount,party,note) VALUES(?,'transfer',?,?,?,?,?)",(date,src_id,dst_id,amount,normalize_person(v('party')),v('note')))
-                    else: raise ValueError('نوع گردش نقدی نامعتبر است.')
-                    cash_movement_id=c.execute("SELECT last_insert_rowid()").fetchone()[0]
-                    dest='/cash';msg='گردش حساب ثبت شد.'
                 elif path=='save_capital':
                     amount=strict_money_int(v('amount'),'سرمایه اولیه')
                     if amount<0: raise ValueError('سرمایه اولیه نمی‌تواند منفی باشد.')
@@ -2618,7 +2424,7 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('INSERT INTO audit_log(action,details) VALUES(?,?)',(path, audit_details))
             self.redirect(dest,msg)
         except Exception as e:
-            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','update_purchase':'purchases','delete_purchase':'purchases','add_sale':'sales','update_sale':'sales','delete_sale':'sales','add_service':'services','add_expense':'expenses','update_expense':'expenses','delete_expense':'expenses','add_loan':'loans','add_payment':'loans','add_price':'prices','save_capital':'settings','add_cash_movement':'cash','add_person':'parties','add_settlement':'parties','add_sales_return':'returns','add_purchase_return':'returns','inventory_adjust':'inventory'}.get(path,'')),str(e))
+            self.redirect('/'+({'add_product':'products','update_product':'products','add_purchase':'purchases','update_purchase':'purchases','delete_purchase':'purchases','add_sale':'sales','update_sale':'sales','delete_sale':'sales','add_service':'services','add_expense':'expenses','update_expense':'expenses','delete_expense':'expenses','add_price':'prices','save_capital':'settings','add_person':'parties','add_settlement':'parties','add_sales_return':'returns','add_purchase_return':'returns','inventory_adjust':'inventory'}.get(path,'')),str(e))
 
 def main():
     init(); host='127.0.0.1'; port=int(os.environ.get('AHAN_PORT','8765'))

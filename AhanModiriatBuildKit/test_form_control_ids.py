@@ -34,7 +34,6 @@ def main():
     app.init()
     pages = {}
     with app.conn() as c:
-        pages["loans"] = app.loans(c)
         pages["prices"] = app.prices(c)
         pages["parties"] = app.parties_page(c)
         pages["returns"] = app.returns_page(c)

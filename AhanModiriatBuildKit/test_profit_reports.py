@@ -35,12 +35,14 @@ def main():
         c.execute("INSERT INTO price_history(date,product_id,market_price,notes) VALUES('2026-05-15',?,1100,'second price')",(pid,))
         html = app.report_detail_sections(c)
         assert "profit product" in html
-        assert "Customer Profit" in html
         assert "سود خالص ماهانه (تقویم شمسی)" in html
         # Sale 1000 revenue, 400 cost, 100 direct expense; return 200 / 80 / 20.
         assert "800" in html and "320" in html and "80" in html and "400" in html
-        # Customer profitability includes service profit: 400 + (300 - 50) = 650.
-        assert "650" in html and "250" in html and "300" in html
+        # Customer-level profitability is retired; historical loan interest remains in net profit.
+        assert "سود به تفکیک مشتری" not in html
+        result = app.calc(c, "2026-05-01", "2026-05-31")
+        assert result["interest"] == 100 and result["net"] == 5600, result
+        assert "سود/کارمزد وام" in html
         jy,jm,_ = app.gregorian_to_jalali(2026,5,15)
         assert f"{jy:04d}/{jm:02d}" in html
         price_page = app.prices(c,pid)

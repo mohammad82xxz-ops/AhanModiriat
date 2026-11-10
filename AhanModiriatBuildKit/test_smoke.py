@@ -20,13 +20,15 @@ def main():
             assert name in tables, name
         product_id = c.execute("SELECT id FROM products ORDER BY id LIMIT 1").fetchone()
         pages = [app.dash(c), app.products(c), app.purchases(c), app.sales(c),
-                 app.services(c), app.expenses(c), app.loans(c), app.prices(c),
+                 app.services(c), app.expenses(c), app.prices(c),
                  app.reports(c), app.settings(c), app.design_page(c),
-                 app.cash_page(c), app.parties_page(c), app.inventory_page(c), app.purchase_advice(c), app.returns_page(c), app.audit_page(c)]
+                 app.parties_page(c), app.inventory_page(c), app.returns_page(c), app.audit_page(c)]
         if product_id:
             pages.append(app.product_ledger_page(c, product_id["id"]))
         for html in pages:
             assert "<html" in html and "</html>" in html
+            assert 'rel="icon" type="image/svg+xml" href="/static/favicon.svg"' in html
+        assert (Path(app.__file__).resolve().parent / "static" / "favicon.svg").is_file()
         assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     print("GitHub branch smoke tests passed.")
     _TMP.cleanup()

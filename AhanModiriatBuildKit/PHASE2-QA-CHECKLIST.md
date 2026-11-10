@@ -2,13 +2,15 @@
 
 # Phase 2 QA checklist — AhanModiriat
 
+> وضعیت دامنه در PR #41: صفحه‌های `/loans`، `/cash` و `/buy-advice` بازنشسته شده‌اند؛ ماتریس فعلی رابط ۱۴ مسیر فعال دارد. شواهد ۱۷مسیرهٔ زیر مربوط به baseline تاریخی پیش از حذف این سه صفحه است و نباید به‌عنوان اجرای مجدد روی head فعلی تلقی شود.
+
 This checklist is deliberately separate from automated CI. An unchecked item is not considered passed.
 
 ## Automated acceptance gates
 
-- [x] axe-core: zero violations of every impact level on all 17 audited routes.
+- [x] axe-core baseline تاریخی: zero violations of every impact level on all 17 routes؛ سه مسیر از آن زمان بازنشسته شده‌اند و ماتریس جاری ۱۴ مسیر فعال دارد.
 - [x] Lighthouse: all 10 reports generated; accessibility and best-practice findings reviewed. Scores are diagnostic unless a threshold is explicitly adopted.
-- [x] Browser route matrix: all 17 routes at both viewport sizes and both themes; no console/page errors, unexpected external requests, or horizontal overflow.
+- [x] Browser route matrix baseline تاریخی: 17 routes at both viewport sizes and both themes; ماتریس جاری پس از بازنشستگی سه صفحه ۱۴ مسیر فعال را می‌سنجد.
 - [x] Browser workflows: create a purchase, verify stock/average cost/cash movement; create a sale, verify stock/profit/cash movement; create an expense, verify expense/cash/profit impact; perform a physical inventory count and verify adjustment ledger.
 - [x] Automated keyboard tab-reachability and simulated 200% zoom proxies on seven core routes (proxies only; do not substitute for manual review).
 - [x] Negative path: browser regression test confirms that a sale exceeding available stock is rejected, stock remains unchanged, no sale record is created, and the rejection message is returned in the redirect query string. Verified in CI run #252.
@@ -33,8 +35,11 @@ This checklist is deliberately separate from automated CI. An unchecked item is 
 - [x] Regression: a purchase-form token cannot authorize a sale or expense POST; purchase/sale/expense counts, cash movements, and stock remain unchanged. Extended sale+expense coverage passed in [Run #394 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953431465) and [Run #393 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40953422226).
 - [x] Missing-token regression: direct POSTs to purchase-return and sales-return routes without a one-use submission token are rejected; return rows, cash movements, stock, and party balances remain unchanged. Passed in [Run #388 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951540783) and [Run #387 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40951531647).
 - [x] Regression: purchase and sale POSTs with a nonexistent product ID or non-numeric quantity are rejected atomically; purchase/sale counts, cash movements, stock, and average cost remain unchanged, with SQLite foreign-key and integrity checks passing. Passed in [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) and [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220).
-- [ ] New regression suite added; pending CI: malformed/non-finite numeric input across product create/edit, purchase/sale/expense edits, service, expense, loan/payment, daily price, settlement, purchase/sales returns, inventory count, and cash movement; zero-price sale edits must follow the same rule as new sales; negative/malformed/blank opening capital must be rejected. All rejected requests must leave source records, stock, cash movements, balances, and audit data unchanged.
-- [ ] Other invalid/missing-value paths beyond the cases listed above are not fully covered yet.
+- [x] Malformed/non-finite numeric validation regression suite: product create/edit, purchase/sale/expense edits, service, daily price, settlement, purchase/sales returns, inventory count, and opening capital. Legacy loan/payment and manual cash movement POSTs are now retired and rejected with HTTP 410; no source rows or ledger movements are changed. Executed in the isolated CI suite; passed historically in [Run #835](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42262349580).
+- [x] Optional numeric form defaults: omitted `purchase_factor` and `sale_factor` retain their documented defaults without raising an exception. Loan `interval_value` is no longer an active form field because loan entry is retired. Historical test passed in [Run #835](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42262349580).
+- [x] Invalid calendar-date regression: impossible Gregorian dates and invalid Jalali leap-day dates are rejected atomically across active purchase, service, expense, price history, settlement, both return types, inventory count, and opening capital. Loan, installment and manual cash movement endpoints are retired in PR #41. Historical test passed in [Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485).
+- [x] Required-reference/description regression: missing product references for purchase, sale, daily price, and inventory count; missing party for settlement; missing source-document references/reason for returns; and blank service title are rejected atomically. Regression asserts no financial, inventory, cash, or audit mutation. Passed historically in [Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868).
+- [ ] Other invalid/missing-value paths beyond the explicitly listed cases are not fully covered yet; continue expanding the matrix as new endpoints or fields are introduced.
 
 Negative-path findings and resolutions:
 - [Run #274](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904421556) caught an empty sale price being converted to zero and accepted. The server guard was tightened from `price < 0` to `price <= 0`; [Run #278](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40904822903) passed.
@@ -44,8 +49,17 @@ Negative-path findings and resolutions:
 - Negative purchase extra cost and negative sale received amount passed in [Run #304](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40913032609).
 - Negative purchase paid amount and negative sale extra cost passed in [Run #310](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and PR-triggered [Run #311](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983).
 
+## Latest complete CI evidence — Run #885
+
+- [x] Run #885 validates code head `692c43be6367582d0aca876c02fa6070c3e09b6e` and completed successfully on 2026-11-09.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`. The smoke job completed compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse, and axe-core audit.
+- [x] The Windows job completed cross-process token characterization, PyInstaller OneDir build, and artifact upload.
+- [x] All three artifacts were uploaded: Lighthouse + accessibility reports, browser UI screenshots, and Windows OneDir package. See artifact links below.
+- [x] Run #885 supersedes Run #874 as the latest complete CI evidence for the code changes. Run #886 separately validates documentation commit `d49258bc6a6047db95e5894874b49199e0a53557`; at last inspection it was still in progress and is not counted as passed: [Run #886](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628561387).
+
 ## Latest automated CI evidence
 
+- [x] Latest complete PR CI: [Run #885](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42627740597) passed both `smoke-test` and `windows-onedir` on tested code head `692c43be6367582d0aca876c02fa6070c3e09b6e`. The smoke job passed Compile, isolated regression tests, browser UI matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse, and axe-core; the Windows job passed cross-process token characterization and Windows OneDir packaging. All three artifacts were uploaded. This is the latest complete CI evidence for the code changes; Run #874 and earlier runs remain historical evidence only.
 - [Run #398 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954524465) passed both `smoke-test` and `windows-onedir` on commit `69e3048a9002627a3dba7c1d5a967e75dc8b1daf`; includes invalid product-ID and malformed-quantity atomicity regressions.
 - [Run #397 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954512220) also passed both jobs on the same commit.
 - [Run #396 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954449028) and [Run #395 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40954439459) passed both jobs on checklist-evidence commit `bd812c812f88e5d529c28cbddeaf820060e09b82`.
@@ -65,8 +79,32 @@ Negative-path findings and resolutions:
 - [Run #331 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40920526408) passed on an earlier commit and is retained as historical evidence only.
 - [Run #310 — push CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915182879) and [Run #311 — PR CI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40915192983) passed on the older commit `ac12541c99b389e2b187757a3a0aa60746a57185`; they remain historical evidence only.
 
+## Latest automated evidence for current PR head — Run #889
+
+- [x] Run #889 passed both `smoke-test` and `windows-onedir` on the latest code-bearing commit `8d0ca1df9e4992c127e4934a81e6f1995614c2e4`; the later commits `0ff03aabb4559a51e3c9ecedcc9224c03729b42e` and `424b8ea63bd2546f278069b75355eb10cb4c5bad` update documentation only and do not change application code.
+- [x] Compile, isolated regression tests, 14-route browser matrix, finance/inventory workflows, keyboard/zoom proxies, Lighthouse + axe-core audit, Windows cross-process token characterization, and Windows OneDir packaging all completed successfully.
+- [x] All three artifacts were uploaded for this exact code-bearing commit: Windows OneDir, Lighthouse/axe reports, and UI screenshots.
+- [ ] Owner acceptance of this exact build on a real Windows environment remains outstanding; automated CI does not replace manual acceptance.
+
+Run: [#889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902).
+
 ### Latest run artifacts
 
+- [Lighthouse + axe-core reports — Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13679673145)
+- [UI screenshots — Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13679983842)
+- [Windows OneDir build — Run #889](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42628848902/artifacts/13680317286)
+- [Lighthouse + axe-core reports — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579698525)
+- [UI screenshots — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13580072340)
+- [Windows OneDir build — Run #843](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42386789868/artifacts/13579973114)
+- [Lighthouse + axe-core reports — Run #841](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42360312180/artifacts/13570140074)
+- [UI screenshots — Run #841](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42360312180/artifacts/13570045190)
+- [Windows OneDir build — Run #841](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42360312180/artifacts/13569472972)
+- [Lighthouse + axe-core reports — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569246367)
+- [UI screenshots — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569510046)
+- [Windows OneDir build — Run #839](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358970793/artifacts/13569032570)
+- [Lighthouse + axe-core reports — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568956803)
+- [UI screenshots — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568991721)
+- [Windows OneDir build — Run #838](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42358566485/artifacts/13568732468)
 - [Lighthouse + axe-core reports — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12924155523)
 - [UI screenshots — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923611890)
 - [Windows OneDir build — Run #349](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/40932140473/artifacts/12923920707)
@@ -82,9 +120,122 @@ Negative-path findings and resolutions:
 
 The items above are marked complete based on the user's explicit confirmation; they are not represented as independently observed by CI or the assistant.
 
+## Historical automated evidence for PR #41 — Run #872
+
+- [x] Run #872 passed both `smoke-test` and `windows-onedir` on head commit `5f0a094f85319bef9889a0fbc87549f4de02cd38`.
+- [x] Isolated regression suite passed, including retired-route guards, preservation of historical loan/cash records, historical loan interest in profit reports, single default cashbox, backup/restore, and retained low-stock warnings.
+- [x] Browser acceptance passed on all 14 active routes, two viewport sizes and two themes; 56 screenshots generated.
+- [x] Browser transaction workflows and keyboard/200% zoom proxies passed.
+- [x] axe-core audited 14/14 active routes with zero violations; Lighthouse generated 10 reports. Performance and accessibility were 100 on all reports; best-practices 96 and SEO 90.
+- [x] Windows OneDir packaging completed and artifact uploaded.
+
+Artifacts: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13617215817) · [Lighthouse + axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616918346) · [56 UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42479670860/artifacts/13616858656).
+
+## Latest automated evidence — Run #893 (2026-11-09)
+
+- [x] GitHub Actions [Run #893](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391) completed with conclusion `success` on code SHA `be107dfbf7e4a950115349e4e367c7d3a70fee04`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] The smoke-test job completed compile, isolated smoke tests, browser UI matrix, browser finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse/axe-core audit, and report/screenshot uploads.
+- [x] The Windows job passed cross-process token characterization, PyInstaller installation, OneDir build, and artifact upload.
+- [x] Artifacts for this exact run:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)
+  - [Lighthouse and axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557)
+- [ ] The automated run does not establish owner acceptance of the packaged Windows app, nor does it approve accounting policy decisions or database migration.
+
+## Historical owner acceptance checklist — Run #893 (superseded by Run #897)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #893 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #893 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
+## Latest complete CI evidence — Run #897 (2026-11-09)
+
+- [x] GitHub Actions [Run #897](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270) completed with conclusion `success` on the exact PR head `836a67f64b0e5fdb62fd57568b19e97eebc4ac04`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] The smoke-test job passed compile, isolated smoke tests, browser UI matrix, browser finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and both report/screenshot uploads.
+- [x] The Windows job passed cross-process token characterization, PyInstaller installation, Windows OneDir build, and artifact upload.
+- [x] All three artifacts were uploaded for this exact head:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13680779444)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13681988069)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13681368623)
+- [ ] This automated success does not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
+
+## Final owner acceptance — current candidate (Run #897)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #897 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #897 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42633631270/artifacts/13680779444).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
 ## Guardrails
 
 - All test data must use isolated temporary storage; never point tests at a user's real business database.
 - Do not merge this QA work into `main` without explicit authorization.
-- Keep phase 2 on `qa/phase2-workflow-accessibility-hardening`; preserve phase 1 branch and its draft PR.
+- Keep PR #41 on `fix/phase2-optional-form-defaults`, stacked on `test/phase2-service-loan-cash-postings` (PR #40); preserve the earlier phase branch and its Draft PR.
 - Report automated and manual results separately. Do not mark manual items complete based only on CI.
+
+## Latest complete CI evidence — Run #898 (2026-11-10)
+
+- [x] GitHub Actions [Run #898](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654) completed with conclusion `success` on the exact PR head `68a108108a9cbcf8397a050f2d5ab2561d728d6b`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] The smoke-test job passed compile, isolated smoke tests, browser UI matrix/screenshots, finance and inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads.
+- [x] The Windows job passed cross-process token characterization, PyInstaller installation, Windows OneDir build, and artifact upload.
+- [x] All three artifacts were uploaded for this exact head:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741283445)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13742090958)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741791454)
+- [ ] This automated success does not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
+
+## Final owner acceptance — previous candidate (Run #898)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #898 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #898 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42770410654/artifacts/13741283445).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
+
+
+## Latest complete CI evidence — Runs #899 and #901 (2026-11-10)
+
+- [x] Push [Run #899](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583) completed with conclusion `success` on exact head `59fe32844a7a77965d5468390d4a71dcb22a6ff9`.
+- [x] Pull Request [Run #901](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526) completed with conclusion `success` on the same exact head.
+- [x] Both runs passed `smoke-test` and `windows-onedir`. The smoke-test job passed compile, isolated smoke tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads.
+- [x] Both Windows jobs passed cross-process token characterization, PyInstaller installation, Windows OneDir build, and artifact upload.
+- [x] Push Run #899 artifacts:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583/artifacts/13742221762)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583/artifacts/13742147399)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583/artifacts/13741499056)
+- [x] Pull Request Run #901 artifacts:
+  - [Windows OneDir package](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742164135)
+  - [Lighthouse + axe-core reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742840372)
+  - [Browser UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13741944411)
+- [ ] These automated successes do not establish owner acceptance of the packaged Windows app, settle ACC-48/DEC-01, approve accounting-policy behavior, or authorize a database migration.
+
+## Final owner acceptance — current candidate (Run #901)
+
+The automated Windows OneDir build is not a substitute for launching and exercising the packaged application on the owner's own Windows machine. Complete these checks against the Run #901 artifact before accepting the candidate:
+
+- [ ] Download and extract the [Run #901 Windows OneDir build](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742164135).
+- [ ] Launch the packaged application from a clean Windows environment without Python or developer tools installed; confirm the browser opens and the app remains usable.
+- [ ] Create and edit a product, purchase, sale, and expense; verify stock, balances, profit, and cash movements against the entered values.
+- [ ] Confirm data persistence after closing/reopening the app and test backup creation plus restore using a disposable database.
+- [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
+- [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
+- [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
