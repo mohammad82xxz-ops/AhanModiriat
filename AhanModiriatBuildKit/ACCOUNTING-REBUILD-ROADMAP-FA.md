@@ -403,7 +403,7 @@
 
 - هر دو trigger مستقل GitHub Actions روی همین SHA با نتیجهٔ نهایی `success` تکمیل شدند:
   - [Push Run #904](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772998428)
-  - [Pull Request Run #903](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42773004324)
+  - [Pull Request Run #905](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42773004324)
 - در هر دو اجرا، jobهای `smoke-test` و `windows-onedir` موفق‌اند؛ هیچ مرحلهٔ ناموفقی در jobها گزارش نشده است.
 - پوشش `smoke-test`: Compile، isolated smoke tests، ماتریس UI مرورگر، گردش‌کار مالی و انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، Lighthouse و axe-core و بارگذاری گزارش‌ها و تصاویر.
 - ساخت Windows OneDir با PyInstaller و بارگذاری Artifact در هر دو اجرا موفق شد.
