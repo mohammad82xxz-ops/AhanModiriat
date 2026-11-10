@@ -151,19 +151,22 @@
 - فایل `ACCOUNTING-REBUILD-ROADMAP-FA.md` و `FEATURE-MATRIX.md` از نظر SHA/شاخهٔ مرجع و وضعیت جاری نیازمند همگام‌سازی‌اند؛ این سند عمداً آن دو را بازنویسی نمی‌کند تا مرجع قبلی از بین نرود.
 
 
-## ۹. وضعیت جاری شاخه در 2026-11-09
+## ۹. وضعیت جاری شاخه در 2026-11-10
 
-- اصلاح ACC-62 در PR #41: کد `add_price` نرخ جاری را فقط از جدیدترین تاریخ و شناسهٔ رکورد می‌گیرد؛ تست رگرسیون `test_phase2_historical_price_does_not_rewind_current.py` در CI موفق بوده است. این باگ از نظر کد و تست رگرسیون بسته است.
 - مخزن: `mohammad82xxz-ops/AhanModiriat`
 - شاخهٔ کاری: `fix/phase2-optional-form-defaults`
-- PR #41: باز و Draft؛ شاخهٔ مقصد `test/phase2-service-loan-cash-postings` است.
-- آخرین CI کاملِ تأییدشده برای کد و بسته‌بندی این شاخه، [Run #893](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391)، روی SHA کد `be107dfbf7e4a950115349e4e367c7d3a70fee04` است؛ هر دو Job یعنی `smoke-test` و `windows-onedir` موفق شدند. این اجرا شامل تست‌های مرورگر و گردش‌های مالی/انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی، Lighthouse/axe-core و ساخت Windows OneDir بود.
-- Artifactهای Run #893: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557).
-- Commit مستنداتی `b41e73c2c92ddad077831b90fee71fbb17a1e679` شواهد Run #893 را در چک‌لیست QA ثبت کرده است. [Run #894](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632387012) روی همین SHA مستنداتی در زمان آخرین بررسی در حال اجراست؛ نتیجهٔ آن تا تکمیل نباید موفق تلقی شود.
-- Runهای #885، #889 و #886 سوابق تاریخی‌اند و نباید جایگزین وضعیت جدیدتر شوند.
+- PR #41: باز و Draft؛ مقصد آن `test/phase2-service-loan-cash-postings` (PR #40) است. این PR باید تا پذیرش مالک Draft بماند.
+- آخرین head ثبت‌شدهٔ PR #41: `59fe32844a7a77965d5468390d4a71dcb22a6ff9`.
+- CI روی همین SHA دقیق، با دو trigger مستقل موفق است:
+  - [Run #899 — push](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42771282583): هر دو job یعنی `smoke-test` و `windows-onedir` موفق.
+  - [Run #901 — pull_request](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526): هر دو job یعنی `smoke-test` و `windows-onedir` موفق.
+- Artifactهای Run #901: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742164135)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742840372)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13741944411).
+- تست `test_phase2_historical_price_does_not_rewind_current.py` رفتار ACC-62 را پوشش می‌دهد: ثبت نرخ با تاریخ قدیمی‌تر نباید نرخ جاری را عقب ببرد؛ تاریخ برابر با شناسهٔ آخرین رکورد tie-break می‌شود و کالاها مستقل‌اند.
+- `test_phase2_purchase_return_cost_characterization.py` فقط رفتار فعلی مرجوعی خرید را ثبت می‌کند؛ **ACC-48 / DEC-01 همچنان باز است** و این تست تصویب سیاست ارزش‌گذاری محسوب نمی‌شود.
+- صفحه‌های صندوق/گردش دستی، ایجاد وام/قسط و پیشنهاد خرید در دامنهٔ فعلی بازنشسته‌اند؛ سوابق تاریخی حفظ می‌شوند و آثار نقدی خودکار اسناد عملیاتی باقی است. این بازنشستگی به معنی پاک‌سازی داده یا تکمیل شکاف‌های دفتر تاریخی نیست.
+- پذیرش انسانی روی Windows واقعی هنوز انجام نشده است: نصب/اجرای تمیز OneDir، گردش‌های محصول/خرید/فروش/هزینه، پایداری داده، backup/restore، صفحه‌کلید، صفحه‌خوان، بزرگ‌نمایی ۲۰۰٪ و نمایشگر کوچک.
 - هیچ Merge به `main` یا شاخهٔ مقصد انجام نشده و هیچ migration روی دیتابیس واقعی اجرا نشده است.
-- ACC-48 / DEC-01 همچنان باز است؛ تست characterization فقط رفتار فعلی مرجوعی خرید را ثبت می‌کند و سیاست حسابداری را تصویب نمی‌کند.
-- بررسی دستی روی Windows واقعی، صفحه‌خوان، بزرگ‌نمایی ۲۰۰٪ و نمایشگر کوچک همچنان شرط پذیرش انسانی است.
+- این ثبت وضعیت دقیقاً مربوط به head و اجراهای بالا است؛ هر commit بعدی، حتی اگر مستنداتی باشد، برای ادعای CI موفق به اجرای جداگانه نیاز دارد.
 
 ---
 **قاعدهٔ پذیرش:** هیچ موردی صرفاً با وجود صفحه، فرم یا جدول «انجام‌شده» محسوب نمی‌شود. بستن هر شناسه مستلزم اثبات کد، تست اختصاصی، تست اثر بین‌دفتر و ثبت commit است.
