@@ -1,6 +1,6 @@
 # نقشه بازطراحی منطق حسابداری آهن‌مدیریت
 
-> وضعیت: زیرساخت T02-A و تست رگرسیون تخصیص چندمرحله‌ای مرجوعی فروش پیاده‌سازی شده‌اند. آخرین commit کد/تست `5cfec51d76b8326140991e19f3933f140d9f2b40` در هر دو trigger CI با نتیجهٔ success تأیید شده است (Runهای `41799063587` و `41799070581`). commitهای بعدی صرفاً مستنداتی‌اند و برای SHA نهایی خود باید CI جداگانه پاس شود. موفقیت CI تصویب سیاست‌های حسابداری، پذیرش دستی migration و تکمیل T02-A را جایگزین نمی‌کند. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
+> وضعیت: زیرساخت T02-A و تست‌های مستقل تبدیل دقیق وزن به گرم صحیح پیاده‌سازی و روی شاخهٔ مستقل اعتبارسنجی شده‌اند. آخرین commit کد/تست `2ddad7cab6c3bf8d53e948d9ef7c0ed55e68542c` در هر دو trigger CI با نتیجهٔ `success` تأیید شده است (Push Run `42772430840` و Pull Request Run `42772439718`). آزمون کامپایل، تست‌های مستقل، ماتریس UI مرورگر، گردش‌کارهای مالی/انبار، proxyهای صفحه‌کلید/بزرگ‌نمایی و Lighthouse/axe-core همگی موفق‌اند. helper وزن همچنان opt-in است و به persistence یا migration عملیاتی متصل نشده است. موفقیت CI تصویب سیاست‌های حسابداری، پذیرش دستی migration و تکمیل T02-A را جایگزین نمی‌کند. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
 > محدوده بررسی: کد شاخه‌های `work/phase2-validation-edge-cases` و `rebuild/phase1-money-rial-foundation`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌ها، به‌علاوه سند Word مرجع نیازمندی‌ها. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
 
 ## ۱) نتیجه ممیزی معماری فعلی
@@ -388,3 +388,12 @@
 - Pull Request: [گزارش دسترس‌پذیری](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581/artifacts/13307236259)، [تصاویر رابط](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581/artifacts/13306328854)، [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/41799070581/artifacts/13306184602)
 
 **محدودیت پذیرش:** این شواهد، اجرای موفق CI و ساخت بسته را ثابت می‌کنند؛ جایگزین اجرای واقعی برنامه روی Windows تمیز، آزمون دستی بزرگ‌نمایی ۲۰۰٪، صفحه‌خوان، صفحه‌کلید و نمایشگر کوچک نیستند. همچنین هیچ‌یک مجوز اجرای migration روی دیتابیس واقعی یا تصویب DEC-01 تا DEC-12 محسوب نمی‌شوند.
+
+
+## اعتبارسنجی آخرین commit کد/تست — ۱۴۰۵/۰۸/۱۹
+
+- commit `2ddad7cab6c3bf8d53e948d9ef7c0ed55e68542c` شامل تستی است که تبدیل kg به گرم را در برابر تغییر precision و rounding context دقت Decimal بررسی می‌کند؛ تست‌های مرزی int64 و دقت کمتر از یک گرم نیز پوشش داده شده‌اند.
+- هر دو trigger CI روی همین SHA موفق شدند: [Push #42772430840](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772430840) و [Pull Request #42772439718](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772439718).
+- در هر دو اجرا، compile، isolated smoke tests، browser UI matrix، browser finance/inventory workflows، keyboard/zoom accessibility proxies و Lighthouse/axe-core موفق شدند.
+- Artifactهای Push: [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772430840/artifacts/13742273207)، [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772430840/artifacts/13741993998). Artifactهای Pull Request: [Lighthouse/axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772439718/artifacts/13741619699)، [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772439718/artifacts/13742068792). هر چهار artifact در زمان ثبت این یادداشت موجود و غیرمنقضی بودند.
+- این نتیجه صرفاً CI است؛ پذیرش دستی Windows OneDir، تصمیم‌های سیاست حسابداری، migration دیتابیس واقعی و ادغام PR انجام نشده‌اند.
