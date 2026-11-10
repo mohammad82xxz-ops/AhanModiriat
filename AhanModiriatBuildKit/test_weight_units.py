@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Isolated tests for exact canonical weight conversion; no database is used."""
-from decimal import Decimal
+from decimal import Decimal, ROUND_UP, localcontext
 
 from weight_units import MAX_INT64, weight_to_grams
 
@@ -22,6 +22,15 @@ def main():
     assert weight_to_grams(" 2.5 ", "KG") == 2500
     assert weight_to_grams(str(MAX_INT64), "g") == MAX_INT64
     assert weight_to_grams("9223372036854775.807", "kg") == MAX_INT64
+
+    # Conversion must not depend on the caller's Decimal precision or rounding.
+    # The boundary value has more significant digits than this context permits.
+    with localcontext() as context:
+        context.prec = 2
+        context.rounding = ROUND_UP
+        assert weight_to_grams("9223372036854775.807", "kg") == MAX_INT64
+        assert weight_to_grams("1.234", "kg") == 1234
+        expect_error(ValueError, "0.0005", "kg")
 
     for value, unit in [
         ("", "kg"), ("abc", "kg"), ("NaN", "kg"), ("Infinity", "kg"),
