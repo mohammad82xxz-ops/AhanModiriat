@@ -313,8 +313,8 @@ def main() -> None:
                 "interval_value": "1", "interval_unit": "month",
             }),
             ("add_payment", {
-                "loan_id": loan_id, "date": "2026-01-05", "amount": "20",
-                "principal_part": "20", "interest_part": "0",
+                "loan_id": loan_id, "date": "2026-01-05", "amount": "5",
+                "principal_part": "5", "interest_part": "0",
             }),
             ("add_price", {
                 "product_id": product_id, "date": "2026-01-05", "market_price": "21",
@@ -332,7 +332,19 @@ def main() -> None:
                 "counted_qty": "11", "reason": "replay guard count",
             }),
         ]
+        expected_table = {
+            "add_service": "services",
+            "add_loan": "loans",
+            "add_payment": "loan_payments",
+            "add_price": "price_history",
+            "add_settlement": "settlements",
+            "add_cash_movement": "cash_movements",
+            "inventory_adjust": "inventory_adjustments",
+        }
         for route, fields in replay_cases:
+            table = expected_table[route]
+            with app.conn() as c:
+                before_count = c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             before_missing_token = fingerprint()
             post(port, route, fields, auto_token=False)
             assert fingerprint() == before_missing_token, (
@@ -344,6 +356,12 @@ def main() -> None:
             fields["_submission_token"] = token
             post(port, route, fields)
             after_first = fingerprint()
+            with app.conn() as c:
+                after_count = c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            assert after_count == before_count + 1, (
+                f"{route} did not create its expected first financial record: "
+                f"{before_count} -> {after_count}"
+            )
             post(port, route, fields)  # same token: second financial event must be rejected
             assert fingerprint() == after_first, (
                 f"{route} replayed a consumed submission token"
