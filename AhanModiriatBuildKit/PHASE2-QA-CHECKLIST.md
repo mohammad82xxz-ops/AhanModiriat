@@ -240,7 +240,7 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
 - [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
 
-+
+
 ## DEC-01 — آزمون پذیرش سیاست مرجوعی خرید (شاخهٔ مستقل)
 
 - [ ] CI روی شاخهٔ `fix/dec01-purchase-return-valuation-ci` با هر دو Job موفق شود.
