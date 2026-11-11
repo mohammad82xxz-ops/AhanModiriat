@@ -14,7 +14,7 @@
 - Artifactهای Run #893: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)، [تصاویر UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557).
 - Commit مستنداتی `b41e73c2c92ddad077831b90fee71fbb17a1e679` چک‌لیست QA را برای ثبت Run #893 به‌روز کرد. اجرای [Run #894](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632387012) برای همین SHA مستنداتی در زمان این به‌روزرسانی هنوز در حال اجراست؛ نتیجهٔ آن تا پایان نباید موفق فرض شود.
 - DEC-01 با تأیید مالک Approved و در PR #43 پیاده‌سازی شده است؛ ACC-48 فقط در محدودهٔ همین تصمیم بسته شده است. DEC-04 و سایر P0ها/سیاست‌های Pending مستقل باقی‌اند.
-- آخرین CI کامل PR #43، [اجرای #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079)، روی SHA دقیق head فعلی `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3` با هر دو Job موفق شد. اجرای #933 روی commit کد/تست قبلی نیز موفق بود؛ اجراهای #925 و #930 فقط سابقهٔ SHAهای قدیمی‌ترند.
+- اجرای #936 روی SHA تاریخی `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3` با هر دو Job موفق شد. پس از آن، [اجرای #939](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42973746661) روی head `b1ecd09407935a7c621866e4e3329d085841e9a2` نیز با هر دو Job موفق شد. برای وضعیت جاری شاخه و اجرای CI پس از این همگام‌سازی مستندات، Checks و توضیحات PR #43 مرجع نهایی هستند.
 - هیچ merge به `main`، اجرای migration روی دیتابیس واقعی یا پذیرش دستی Windows/صفحه‌خوان/بزرگ‌نمایی ۲۰۰٪ ثبت نشده است.
 
 
