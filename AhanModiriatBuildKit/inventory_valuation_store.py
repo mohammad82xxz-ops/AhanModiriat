@@ -10,6 +10,18 @@ import sqlite3
 from inventory_valuation import InventoryPosition, ValuationResult
 
 
+def _sqlite_real_quantity(quantity):
+    """Return a REAL-compatible quantity only when its decimal value round-trips."""
+    quantity = Decimal(str(quantity))
+    try:
+        stored = float(quantity)
+    except (OverflowError, ValueError):
+        raise ValueError("quantity cannot be represented safely by SQLite REAL") from None
+    if not Decimal(str(stored)).is_finite() or Decimal(str(stored)) != quantity:
+        raise ValueError("quantity would lose decimal precision in SQLite REAL")
+    return stored
+
+
 def ensure_valuation_schema(connection):
     """Create the event ledger and nullable total-value cache on a test/migration DB."""
     columns = {
@@ -71,6 +83,10 @@ def post_valuation_result(
     if not effective_date or not str(effective_date).strip():
         raise ValueError("effective_date is required")
 
+    # products.stock is currently declared REAL. Refuse quantities whose
+    # decimal representation cannot survive that legacy projection exactly.
+    stored_quantity = _sqlite_real_quantity(result.after.quantity)
+
     savepoint = "inventory_valuation_post"
     connection.execute("SAVEPOINT " + savepoint)
     try:
@@ -105,7 +121,7 @@ def post_valuation_result(
                SET stock=?, avg_cost=?, total_value_rial=?
              WHERE id=?
         """, (
-            float(result.after.quantity), result.after.avg_cost_rial,
+            stored_quantity, result.after.avg_cost_rial,
             result.after.total_value_rial, product_id,
         ))
         connection.execute("RELEASE SAVEPOINT " + savepoint)
