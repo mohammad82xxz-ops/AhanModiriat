@@ -158,3 +158,17 @@ PR #43 پیاده‌سازی محدود DEC-01 و تست پذیرش آن را د
 - این CI فقط صحت اجرای مجموعهٔ خودکار روی همین SHA را اثبات می‌کند؛ شکاف مستقل ارزش کل در مرجوعی‌های متوالی که در بخش بالا ثبت شده همچنان باز است و تست characterization آن، رفتار فعلی را مستند می‌کند نه صحت آن را.
 - این یادداشت یک commit مستنداتی جدید ایجاد می‌کند؛ بنابراین Run #951 به SHA مستنداتی جدید تعلق ندارد و CI همان SHA جدید باید جداگانه سبز شود.
 - PR #43 همچنان Draft و stacked روی PR #41 است؛ پذیرش دستی مالک و تکمیل Gate B/T09 لازم است. هیچ merge به `main`/شاخهٔ پایه و هیچ migration روی دیتابیس واقعی انجام نشده است.
+
+
+## آخرین اعتبارسنجی روی HEAD فعلی — 2026-11-11
+
+- SHA دقیق شاخهٔ PR #43: `275875221d203f4feea3ef707332c69be3694b2c`.
+- GitHub Actions [Run #954](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43030891635) روی همین SHA با نتیجهٔ نهایی `success` تکمیل شد؛ هر دو Job یعنی `smoke-test` و `windows-onedir` موفق شدند.
+- Job اصلی Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای keyboard/zoom، ممیزی Lighthouse/axe-core و بارگذاری گزارش‌ها و تصاویر را با موفقیت انجام داد.
+- Job ویندوز آزمون cross-process token، ساخت Windows OneDir و بارگذاری Artifact را با موفقیت انجام داد.
+- Artifactهای Run #954: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43030891635/artifacts/13860644496)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43030891635/artifacts/13861048184)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43030891635/artifacts/13860968167).
+- این اجرا شکاف دقت مستقل ارزش کل را نمی‌بندد: `total_value_rial` یا دفتر ارزش‌گذاری مستقل هنوز منبع حقیقت عملیاتی نیست؛ ACC-48 و Gate B/T09 باز می‌مانند.
+- پذیرش دستی Windows واقعی، صفحه‌خوان واقعی، keyboard-only، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است.
+- PR #43 باز و Draft و stacked روی PR #41 باقی می‌ماند. هیچ merge به `main`/شاخهٔ پایه و هیچ migration روی دیتابیس واقعی انجام نشده است.
+
+**مرز CI:** Run #954 روی SHA بالا معتبر است. این commit مستنداتی جدید، اگر ایجاد شود، SHA متفاوتی خواهد داشت و نباید Run #954 را به آن نسبت داد؛ CI روی head مستنداتی جدید باید جداگانه بررسی شود.
