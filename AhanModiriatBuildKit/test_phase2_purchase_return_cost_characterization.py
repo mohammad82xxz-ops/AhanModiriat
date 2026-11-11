@@ -90,6 +90,10 @@ def main():
         # 2 units / 2 rial, so 1 older unit carries the remaining 4 rial.
         precision_product_id = add_product(c, "DEC01 precision residual", 3, 2)
         precision_purchase_id = add_purchase(c, precision_product_id, 2, 1, 0)
+        c.execute(
+            "UPDATE purchases SET supplier=? WHERE id=?",
+            ("Precision Fixture Supplier", precision_purchase_id),
+        )
 
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     port = server.server_address[1]
