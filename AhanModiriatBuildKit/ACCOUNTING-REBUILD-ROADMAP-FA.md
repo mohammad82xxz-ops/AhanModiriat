@@ -3,7 +3,7 @@
 > وضعیت این نقشه: سند مبنای ممیزی و ترتیب فازهای حسابداری است؛ متن و یافته‌های تاریخی آن بدون شواهد جدید خودکار بسته تلقی نمی‌شوند. این سند مرجع ترتیب کار و معیار پذیرش هر فاز است.
 > محدوده بررسی: کد شاخه‌های `work/phase2-validation-edge-cases` و `rebuild/phase1-money-rial-foundation`، به‌ویژه `AhanModiriatBuildKit/app.py` و تست‌ها، به‌علاوه سند Word مرجع نیازمندی‌ها. دیتابیس واقعی کسب‌وکار بررسی یا دست‌کاری نشده است.
 
-## وضعیت جاری شاخه اجرایی — 2026-11-10 (پس از تکمیل PR #43)
+## وضعیت جاری شاخه اجرایی — 2026-11-11 (پس از همگام‌سازی مستندات PR #43)
 
 این بخش مکمل یافته‌های ممیزی است و آن‌ها را حذف یا به‌صورت ضمنی تأیید نمی‌کند. وضعیت CI فقط به SHA دقیق همان اجرا مربوط است.
 
@@ -14,7 +14,7 @@
 - Artifactهای Run #893: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682345601)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682045562)، [تصاویر UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42631536391/artifacts/13682075557).
 - Commit مستنداتی `b41e73c2c92ddad077831b90fee71fbb17a1e679` چک‌لیست QA را برای ثبت Run #893 به‌روز کرد. اجرای [Run #894](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42632387012) برای همین SHA مستنداتی در زمان این به‌روزرسانی هنوز در حال اجراست؛ نتیجهٔ آن تا پایان نباید موفق فرض شود.
 - DEC-01 با تأیید مالک Approved و در PR #43 پیاده‌سازی شده است؛ ACC-48 فقط در محدودهٔ همین تصمیم بسته شده است. DEC-04 و سایر P0ها/سیاست‌های Pending مستقل باقی‌اند.
-- آخرین CI کامل روی commit کد/تست PR #43، [اجرای #933](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971)، روی SHA دقیق `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` با هر دو Job موفق شد. این اجرا پس از اصلاح تست ماندهٔ پرداختنی فروشنده انجام شده است؛ commitهای مستنداتی بعدی نیز باید روی head نهایی CI شوند. Runهای #925 و #930 سوابق SHAهای قدیمی‌ترند.
+- آخرین CI کامل PR #43، [اجرای #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079)، روی SHA دقیق head فعلی `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3` با هر دو Job موفق شد. اجرای #933 روی commit کد/تست قبلی نیز موفق بود؛ اجراهای #925 و #930 فقط سابقهٔ SHAهای قدیمی‌ترند.
 - هیچ merge به `main`، اجرای migration روی دیتابیس واقعی یا پذیرش دستی Windows/صفحه‌خوان/بزرگ‌نمایی ۲۰۰٪ ثبت نشده است.
 
 
@@ -379,9 +379,9 @@
 ## وضعیت اجرایی DEC-01 — 2026-11-10
 
 - **تصمیم مالک:** بهای خرید اولیه به‌علاوه سهم هزینه‌های جانبی؛ بازمحاسبهٔ میانگین موجودی باقی‌مانده. وضعیت DEC-01 در دفتر سیاست‌ها Approved ثبت شده است.
-- **شاخهٔ پیاده‌سازی:** `fix/dec01-purchase-return-valuation-ci`، مشتق از شاخهٔ PR #41؛ PR #43 باز و Draft است و روی PR #41 قرار دارد. CI روی head فعلی موفق است؛ پذیرش دستی مالک و بازبینی نهایی همچنان باقی است.
+- **شاخهٔ پیاده‌سازی:** `fix/dec01-purchase-return-valuation-ci`، مشتق از شاخهٔ PR #41؛ PR #43 باز و Draft است و روی PR #41 قرار دارد. CI روی head فعلی `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3` در اجرای #936 موفق است؛ پذیرش دستی مالک همچنان باقی است.
 - **منطق پیاده‌سازی:** ارزش قابل برگشت هر ردیف خرید به‌صورت تجمعی بر مقدار پایه تخصیص می‌یابد؛ مبلغ هر برگشت برابر اختلاف تخصیص تجمعی جدید و مبالغ برگشتی قبلی است. بدین ترتیب مجموع مرجوعی‌های جزئی از ارزش کل خرید تجاوز نمی‌کند و با آن برابر می‌شود.
 - **میانگین موجودی:** ارزش مرجوعی از ارزش دفتری فعلی کسر و میانگین جدید از ارزش/مقدار باقی‌مانده مشتق می‌شود. محدودیت شناخته‌شده: `avg_cost` به ریال صحیح گرد می‌شود؛ بنابراین برای همهٔ مقادیر کسری نمی‌توان ارزش کل را دقیقاً با `stock × avg_cost` بازنمایی کرد. حفظ دقیق ارزش کل نیازمند موتور مستقل ارزش کل/وزن کل در فاز ۵ است و در این PR ادعا نمی‌شود.
 - **کنترل حفاظتی:** اگر ارزش مرجوعی از ارزش دفتری موجودی بیشتر باشد یا پس از صفرشدن موجودی ارزش باقیمانده بماند، عملیات رد می‌شود.
-- **تست و CI:** `test_phase2_purchase_return_cost_characterization.py` تست پذیرش DEC-01 است و علاوه بر موجودی/صندوق، ماندهٔ پرداختنی فروشنده را هم assert می‌کند. اجرای #933 (شناسهٔ `42972259971`) روی SHA دقیق `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` با هر دو Job `smoke-test` و `windows-onedir` موفق شد. Artifactهای [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834375833)، [Lighthouse/axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834231424) و [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834181543) به همین اجرا تعلق دارند.
+- **تست و CI:** `test_phase2_purchase_return_cost_characterization.py` تست پذیرش DEC-01 است و علاوه بر موجودی/صندوق، ماندهٔ پرداختنی فروشنده را هم assert می‌کند. اجرای #933 روی commit کد/تست `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` موفق شد؛ سپس اجرای #936 روی head مستنداتی فعلی `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3` با هر دو Job موفق شد. Artifactهای [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834013246)، [Lighthouse/axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13835025169) و [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834267392) به اجرای #936 تعلق دارند.
 - **محدودیت:** این اصلاح موتور رویدادمحور، replay اسناد تاریخ‌گذشته، دفتر مستقل ارزش‌گذاری یا migration دیتابیس را پیاده‌سازی نمی‌کند. DEC-04 و سایر P0ها باز می‌مانند.
