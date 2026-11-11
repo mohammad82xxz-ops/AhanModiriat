@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Golden tests for the pure Gate-B inventory valuation candidate."""
 from decimal import Decimal
+from dataclasses import FrozenInstanceError
 import unittest
 
 from inventory_valuation import (
@@ -97,7 +98,7 @@ class InventoryValuationTests(unittest.TestCase):
 
     def test_positions_are_immutable_and_reject_invalid_state(self):
         position = InventoryPosition(Decimal("1.25"), 100)
-        with self.assertRaises(Exception):
+        with self.assertRaises(FrozenInstanceError):
             position.total_value_rial = 101
         with self.assertRaisesRegex(ValueError, "zero quantity"):
             InventoryPosition(Decimal("0"), 1)
