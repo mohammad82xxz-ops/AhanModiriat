@@ -162,7 +162,7 @@
   - [Run #901 — pull_request](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526): هر دو job یعنی `smoke-test` و `windows-onedir` موفق.
 - Artifactهای Run #901: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742164135)، [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13742840372)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42772179526/artifacts/13741944411).
 - تست `test_phase2_historical_price_does_not_rewind_current.py` رفتار ACC-62 را پوشش می‌دهد: ثبت نرخ با تاریخ قدیمی‌تر نباید نرخ جاری را عقب ببرد؛ تاریخ برابر با شناسهٔ آخرین رکورد tie-break می‌شود و کالاها مستقل‌اند.
-- `test_phase2_purchase_return_cost_characterization.py` تست پذیرش DEC-01 مصوب است: تخصیص تجمعی بهای تاریخی و هزینه جانبی، بازمیانگین‌گیری، کنترل ارزش منفی و جلوگیری از ارزش یتیم. اجرای Actions شمارهٔ #930 (شناسهٔ `42856391232`) روی head فعلی PR #43 با هر دو Job موفق شده است.
+- `test_phase2_purchase_return_cost_characterization.py` تست پذیرش DEC-01 مصوب است: تخصیص تجمعی بهای تاریخی و هزینه جانبی، بازمیانگین‌گیری، کنترل ارزش منفی و جلوگیری از ارزش یتیم، گردش نقدی و ماندهٔ پرداختنی فروشنده. اجرای Actions شمارهٔ #933 (شناسهٔ `42972259971`) روی commit کد/تست `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` با هر دو Job موفق شده است.
 - صفحه‌های صندوق/گردش دستی، ایجاد وام/قسط و پیشنهاد خرید در دامنهٔ فعلی بازنشسته‌اند؛ سوابق تاریخی حفظ می‌شوند و آثار نقدی خودکار اسناد عملیاتی باقی است. این بازنشستگی به معنی پاک‌سازی داده یا تکمیل شکاف‌های دفتر تاریخی نیست.
 - پذیرش انسانی روی Windows واقعی هنوز انجام نشده است: نصب/اجرای تمیز OneDir، گردش‌های محصول/خرید/فروش/هزینه، پایداری داده، backup/restore، صفحه‌کلید، صفحه‌خوان، بزرگ‌نمایی ۲۰۰٪ و نمایشگر کوچک.
 - هیچ Merge به `main` یا شاخهٔ مقصد انجام نشده و هیچ migration روی دیتابیس واقعی اجرا نشده است.
@@ -177,7 +177,7 @@
 - مالک کسب‌وکار DEC-01 را تصویب کرد: مرجوعی با بهای خرید اولیه به‌علاوه سهم متناسب هزینه‌های جانبی ارزش‌گذاری شود و میانگین بهای موجودی باقی‌مانده دوباره محاسبه شود.
 - پیاده‌سازی در شاخهٔ مستقل `fix/dec01-purchase-return-valuation-ci` انجام شده است؛ PR جداگانه به‌صورت stacked روی PR #41 ارائه می‌شود.
 - `add_purchase_return` ارزش کل خرید (بهای ردیف + هزینه جانبی) را به‌صورت تجمعی تخصیص می‌دهد؛ این روش اختلاف گردکردن بین مرجوعی‌های چندمرحله‌ای را حذف می‌کند.
-- میانگین جدید از ارزش دفتری فعلی منهای ارزش برگشتی و مقدار موجودی پس از برگشت محاسبه می‌شود؛ چون `avg_cost` فعلاً ریال صحیح است، برای همهٔ مقادیر کسری امکان نمایش دقیق ارزش کل باقی‌مانده وجود ندارد و موتور مستقل ارزش کل/وزن کل همچنان خارج از این PR است.
+- میانگین جدید از ارزش دفتری فعلی منهای ارزش برگشتی و مقدار موجودی پس از برگشت محاسبه می‌شود؛ چون `avg_cost` فعلاً ریال صحیح است، برای همهٔ مقادیر کسری امکان نمایش دقیق ارزش کل باقی‌مانده وجود ندارد و موتور مستقل ارزش کل/وزن کل همچنان خارج از این PR است. تست پذیرش همچنین ماندهٔ پرداختنی فروشنده را پس از کسر ارزش مرجوعی و اعمال وجه نقد واقعی کنترل می‌کند.
 - ثبتی که ارزش دفتری منفی یا ارزش بدون مقدار باقی بگذارد، به‌صورت اتمیک رد می‌شود.
 - تست پذیرش جای characterization قبلی را گرفته و سناریوهای هزینه جانبی، تبدیل واحد خرید، مرجوعی چندمرحله‌ای، گردکردن، کنترل ارزش و سلامت SQLite را پوشش می‌دهد.
 - ACC-48 پس از تست پذیرش، بازبینی محاسباتی و CI موفق، فقط در محدودهٔ DEC-01 بسته شد؛ DEC-04 و دفتر ارزش‌گذاری/replay همچنان خارج از این تصمیم هستند.
@@ -197,9 +197,9 @@
 ## وضعیت جاری PR #43 — 2026-11-11 (پس از اجرای #930)
 
 - PR #43: [fix(accounting): implement approved DEC-01 purchase return valuation](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/43)، باز و Draft؛ شاخهٔ `fix/dec01-purchase-return-valuation-ci` روی PR #41 قرار دارد.
-- Head فعلی: `eb335671b15a8c504affec03ad1e3ee588e049c1`؛ PR #41 نیز باز و Draft است و هیچ‌یک merge نشده‌اند.
-- CI دقیق head فعلی: [اجرای #930](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232)، هر دو Job موفق.
-- Artifactها: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13782463731)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13783247095)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13782852986).
+- Head فعلی کد/تست: `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8`؛ PR #41 نیز باز و Draft است و هیچ‌یک merge نشده‌اند.
+- CI کامل روی head کد/تست: [اجرای #933](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971)، هر دو Job موفق. این اجرا شامل تست جدید ماندهٔ پرداختنی فروشنده نیز هست.
+- Artifactها: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834375833)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834231424)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834181543).
 - DEC-01 Approved و ACC-48 در محدودهٔ آن Closed است؛ DEC-02 تا DEC-11 و سایر P0ها همچنان نیازمند تصمیم/کار مستقل‌اند.
 - پذیرش دستی مالک روی Windows واقعی، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore همچنان باز است.
 - هیچ migration روی دیتابیس واقعی و هیچ merge به `main` یا شاخهٔ پایه انجام نشده است.
