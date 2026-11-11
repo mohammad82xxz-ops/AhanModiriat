@@ -112,6 +112,26 @@ class InventoryValuationStoreTests(unittest.TestCase):
             10.0,
         )
 
+    def test_quantity_precision_loss_is_rejected_before_writes(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "0.123456789012345678901", 100)
+        with self.assertRaisesRegex(ValueError, "lose decimal precision"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 15, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
