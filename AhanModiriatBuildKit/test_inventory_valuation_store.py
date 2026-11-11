@@ -145,6 +145,51 @@ class InventoryValuationStoreTests(unittest.TestCase):
         self.assertEqual(Decimal(str(stored[0])), Decimal("10.125"))
         self.assertEqual(stored[1], 1100)
 
+    def test_source_id_must_be_a_positive_integral_sqlite_integer(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        invalid_ids = (
+            True,
+            False,
+            0,
+            -1,
+            1.5,
+            Decimal("1.5"),
+            Decimal("NaN"),
+            Decimal("Infinity"),
+            9223372036854775808,
+        )
+        for source_id in invalid_ids:
+            with self.subTest(source_id=source_id):
+                result = apply_purchase(before, "1", 100)
+                with self.assertRaisesRegex(ValueError, "source_id"):
+                    post_valuation_result(
+                        self.db, 1, result, "purchases", source_id, "2026-11-11"
+                    )
+                self.assertEqual(
+                    self.db.execute(
+                        "SELECT stock, total_value_rial FROM products WHERE id=1"
+                    ).fetchone(),
+                    (10.0, 1000),
+                )
+                self.assertEqual(
+                    self.db.execute(
+                        "SELECT COUNT(*) FROM inventory_valuation_events"
+                    ).fetchone()[0],
+                    0,
+                )
+
+    def test_integral_decimal_source_id_is_normalized(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", Decimal("17.0"), "2026-11-11"
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT source_id FROM inventory_valuation_events"
+            ).fetchone()[0],
+            17,
+        )
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
