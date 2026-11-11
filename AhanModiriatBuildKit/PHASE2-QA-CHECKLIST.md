@@ -275,9 +275,9 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 **مرز پذیرش دستی:** این اجرا پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
 
 
-### Latest complete CI on current PR #43 head — Run #936 (2026-11-11)
+### Historical CI evidence before final documentation sync — Run #936 (2026-11-11)
 
-- [x] GitHub Actions [Run #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079) completed with `success` on exact head `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3`.
+- [x] GitHub Actions [Run #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079) completed with `success` on exact historical head `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3`. The later head `b1ecd09407935a7c621866e4e3329d085841e9a2` was validated by [Run #939](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42973746661), with both jobs successful; see PR #43 Checks for the latest branch status.
 - [x] Both jobs passed: `smoke-test` and `windows-onedir`.
 - [x] Smoke job completed Compile, isolated tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse/axe audit and report/screenshot uploads.
 - [x] Windows job completed cross-process token characterization, PyInstaller installation, OneDir build and artifact upload.
