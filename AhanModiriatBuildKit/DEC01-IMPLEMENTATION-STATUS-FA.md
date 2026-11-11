@@ -93,3 +93,19 @@ PR #43 پیاده‌سازی محدود DEC-01 و تست پذیرش آن را د
 - PR #43 همچنان Draft و باز است. موفقیت CI به معنی پذیرش انسانی یا مجوز Merge نیست.
 - پذیرش دستی مالک روی Windows واقعی، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore هنوز باز است.
 - هیچ merge به `main` و هیچ migration روی دیتابیس واقعی انجام نشده است.
+
+## اعتبارسنجی نهایی روی HEAD فعلی PR #43 — 2026-11-11
+
+- SHA دقیق HEAD بررسی‌شده: `98820e6e485fd350fc4424b1c54657a33efd7d5a`.
+- اجرای GitHub Actions شمارهٔ **#945** با شناسهٔ `42980113437` دقیقاً روی همین SHA با نتیجهٔ کلی `success` تکمیل شد: [مشاهدهٔ Run #945](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42980113437).
+- هر دو Job موفق‌اند: `smoke-test` و `windows-onedir`.
+- Job اصلی شامل Compile، تست‌های ایزوله، Browser UI، گردش‌های مالی/انبار، proxyهای keyboard/zoom، ممیزی Lighthouse/axe-core و بارگذاری گزارش‌ها و تصاویر بود.
+- Job ویندوز شامل characterization توکن بین‌پردازه‌ای، نصب PyInstaller، ساخت Windows OneDir و بارگذاری Artifact بود.
+- Artifactهای Run #945:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42980113437/artifacts/13837516752)
+  - [گزارش Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42980113437/artifacts/13836709130)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42980113437/artifacts/13836749119)
+- Run #945 شواهد CI برای SHA بالا است؛ این اجرا به commit مستنداتی بعدی (در صورت ایجاد) منتسب نیست، هرچند محتوای کد و تست‌ها در آن commit تغییر نکرده باشد.
+- در زمان این بازبینی، PR #43 باز، Draft و ادغام‌نشده است؛ PR #41 نیز باز و Draft است و شاخهٔ پایهٔ PR #43 محسوب می‌شود. هیچ review submission یا inline review thread برای PR #43 ثبت نشده بود.
+- پذیرش انسانی Windows واقعی، صفحه‌خوان واقعی، keyboard-only، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است. موفقیت CI جایگزین این مراحل نیست.
+- هیچ merge به `main` یا شاخهٔ پایه و هیچ migration روی دیتابیس واقعی انجام نشده است.
