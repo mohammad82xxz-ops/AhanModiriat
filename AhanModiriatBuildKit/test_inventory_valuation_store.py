@@ -132,6 +132,19 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_supported_fractional_quantity_round_trips_through_real(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "0.125", 100)
+        after = post_valuation_result(
+            self.db, 1, result, "purchases", 16, "2026-11-11"
+        )
+        stored = self.db.execute(
+            "SELECT stock, total_value_rial FROM products WHERE id=1"
+        ).fetchone()
+        self.assertEqual(after.quantity, Decimal("10.125"))
+        self.assertEqual(Decimal(str(stored[0])), Decimal("10.125"))
+        self.assertEqual(stored[1], 1100)
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
