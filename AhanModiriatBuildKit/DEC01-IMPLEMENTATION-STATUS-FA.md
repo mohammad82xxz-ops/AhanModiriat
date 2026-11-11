@@ -78,3 +78,18 @@ PR #43 پیاده‌سازی محدود DEC-01 و تست پذیرش آن را د
 - آخرین CI موفق روی کد و تست‌های PR: Run #941 روی SHA `42110775a855236f49999d4634b7a9ea0313192a`.
 - پس از ثبت SHA مستنداتی `1e4457c5c50f216911f6164f913e58f39fe79e7b`، همین یادداشت نیز در commit مستنداتی دیگری تکمیل شده است؛ هر دو تغییر صرفاً Markdown هستند و کد/تست را تغییر نداده‌اند.
 - نباید Run #941 را به‌عنوان اجرای روی SHA مستنداتی جدید معرفی کرد؛ تغییرات کد/تست از آن زمان تغییری نکرده‌اند.
+
+## نتیجهٔ نهایی CI شمارهٔ 944 — 2026-11-11
+
+- SHA بررسی‌شده: `dd4b19ad6d100565a562fb736ed9f8dcfdae19b5`.
+- اجرای [CI #944](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42979484557) با نتیجهٔ نهایی `success` تکمیل شد.
+- Job لینوکس `smoke-test`: موفق؛ شامل Compile، مجموعهٔ تست‌های ایزوله، Browser UI، گردش‌های مالی/انبار، keyboard/zoom proxy و ممیزی Lighthouse/axe.
+- Job ویندوز `windows-onedir`: موفق؛ تست توکن بین‌پردازه‌ای Windows، نصب PyInstaller، ساخت OneDir و بارگذاری Artifact.
+- Artifactها:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42979484557/artifacts/13836882741)
+  - [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42979484557/artifacts/13837246251)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42979484557/artifacts/13837430712)
+- نتیجهٔ CI فقط به SHA فوق تعلق دارد. هر commit بعدی باید جداگانه بررسی شود؛ در صورت commit مستنداتی بعدی، شواهد #944 همچنان برای کد/تست این SHA معتبر است، نه SHA جدید.
+- PR #43 همچنان Draft و باز است. موفقیت CI به معنی پذیرش انسانی یا مجوز Merge نیست.
+- پذیرش دستی مالک روی Windows واقعی، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore هنوز باز است.
+- هیچ merge به `main` و هیچ migration روی دیتابیس واقعی انجام نشده است.
