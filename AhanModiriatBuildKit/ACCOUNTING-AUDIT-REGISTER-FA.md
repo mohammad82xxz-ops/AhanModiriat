@@ -151,7 +151,7 @@
 - فایل `ACCOUNTING-REBUILD-ROADMAP-FA.md` و `FEATURE-MATRIX.md` از نظر SHA/شاخهٔ مرجع و وضعیت جاری نیازمند همگام‌سازی‌اند؛ این سند عمداً آن دو را بازنویسی نمی‌کند تا مرجع قبلی از بین نرود.
 
 
-## ۹. وضعیت جاری شاخه در 2026-11-10
+## ۹. وضعیت جاری شاخه در 2026-11-11
 
 - مخزن: `mohammad82xxz-ops/AhanModiriat`
 - شاخهٔ کاری: `fix/phase2-optional-form-defaults`
@@ -189,17 +189,17 @@
 - مالک سیاست DEC-01 را تصویب کرده است؛ مرجع رسمی و جدول رأی در `ACCOUNTING-POLICY-DECISION-REGISTER-FA.md` اصلاح شده‌اند.
 - منطق اجرایی و تست پذیرش در PR #43، شاخهٔ `fix/dec01-purchase-return-valuation-ci` قرار دارند.
 - بازبینی عددی مستقل: خرید ۵ بسته × ۸٬۰۰۰ ریال با ضریب ۲ کیلوگرم و ۴٬۰۰۰ ریال هزینهٔ جانبی، ارزش کل ۴۴٬۰۰۰ ریال/۱۰ کیلوگرم دارد. برگشت ۲ کیلوگرم = ۸٬۸۰۰ ریال؛ سپس ۳ کیلوگرم = ۱۳٬۲۰۰ ریال؛ جمع ۲۲٬۰۰۰ ریال برای ۵ کیلوگرم. ارزش اولیهٔ موجودی ۱۶۰٬۰۰۰ ریال بوده و پس از هر برگشت، میانگین به‌ترتیب ۸٬۴۰۰ و ۹٬۲۰۰ ریال می‌شود. سناریوی ۳٬۰۰۱ ریال در سه برگشت یک‌کیلوگرمی نیز ۱٬۰۰۰ + ۱٬۰۰۱ + ۱٬۰۰۰ ریال و بدون drift است.
-- اجراهای #925 و #930 روی SHAهای قدیمی‌تر صرفاً سابقه‌اند. اجرای کامل #933 (شناسهٔ `42972259971`) روی commit کد/تست `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` با هر دو Job `smoke-test` و `windows-onedir` موفق شد؛ CI commit مستنداتی نهایی پس از این ثبت در حال اجراست.
+- اجرای #933 (شناسهٔ `42972259971`) روی commit کد/تست `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` موفق شد. سپس اجرای کامل #936 (شناسهٔ `42972982079`) روی head مستنداتی فعلی `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3` با هر دو Job `smoke-test` و `windows-onedir` موفق شد؛ بنابراین شواهد CI اکنون با head فعلی شاخه منطبق است. اجراهای #925، #930 و #933 سوابق SHAهای قبلی‌اند.
 - نتیجه: **ACC-48 در محدودهٔ DEC-01 بسته شد**. replay اسناد تاریخ‌گذشته، دفتر ارزش‌گذاری مستقل، اختلاف credit note و سایر P0ها با این بستن حل‌شده محسوب نمی‌شوند.
 - پذیرش انسانی روی Windows واقعی، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore انسانی همچنان باز است.
 - هیچ migration روی دیتابیس واقعی و هیچ merge به `main` یا شاخهٔ پایه انجام نشده است.
 
-## وضعیت جاری PR #43 — 2026-11-11 (پس از اجرای #930)
+## وضعیت جاری PR #43 — 2026-11-11 (پس از اجرای #936)
 
 - PR #43: [fix(accounting): implement approved DEC-01 purchase return valuation](https://github.com/mohammad82xxz-ops/AhanModiriat/pull/43)، باز و Draft؛ شاخهٔ `fix/dec01-purchase-return-valuation-ci` روی PR #41 قرار دارد.
-- Head فعلی کد/تست: `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8`؛ PR #41 نیز باز و Draft است و هیچ‌یک merge نشده‌اند.
-- CI کامل روی head کد/تست: [اجرای #933](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971)، هر دو Job موفق. این اجرا شامل تست جدید ماندهٔ پرداختنی فروشنده نیز هست.
-- Artifactها: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834375833)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834231424)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834181543).
+- Head فعلی شاخه: `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3`؛ این head شامل commit کد/تست `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` و همگام‌سازی مستندات است. PR #41 نیز باز و Draft است و هیچ‌یک merge نشده‌اند.
+- CI کامل روی head فعلی: [اجرای #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079)، هر دو Job `smoke-test` و `windows-onedir` موفق شدند. اجرای #933 روی commit کد/تست قبلی نیز موفق بود.
+- Artifactهای اجرای #936: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834013246)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13835025169)، [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834267392).
 - DEC-01 Approved و ACC-48 در محدودهٔ آن Closed است؛ DEC-02 تا DEC-11 و سایر P0ها همچنان نیازمند تصمیم/کار مستقل‌اند.
 - پذیرش دستی مالک روی Windows واقعی، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore همچنان باز است.
 - هیچ migration روی دیتابیس واقعی و هیچ merge به `main` یا شاخهٔ پایه انجام نشده است.
