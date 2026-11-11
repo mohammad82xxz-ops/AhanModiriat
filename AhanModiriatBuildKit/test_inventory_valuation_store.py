@@ -96,6 +96,32 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_concurrent_compare_and_swap_failure_rolls_back_event(self):
+        self.db.execute("""
+            CREATE TRIGGER ignore_product_valuation_update
+            BEFORE UPDATE OF stock, avg_cost, total_value_rial ON products
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END
+        """)
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        with self.assertRaisesRegex(ValueError, "concurrent inventory update"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 18, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 100, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
     def test_missing_baseline_fails_closed(self):
         self.db.execute(
             "UPDATE products SET total_value_rial=NULL WHERE id=1"
