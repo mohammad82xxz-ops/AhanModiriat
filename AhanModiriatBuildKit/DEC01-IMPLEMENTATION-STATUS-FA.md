@@ -109,3 +109,19 @@ PR #43 پیاده‌سازی محدود DEC-01 و تست پذیرش آن را د
 - در زمان این بازبینی، PR #43 باز، Draft و ادغام‌نشده است؛ PR #41 نیز باز و Draft است و شاخهٔ پایهٔ PR #43 محسوب می‌شود. هیچ review submission یا inline review thread برای PR #43 ثبت نشده بود.
 - پذیرش انسانی Windows واقعی، صفحه‌خوان واقعی، keyboard-only، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است. موفقیت CI جایگزین این مراحل نیست.
 - هیچ merge به `main` یا شاخهٔ پایه و هیچ migration روی دیتابیس واقعی انجام نشده است.
+
+## اعتبارسنجی CI روی HEAD بعدی PR #43 — 2026-11-11
+
+- SHA دقیق کد/تست: `b818a427b44e004f988b47720f9f8080ed49c890`.
+- اجرای GitHub Actions [Run #946](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42989789168) روی همین SHA با نتیجهٔ نهایی `success` تکمیل شد.
+- هر دو Job موفق‌اند: `smoke-test` و `windows-onedir`.
+- Job اصلی Compile، تست‌های ایزوله، ماتریس UI مرورگر، گردش‌های مالی/انبار، proxyهای keyboard/zoom، ممیزی Lighthouse/axe-core و بارگذاری گزارش‌ها و تصاویر را با موفقیت تکمیل کرد.
+- Job ویندوز آزمون cross-process token، ساخت Windows OneDir و بارگذاری Artifact را با موفقیت تکمیل کرد.
+- Artifactهای همین اجرا:
+  - [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42989789168/artifacts/13840604549)
+  - [Lighthouse و axe-core](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42989789168/artifacts/13841442932)
+  - [اسکرین‌شات‌های UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42989789168/artifacts/13841866014)
+- هر سه Artifact هنگام ثبت این یادداشت موجود و منقضی‌نشده‌اند.
+- این نتیجه فقط به SHA بالا تعلق دارد. هر commit بعدی، حتی اگر مستنداتی باشد، SHA جداگانه دارد و نباید Run #946 به‌عنوان اجرای همان SHA جدید معرفی شود.
+- PR #43 همچنان Draft و stacked روی PR #41 است. پذیرش دستی Windows واقعی، صفحه‌خوان واقعی، keyboard-only، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی باز است.
+- هیچ merge به `main` یا شاخهٔ پایه و هیچ migration روی دیتابیس واقعی انجام نشده است.
