@@ -250,6 +250,7 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [x] مرجوعی با ارزش بیش از ارزش دفتری، بدون درج سند یا گردش نقدی رد شد.
 - [x] صفرشدن موجودی همراه با ارزش دفتری باقیمانده رد شد.
 - [x] وجه نقد واقعی مستقل از ارزش مرجوعی کنترل شد.
+- [x] ماندهٔ پرداختنی فروشنده پس از احتساب همهٔ خریدهای fixture، ارزش مرجوعی و وجه نقد دریافتی کنترل شد.
 - [x] SQLite integrity و foreign_key_check موفق شدند.
 
 **شواهد دقیق CI:** [Run #921](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386) — head: `598cf95769454693ecd83adea3b2444c442cbf59`.
@@ -260,13 +261,15 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 
 **مرز پذیرش:** CI و بازبینی عددی DEC-01 تکمیل شده‌اند؛ اجرای دستی بستهٔ Windows روی رایانهٔ مالک، صفحه‌خوان واقعی، بزرگ‌نمایی ۲۰۰٪، نمایشگر کوچک و backup/restore انسانی همچنان باز است. این موارد فقط با اجرای واقعی قابل علامت‌گذاری‌اند و مانع ادعای «پذیرش نهایی کل محصول» هستند.
 
-### اجرای CI روی head فعلی PR #43 — Run #930 (2026-11-11)
+### اجرای CI روی commit کد/تست PR #43 — Run #933 (2026-11-11)
 
-- [x] اجرای Actions [#930](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232) روی SHA دقیق `eb335671b15a8c504affec03ad1e3ee588e049c1` با conclusion برابر `success` تکمیل شد. اجرای #925 روی SHA قدیمی‌تر صرفاً سابقه است.
+- [x] اجرای Actions [#933](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971) روی SHA دقیق `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` با conclusion برابر `success` تکمیل شد. Runهای #925 و #930 روی SHAهای قدیمی‌تر صرفاً سابقه‌اند.
 - [x] هر دو Job موفق شدند: `smoke-test` و `windows-onedir`.
 - [x] تست‌های Compile و isolated smoke، تست DEC-01، گردش‌های مالی/انبار، ۱۴ مسیر UI در دو viewport و دو theme (۵۶ تصویر)، و keyboard/zoom proxies روی ۷ مسیر موفق شدند.
 - [x] axe-core هر ۱۴ مسیر را بدون violation ممیزی کرد؛ ۱۰ گزارش Lighthouse تولید شد. در هر ۱۰ گزارش Performance، Accessibility و Best Practices برابر ۱۰۰ و SEO برابر ۹۰ بود.
 - [x] آزمون cross-process token روی Windows و ساخت PyInstaller OneDir موفق شدند.
-- [x] Artifactهای همین اجرا: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13782463731)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13783247095)، [۵۶ اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13782852986).
+- [x] Artifactهای همین اجرا: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834375833)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834231424)، [۵۶ اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834181543).
+
+**یادداشت اصلاح تست:** اجرای #932 به‌علت انتظار نادرست تست برای ماندهٔ فروشنده fail شد؛ مقدار مورد انتظار، سه خرید fixture دیگر با همان نام فروشنده را لحاظ نمی‌کرد. انتظار تست به ۳۴٬۲۰۱ ریال اصلاح شد و اجرای #933 روی commit اصلاح‌شده با هر دو Job موفق شد.
 
 **مرز پذیرش دستی:** این اجرا پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
