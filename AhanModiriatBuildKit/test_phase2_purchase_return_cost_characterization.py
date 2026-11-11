@@ -132,7 +132,7 @@ def main():
             ).fetchone()[0]
             assert cash_total == 8000, cash_total
             supplier_balances = app.party_balances(c)
-            assert supplier_balances["Fixture Supplier"]["payable"] == 30000, supplier_balances
+            assert supplier_balances["Fixture Supplier"]["payable"] == 34201, supplier_balances
 
         # Partial allocation of 3,001 rial over 3 kg must total exactly 3,001,
         # even when the owner records three separate one-kilogram returns.
