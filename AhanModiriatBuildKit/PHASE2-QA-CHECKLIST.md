@@ -273,3 +273,14 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 **یادداشت اصلاح تست:** اجرای #932 به‌علت انتظار نادرست تست برای ماندهٔ فروشنده fail شد؛ مقدار مورد انتظار، سه خرید fixture دیگر با همان نام فروشنده را لحاظ نمی‌کرد. انتظار تست به ۳۴٬۲۰۱ ریال اصلاح شد و اجرای #933 روی commit اصلاح‌شده با هر دو Job موفق شد.
 
 **مرز پذیرش دستی:** این اجرا پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
+
+
+### Latest complete CI on current PR #43 head — Run #936 (2026-11-11)
+
+- [x] GitHub Actions [Run #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079) completed with `success` on exact head `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] Smoke job completed Compile, isolated tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse/axe audit and report/screenshot uploads.
+- [x] Windows job completed cross-process token characterization, PyInstaller installation, OneDir build and artifact upload.
+- [x] Artifacts from this exact run: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834013246), [Lighthouse and axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13835025169), [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834267392).
+
+**Manual acceptance remains open:** run the packaged app on the owner's Windows machine, verify real screen-reader behavior, 200% zoom, a small display, business scenarios and backup/restore against a disposable database only. Do not use the production database.
