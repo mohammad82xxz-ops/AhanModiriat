@@ -52,9 +52,16 @@ class InventoryValuationStoreTests(unittest.TestCase):
         post_valuation_result(
             self.db, 1, result, "purchases", 12, "2026-11-11"
         )
+        # Rebuild from the persisted snapshot so the duplicate-source
+        # constraint, rather than the stale-snapshot guard, is exercised.
+        persisted = self.db.execute(
+            "SELECT stock, total_value_rial FROM products WHERE id=1"
+        ).fetchone()
+        retry_before = InventoryPosition(Decimal(str(persisted[0])), persisted[1])
+        retry_result = apply_purchase(retry_before, "1", 100)
         with self.assertRaises(sqlite3.IntegrityError):
             post_valuation_result(
-                self.db, 1, result, "purchases", 12, "2026-11-11"
+                self.db, 1, retry_result, "purchases", 12, "2026-11-11"
             )
         self.assertEqual(
             self.db.execute(
