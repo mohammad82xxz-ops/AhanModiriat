@@ -84,6 +84,13 @@ def main():
         zero_stock_product_id = add_product(c, "DEC01 zero-stock guard", 2, 1000)
         zero_stock_purchase_id = add_purchase(c, zero_stock_product_id, 2, 500, 0)
 
+        # Characterization of a known precision gap: average unit cost is
+        # rounded to integer rial and then multiplied back into a total.
+        # The opening stock is 3 units / 6 rial; the source purchase is only
+        # 2 units / 2 rial, so 1 older unit carries the remaining 4 rial.
+        precision_product_id = add_product(c, "DEC01 precision residual", 3, 2)
+        precision_purchase_id = add_purchase(c, precision_product_id, 2, 1, 0)
+
     server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -156,6 +163,36 @@ def main():
             assert values == [1000, 1001, 1000], values
             assert sum(values) == 3001
             assert product["stock"] == 3 and product["avg_cost"] == 3000, dict(product)
+
+        # Known precision limitation: after the first return, the exact
+        # remaining value is 5 rial / 2 units, but avg_cost is rounded to 3.
+        # A second return reconstructs 6 rial from 2 × 3, losing the 1-rial
+        # residual. This characterization intentionally records the current
+        # behavior; it is NOT an acceptance claim that the ledger is exact.
+        for day in ("09", "10"):
+            post(port, {
+                "purchase_id": precision_purchase_id,
+                "date": f"2026-01-{day}", "qty": "1",
+                "cash_refund": "0", "reason": "precision residual characterization",
+            })
+        with app.conn() as c:
+            precision_product = c.execute(
+                "SELECT stock,avg_cost FROM products WHERE id=?",
+                (precision_product_id,),
+            ).fetchone()
+            returned_values = [
+                row[0] for row in c.execute(
+                    "SELECT return_value FROM purchase_returns WHERE purchase_id=? ORDER BY id",
+                    (precision_purchase_id,),
+                )
+            ]
+            exact_remaining_value = 6 - sum(returned_values)
+            reconstructed_value = precision_product["stock"] * precision_product["avg_cost"]
+            assert returned_values == [1, 1], returned_values
+            assert precision_product["stock"] == 1, dict(precision_product)
+            assert exact_remaining_value == 4, exact_remaining_value
+            assert reconstructed_value == 5, reconstructed_value
+            assert reconstructed_value != exact_remaining_value
 
         # A source return that would drive remaining book value below zero is rejected atomically.
         message = post(port, {
