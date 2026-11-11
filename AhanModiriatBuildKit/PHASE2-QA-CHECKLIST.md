@@ -260,13 +260,13 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 
 **مرز پذیرش:** CI و بازبینی عددی DEC-01 تکمیل شده‌اند؛ اجرای دستی بستهٔ Windows روی رایانهٔ مالک، صفحه‌خوان واقعی، بزرگ‌نمایی ۲۰۰٪، نمایشگر کوچک و backup/restore انسانی همچنان باز است. این موارد فقط با اجرای واقعی قابل علامت‌گذاری‌اند و مانع ادعای «پذیرش نهایی کل محصول» هستند.
 
-### اجرای نهایی CI روی head فعلی PR #43 — Run #925 (2026-11-10)
+### اجرای CI روی head فعلی PR #43 — Run #930 (2026-11-11)
 
-- [x] Run [#925](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525) روی SHA دقیق `a85f59059d92377491d1c7bf8585dbfd1f090e90` با conclusion برابر `success` تکمیل شد.
+- [x] اجرای Actions [#930](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232) روی SHA دقیق `eb335671b15a8c504affec03ad1e3ee588e049c1` با conclusion برابر `success` تکمیل شد. اجرای #925 روی SHA قدیمی‌تر صرفاً سابقه است.
 - [x] هر دو Job موفق شدند: `smoke-test` و `windows-onedir`.
 - [x] تست‌های Compile و isolated smoke، تست DEC-01، گردش‌های مالی/انبار، ۱۴ مسیر UI در دو viewport و دو theme (۵۶ تصویر)، و keyboard/zoom proxies روی ۷ مسیر موفق شدند.
 - [x] axe-core هر ۱۴ مسیر را بدون violation ممیزی کرد؛ ۱۰ گزارش Lighthouse تولید شد. در هر ۱۰ گزارش Performance، Accessibility و Best Practices برابر ۱۰۰ و SEO برابر ۹۰ بود.
 - [x] آزمون cross-process token روی Windows و ساخت PyInstaller OneDir موفق شدند.
-- [x] Artifactهای همین Run: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525/artifacts/13783515005)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525/artifacts/13782711559)، [۵۶ اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42854733525/artifacts/13783070777).
+- [x] Artifactهای همین اجرا: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13782463731)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13783247095)، [۵۶ اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42856391232/artifacts/13782852986).
 
-**مرز پذیرش دستی:** این Run پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
+**مرز پذیرش دستی:** این اجرا پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
