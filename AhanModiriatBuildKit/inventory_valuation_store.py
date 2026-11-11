@@ -78,8 +78,20 @@ def post_valuation_result(
         raise TypeError("result must be a ValuationResult")
     if not source_table or not str(source_table).strip():
         raise ValueError("source_table is required")
-    if isinstance(source_id, bool) or int(source_id) <= 0:
-        raise ValueError("source_id must be a positive integer")
+    if isinstance(source_id, bool):
+        raise ValueError("source_id must be a positive SQLite integer")
+    try:
+        source_id_decimal = Decimal(str(source_id))
+    except Exception:
+        raise ValueError("source_id must be a positive SQLite integer") from None
+    if (
+        not source_id_decimal.is_finite()
+        or source_id_decimal != source_id_decimal.to_integral_value()
+        or source_id_decimal <= 0
+        or source_id_decimal > 9223372036854775807
+    ):
+        raise ValueError("source_id must be a positive SQLite integer")
+    source_id = int(source_id_decimal)
     if not effective_date or not str(effective_date).strip():
         raise ValueError("effective_date is required")
 
