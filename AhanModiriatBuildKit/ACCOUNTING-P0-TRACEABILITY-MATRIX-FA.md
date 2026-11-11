@@ -80,3 +80,11 @@
 - [سناریوهای طلایی](ACCOUNTING-P0-GOLDEN-SCENARIOS-FA.md)
 - [برنامهٔ اجرایی P0](ACCOUNTING-P0-IMPLEMENTATION-PLAN-FA.md)
 - [Runbook مهاجرت و rollback](ACCOUNTING-P0-MIGRATION-CUTOVER-RUNBOOK-FA.md)
+
+
+## وضعیت candidate موتور ارزش‌گذاری — 2026-11-11
+
+- `inventory_valuation.py` یک موتور خالص و مستقل برای مقدار Decimal و ارزش کل صحیح ریالی ایجاد می‌کند؛ `avg_cost_rial` projection است.
+- `test_inventory_valuation.py` golden/unit tests مستقل را پوشش می‌دهد و در CI ثبت شده است.
+- این candidate به DB، schema، مسیرهای عملیاتی یا ledger وصل نیست و migration/replay ندارد.
+- بنابراین هیچ معیار ACC-48 یا Gate B به‌طور کامل بسته نشده است؛ پیش از هر اتصال، integration tests، shadow reconciliation، قرارداد persistence و بازبینی حسابداری لازم‌اند.
