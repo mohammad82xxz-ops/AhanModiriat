@@ -50,8 +50,8 @@ class InventoryPosition:
         if not quantity.is_finite() or quantity < 0:
             raise ValueError("quantity must be a finite non-negative decimal")
         value = _nonnegative_rial(self.total_value_rial, "total_value_rial")
-        if (quantity == 0) != (value == 0):
-            raise ValueError("zero quantity and zero inventory value must occur together")
+        if quantity == 0 and value != 0:
+            raise ValueError("zero quantity cannot retain inventory book value")
         object.__setattr__(self, "quantity", quantity)
         object.__setattr__(self, "total_value_rial", value)
 
