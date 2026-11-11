@@ -128,14 +128,18 @@ def post_valuation_result(
             result.value_delta_rial, str(result.after.quantity),
             result.after.total_value_rial, str(metadata_json),
         ))
-        connection.execute("""
+        cursor = connection.execute("""
             UPDATE products
                SET stock=?, avg_cost=?, total_value_rial=?
-             WHERE id=?
+             WHERE id=? AND stock=? AND total_value_rial=?
         """, (
             stored_quantity, result.after.avg_cost_rial,
-            result.after.total_value_rial, product_id,
+            result.after.total_value_rial, product_id, row[0], current_total,
         ))
+        if cursor.rowcount != 1:
+            raise ValueError(
+                "concurrent inventory update detected; reload and recalculate"
+            )
         connection.execute("RELEASE SAVEPOINT " + savepoint)
     except Exception:
         connection.execute("ROLLBACK TO SAVEPOINT " + savepoint)
