@@ -99,3 +99,14 @@
 
 ---
 **وضعیت:** آمادهٔ بازبینی و تصویب فنی/حسابداری؛ اجرای کد، migration عملیاتی و merge همچنان خارج از مجوز این سند هستند.
+
+
+## وضعیت اجرایی Gate B — موتور خالص ارزش‌گذاری (2026-11-11)
+
+یک candidate مستقل و بدون اتصال به UI/SQL در `AhanModiriatBuildKit/inventory_valuation.py` اضافه شده است. این ماژول مقدار دقیق Decimal و `total_value_rial` صحیح را در یک وضعیت immutable نگه می‌دارد و `avg_cost_rial` را صرفاً به‌صورت projection گرد‌شده محاسبه می‌کند. عملیات فعلی: خرید با ارزش کامل، فروش با تخصیص متناسب و مصرف دقیق باقیمانده در خروج کامل، مرجوعی خرید با ارزش تاریخی ورودی (تخصیص تجمعی DEC-01 همچنان در caller است)، و مرجوعی فروش با بهای تمام‌شدهٔ سند فروش اصلی.
+
+- تست‌های مستقل: `test_inventory_valuation.py`؛ expectedها ثابت و مستقل از توابع production هستند.
+- CI این فایل و تست را در Compile و Isolated smoke tests اجرا می‌کند.
+- این candidate هنوز source of truth برنامه نیست؛ هیچ SQL، schema، migration، replay، adjustment policy، ledger persistence یا wiring به `app.py` اضافه نشده است.
+- DEC-02/03 برای تعدیل کسری/اضافی همچنان Pending هستند؛ بنابراین API تعدیل عمداً ارائه نشده است.
+- ACC-48 باز می‌ماند تا دفتر/سرویس متصل، تست integration و goldenهای بین‌دفتر، shadow reconciliation و migration design تأیید شوند.
