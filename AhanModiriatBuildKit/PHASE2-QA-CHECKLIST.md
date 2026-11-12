@@ -284,3 +284,15 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [x] Artifacts from this exact run: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834013246), [Lighthouse and axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13835025169), [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834267392).
 
 **Manual acceptance remains open:** run the packaged app on the owner's Windows machine, verify real screen-reader behavior, 200% zoom, a small display, business scenarios and backup/restore against a disposable database only. Do not use the production database.
+
+
+## Latest exact-head CI evidence — PR #43, Run #991 (2026-11-12)
+
+- [x] GitHub Actions [Run #991](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43194692173) completed with conclusion `success` on the exact PR head `4a4bd569b6899be94c8b5533396f61bcc7fb151e`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] `smoke-test`: Compile, isolated smoke tests, Playwright installation, browser UI matrix/screenshots, finance and inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads all succeeded.
+- [x] `windows-onedir`: Windows cross-process token characterization, PyInstaller installation, OneDir build, and artifact upload all succeeded.
+- [ ] This CI result does not close ACC-48/Gate B, approve DEC-02/03/04 or other pending accounting policies, establish owner acceptance on a real Windows machine, or authorize a production database migration.
+- [ ] Manual acceptance remains outstanding: launch the exact packaged build on the owner's Windows environment; verify business workflows, persistence, backup/restore on a disposable database, real screen-reader operation, 200% zoom, and a small display.
+
+**Scope boundary:** Run #991 validates the exact code-bearing head above. Do not infer that the independent Gate-B candidate is integrated into the live application; the adapter remains isolated and the current application purchase-return route still reconstructs current book value from the rounded `stock × avg_cost` projection. ACC-48 therefore remains open.
