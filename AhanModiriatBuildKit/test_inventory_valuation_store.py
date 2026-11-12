@@ -332,6 +332,35 @@ class InventoryValuationStoreTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(event, (100,))
 
+    def test_insert_or_replace_cannot_rewrite_valuation_history(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 26, "2026-11-11"
+        )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute("""
+                INSERT OR REPLACE INTO inventory_valuation_events(
+                    product_id, source_table, source_id, event_type, effective_date,
+                    quantity_delta, value_delta_rial, quantity_after,
+                    total_value_after_rial, metadata_json
+                ) VALUES (1, 'purchases', 26, 'purchase', '2026-11-12',
+                          '999', 999, '999', 999, '{}')
+            """)
+        event = self.db.execute("""
+            SELECT effective_date, quantity_delta, value_delta_rial,
+                   quantity_after, total_value_after_rial
+              FROM inventory_valuation_events
+             WHERE source_table='purchases' AND source_id=26
+               AND event_type='purchase'
+        """).fetchone()
+        self.assertEqual(event, ("2026-11-11", "1", 100, "11", 1100))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (11.0, 1100),
+        )
+
     def test_schema_setup_requires_foreign_key_enforcement(self):
         connection = sqlite3.connect(":memory:")
         try:
