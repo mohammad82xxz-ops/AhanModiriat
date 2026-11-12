@@ -225,6 +225,30 @@ class InventoryValuationStoreTests(unittest.TestCase):
         self.assertEqual(Decimal(str(stored[0])), Decimal("10.125"))
         self.assertEqual(stored[1], 1100)
 
+    def test_derived_average_cost_overflow_is_rejected_before_writes(self):
+        self.db.execute(
+            "INSERT INTO products(id, stock, avg_cost, total_value_rial) "
+            "VALUES (2, 0, 0, 0)"
+        )
+        before = InventoryPosition(Decimal("0"), 0)
+        result = apply_purchase(before, "0.000000000000000001", 9223372036854775807)
+        with self.assertRaisesRegex(ValueError, "avg_cost"):
+            post_valuation_result(
+                self.db, 2, result, "purchases", 32, "2026-11-12"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=2"
+            ).fetchone(),
+            (0.0, 0, 0),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events WHERE source_id=32"
+            ).fetchone()[0],
+            0,
+        )
+
     def test_rial_integer_overflow_is_rejected_before_writes(self):
         before = InventoryPosition(Decimal("10"), 1000)
         result = apply_purchase(before, "1", 9223372036854775807)
