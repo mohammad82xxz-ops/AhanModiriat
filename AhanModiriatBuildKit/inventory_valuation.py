@@ -32,7 +32,7 @@ def _nonnegative_rial(value, label="value"):
 
 
 def _round_rial(value):
-    return int(Decimal(value).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return int(Decimal(value).to_integral_value(rounding=ROUND_HALF_UP))
 
 
 @dataclass(frozen=True)
