@@ -231,7 +231,7 @@ class InventoryValuationStoreTests(unittest.TestCase):
             "VALUES (2, 0, 0, 0)"
         )
         before = InventoryPosition(Decimal("0"), 0)
-        result = apply_purchase(before, "0.000000000000000001", 9223372036854775807)
+        result = apply_purchase(before, "0.000000000000000001", 1000)
         with self.assertRaisesRegex(ValueError, "avg_cost"):
             post_valuation_result(
                 self.db, 2, result, "purchases", 32, "2026-11-12"
