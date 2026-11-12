@@ -367,6 +367,10 @@ def post_valuation_result(
     # products.stock is currently declared REAL. Refuse quantities whose
     # decimal representation cannot survive that legacy projection exactly.
     stored_quantity = _sqlite_real_quantity(result.after.quantity)
+    # avg_cost is an INTEGER projection in the current products schema. Keep
+    # oversized derived unit costs out of sqlite3's bind path; the exact total
+    # remains authoritative, but the legacy projection must still be storable.
+    _sqlite_integer(result.after.avg_cost_rial, "avg_cost")
 
     savepoint = "inventory_valuation_post"
     connection.execute("SAVEPOINT " + savepoint)
