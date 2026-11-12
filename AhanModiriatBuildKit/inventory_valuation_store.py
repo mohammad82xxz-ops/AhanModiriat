@@ -95,7 +95,7 @@ def _validate_valuation_result(result):
     return value_delta, event_value
 
 
-def ensure_valuation_schema(connection):
+def _ensure_valuation_schema_impl(connection):
     """Create the event ledger and nullable total-value cache on a test/migration DB."""
     foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
     if not foreign_keys_enabled or foreign_keys_enabled[0] != 1:
@@ -174,6 +174,19 @@ def ensure_valuation_schema(connection):
         END
     """)
 
+
+
+def ensure_valuation_schema(connection):
+    """Create valuation schema atomically, including on an existing transaction."""
+    savepoint = "inventory_valuation_schema"
+    connection.execute("SAVEPOINT " + savepoint)
+    try:
+        _ensure_valuation_schema_impl(connection)
+        connection.execute("RELEASE SAVEPOINT " + savepoint)
+    except Exception:
+        connection.execute("ROLLBACK TO SAVEPOINT " + savepoint)
+        connection.execute("RELEASE SAVEPOINT " + savepoint)
+        raise
 
 def post_valuation_result(
     connection,
