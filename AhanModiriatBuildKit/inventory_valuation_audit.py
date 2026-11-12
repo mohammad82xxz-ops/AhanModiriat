@@ -66,6 +66,32 @@ def _product_row_report(row):
             else:
                 estimated_value = int(estimated_decimal)
 
+    stored_value_status = "not_present"
+    stored_value = None
+    stored_matches_estimate = None
+    if "total_value_rial" in row:
+        raw_stored_value = row["total_value_rial"]
+        if raw_stored_value is None:
+            stored_value_status = "null"
+        else:
+            try:
+                parsed_stored_value = _decimal_value(
+                    raw_stored_value, "total_value_rial"
+                )
+                if (
+                    parsed_stored_value != parsed_stored_value.to_integral_value()
+                    or parsed_stored_value < 0
+                    or parsed_stored_value > SQLITE_INT_MAX
+                ):
+                    stored_value_status = "invalid"
+                else:
+                    stored_value = int(parsed_stored_value)
+                    stored_value_status = "valid"
+                    if estimated_value is not None:
+                        stored_matches_estimate = stored_value == estimated_value
+            except ValueError:
+                stored_value_status = "invalid"
+
     return {
         "product_id": product_id,
         "product_name": product_name,
@@ -74,6 +100,9 @@ def _product_row_report(row):
             format(average, "f") if average is not None else None
         ),
         "estimated_total_value_rial": estimated_value,
+        "stored_total_value_rial": stored_value,
+        "stored_total_value_status": stored_value_status,
+        "stored_total_value_matches_legacy_estimate": stored_matches_estimate,
         "eligible_for_estimated_baseline": not exceptions,
         "exceptions": exceptions,
     }
@@ -97,8 +126,12 @@ def build_legacy_baseline_report(connection):
     if missing:
         raise ValueError("products table is missing required columns: " + ", ".join(missing))
 
+    has_stored_total_value = "total_value_rial" in columns
+    select_columns = "id, name, stock, avg_cost"
+    if has_stored_total_value:
+        select_columns += ", total_value_rial"
     cursor = connection.execute(
-        "SELECT id, name, stock, avg_cost FROM products ORDER BY id"
+        "SELECT " + select_columns + " FROM products ORDER BY id"
     )
     column_names = [item[0] for item in cursor.description]
     rows = [
@@ -115,6 +148,13 @@ def build_legacy_baseline_report(connection):
     estimated_total = sum(
         item["estimated_total_value_rial"] for item in eligible
     )
+    stored_value_valid = [
+        item for item in products if item["stored_total_value_status"] == "valid"
+    ]
+    stored_value_mismatches = [
+        item for item in stored_value_valid
+        if item["stored_total_value_matches_legacy_estimate"] is False
+    ]
 
     return {
         "report_type": "legacy_inventory_baseline_estimate",
@@ -125,6 +165,9 @@ def build_legacy_baseline_report(connection):
         "product_count": len(products),
         "eligible_product_count": len(eligible),
         "exception_product_count": len(exceptions),
+        "stored_total_value_column_present": has_stored_total_value,
+        "stored_total_value_valid_product_count": len(stored_value_valid),
+        "stored_total_value_mismatch_count": len(stored_value_mismatches),
         "estimated_total_value_rial_for_eligible_products": estimated_total,
         "complete": not exceptions,
         "products": products,
