@@ -508,6 +508,58 @@ class InventoryValuationStoreTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_schema_setup_preserves_callers_outer_transaction(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            connection.execute(
+                "INSERT INTO products(id, stock, avg_cost) VALUES (1, 10, 100)"
+            )
+            connection.commit()
+            connection.execute("BEGIN")
+            connection.execute("UPDATE products SET stock=11 WHERE id=1")
+
+            ensure_valuation_schema(connection)
+
+            # The helper must release only its own savepoint, not commit the
+            # caller's transaction or make its DDL durable independently.
+            self.assertTrue(connection.in_transaction)
+            self.assertEqual(
+                connection.execute("SELECT stock FROM products WHERE id=1").fetchone(),
+                (11.0,),
+            )
+            self.assertIn(
+                "total_value_rial",
+                {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(products)")
+                },
+            )
+
+            connection.rollback()
+            self.assertEqual(
+                connection.execute("SELECT stock FROM products WHERE id=1").fetchone(),
+                (10.0,),
+            )
+            self.assertNotIn(
+                "total_value_rial",
+                {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(products)")
+                },
+            )
+            self.assertIsNone(
+                connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name='inventory_valuation_events'"
+                ).fetchone()
+            )
+        finally:
+            connection.close()
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
