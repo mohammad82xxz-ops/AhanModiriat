@@ -57,6 +57,23 @@ def ensure_valuation_schema(connection):
         ON inventory_valuation_events(product_id, effective_date, id)
     """)
 
+    # Valuation history is an audit ledger, not an editable cache. Corrections
+    # must be represented by compensating events, never UPDATE/DELETE.
+    connection.execute("""
+        CREATE TRIGGER IF NOT EXISTS inventory_valuation_events_no_update
+        BEFORE UPDATE ON inventory_valuation_events
+        BEGIN
+            SELECT RAISE(ABORT, 'inventory valuation events are append-only');
+        END
+    """)
+    connection.execute("""
+        CREATE TRIGGER IF NOT EXISTS inventory_valuation_events_no_delete
+        BEFORE DELETE ON inventory_valuation_events
+        BEGIN
+            SELECT RAISE(ABORT, 'inventory valuation events are append-only');
+        END
+    """)
+
 
 def post_valuation_result(
     connection,
