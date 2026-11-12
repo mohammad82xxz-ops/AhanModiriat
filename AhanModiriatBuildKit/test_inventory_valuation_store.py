@@ -216,6 +216,25 @@ class InventoryValuationStoreTests(unittest.TestCase):
             17,
         )
 
+    def test_valuation_events_are_append_only(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 19, "2026-11-11"
+        )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "UPDATE inventory_valuation_events SET value_delta_rial=999 "
+                "WHERE source_id=19"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "DELETE FROM inventory_valuation_events WHERE source_id=19"
+            )
+        event = self.db.execute(
+            "SELECT value_delta_rial FROM inventory_valuation_events WHERE source_id=19"
+        ).fetchone()
+        self.assertEqual(event, (100,))
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
