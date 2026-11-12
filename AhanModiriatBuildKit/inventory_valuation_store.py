@@ -5,6 +5,7 @@ This adapter is intentionally not imported by app.py yet.  Its schema helper
 must only be called by an explicit, reviewed migration on a disposable copy.
 """
 from decimal import Decimal
+import json
 import sqlite3
 
 from inventory_valuation import InventoryPosition, ValuationResult
@@ -93,6 +94,28 @@ def post_valuation_result(
     """
     if not isinstance(result, ValuationResult):
         raise TypeError("result must be a ValuationResult")
+    if isinstance(product_id, bool):
+        raise ValueError("product_id must be a positive SQLite integer")
+    try:
+        product_id_decimal = Decimal(str(product_id))
+    except Exception:
+        raise ValueError("product_id must be a positive SQLite integer") from None
+    if (
+        not product_id_decimal.is_finite()
+        or product_id_decimal != product_id_decimal.to_integral_value()
+        or product_id_decimal <= 0
+        or product_id_decimal > 9223372036854775807
+    ):
+        raise ValueError("product_id must be a positive SQLite integer")
+    product_id = int(product_id_decimal)
+    if not isinstance(metadata_json, str):
+        raise ValueError("metadata_json must be a JSON object string")
+    try:
+        metadata = json.loads(metadata_json)
+    except (TypeError, ValueError):
+        raise ValueError("metadata_json must be valid JSON") from None
+    if not isinstance(metadata, dict):
+        raise ValueError("metadata_json must encode a JSON object")
     if not source_table or not str(source_table).strip():
         raise ValueError("source_table is required")
     if isinstance(source_id, bool):
