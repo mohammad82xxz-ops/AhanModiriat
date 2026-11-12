@@ -472,6 +472,40 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_schema_setup_rejects_incompatible_existing_ledger_atomically(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            connection.execute(
+                "CREATE TABLE inventory_valuation_events("
+                "id INTEGER PRIMARY KEY, product_id INTEGER, effective_date TEXT)"
+            )
+            with self.assertRaisesRegex(ValueError, "incompatible.*schema"):
+                ensure_valuation_schema(connection)
+            product_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            self.assertNotIn("total_value_rial", product_columns)
+            event_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(inventory_valuation_events)"
+                )
+            }
+            self.assertEqual(event_columns, {"id", "product_id", "effective_date"})
+            self.assertEqual(
+                connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='trigger' "
+                    "AND name LIKE 'inventory_valuation_events_%'"
+                ).fetchall(),
+                [],
+            )
+        finally:
+            connection.close()
+
     def test_schema_setup_rolls_back_partial_ddl_on_failure(self):
         connection = sqlite3.connect(":memory:")
         connection.execute("PRAGMA foreign_keys=ON")
