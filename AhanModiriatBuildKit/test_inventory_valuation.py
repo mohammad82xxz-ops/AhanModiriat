@@ -14,6 +14,13 @@ from inventory_valuation import (
 
 
 class InventoryValuationTests(unittest.TestCase):
+    def test_average_cost_rounds_values_beyond_decimal_quantize_precision(self):
+        position = InventoryPosition(Decimal("0.000000000000000001"), 9223372036854775807)
+        self.assertEqual(
+            position.avg_cost_rial,
+            9223372036854775807000000000000000000,
+        )
+
     def test_weighted_average_uses_exact_total_not_rounded_average(self):
         opening = InventoryPosition(Decimal("10"), 10_000)
         purchased = apply_purchase(opening, "10", 22_000).after
