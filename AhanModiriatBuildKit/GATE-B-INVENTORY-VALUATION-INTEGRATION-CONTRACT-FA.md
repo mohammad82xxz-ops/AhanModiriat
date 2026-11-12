@@ -227,3 +227,13 @@ Gate B فقط وقتی قابل بستن است که همهٔ موارد زیر 
 - Run #1004 روی SHA پیشین `5c3bb98b77d0652a3fa891ad6d02ce394f531570`: Job `smoke-test` با تمام مراحل Compile، isolated tests، browser UI، finance/inventory، keyboard/zoom، Lighthouse/axe و بارگذاری artifactها موفق شد؛ Job `windows-onedir` هنگام آخرین بررسی هنوز queued بود.
 - HEAD جدید پس از تست فوق `109cfe8982d1f85abf47f275e960b23eeed0d800` است؛ Run #1004 این commit را شامل نمی‌شود و CI متصل به HEAD جدید باید جداگانه تأیید شود.
 - PR #43 همچنان Draft و ادغام‌نشده است. هیچ migration یا write روی دیتابیس واقعی انجام نشده است.
+
+
+## 15. اعتبارسنجی schemaهای قدیمی/ناسازگار Gate B — 2026-11-12
+
+- Commit `2f6f06dbe2be7f26b5195c688196860e5006ad02`: پیش از ساخت index و trigger، adapter ساختار جدول موجود `inventory_valuation_events` را بررسی می‌کند؛ نوع ستون‌های موردنیاز، نوع `products.total_value_rial`، کلید خارجی `product_id → products(id) ON DELETE RESTRICT` و قید یکتای `(source_table, source_id, event_type)` باید دقیقاً قابل شناسایی باشند.
+- هدف، جلوگیری از پذیرش خاموش جدول هم‌نام اما ناسازگار به‌دلیل `CREATE TABLE IF NOT EXISTS` است. در صورت عدم تطابق، helper خطا می‌دهد و SAVEPOINT باید DDL نیمه‌تمام را rollback کند.
+- Commit `97c7ff2eafffb7c520f77a44cfd64a603dacd874`: تست جدول legacy هم‌نام و ناقص را اضافه کرد و عدم باقی‌ماندن ستون projection و Triggerهای نیمه‌ساخته را بررسی می‌کند.
+- این اعتبارسنجی فقط در adapter آزمایشی و fixture SQLite است؛ هیچ schema واقعی یا دیتابیس عملیاتی تغییر نکرده است.
+- Run #1006 روی SHA پیشین `18af694e258fcf7efd575ade54b250cefcb47258` آغاز شد؛ Compile موفق و Isolated smoke tests در حال اجرا بود. این Run شامل commitهای بخش 15 نیست.
+- HEAD پس از تغییرات این بخش باید CI مستقل خود را بگذراند؛ نتایج #1004 یا #1006 به آن تعمیم داده نمی‌شوند.
