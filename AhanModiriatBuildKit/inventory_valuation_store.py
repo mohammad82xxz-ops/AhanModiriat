@@ -59,6 +59,8 @@ def _validate_valuation_result(result):
         result.after, InventoryPosition
     ):
         raise ValueError("valuation result positions must be InventoryPosition values")
+    if not isinstance(result.event_type, str):
+        raise ValueError("event_type must be a supported string")
     direction = {
         "purchase": 1,
         "sales_return": 1,
