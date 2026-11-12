@@ -187,6 +187,7 @@ def post_valuation_result(
     """
     if not isinstance(result, ValuationResult):
         raise TypeError("result must be a ValuationResult")
+    _validate_valuation_result(result)
     foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
     if not foreign_keys_enabled or foreign_keys_enabled[0] != 1:
         raise RuntimeError(
