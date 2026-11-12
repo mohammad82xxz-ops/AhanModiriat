@@ -296,3 +296,16 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [ ] Manual acceptance remains outstanding: launch the exact packaged build on the owner's Windows environment; verify business workflows, persistence, backup/restore on a disposable database, real screen-reader operation, 200% zoom, and a small display.
 
 **Scope boundary:** Run #991 validates the exact code-bearing head above. Do not infer that the independent Gate-B candidate is integrated into the live application; the adapter remains isolated and the current application purchase-return route still reconstructs current book value from the rounded `stock × avg_cost` projection. ACC-48 therefore remains open.
+
+
+## Latest exact-head CI evidence — PR #43, Run #992 (2026-11-12)
+
+- [x] GitHub Actions [Run #992](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43233770744) completed with conclusion `success` on exact PR head `d1a14e3721d127e570905621eebd321b1e4e6da6`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] `smoke-test` completed Compile, isolated smoke tests, Playwright installation, browser UI matrix/screenshots, finance and inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads.
+- [x] `windows-onedir` completed Windows cross-process token characterization, PyInstaller installation, OneDir build, and artifact upload.
+- [x] The preceding Run #991 applies only to code head `4a4bd569b6899be94c8b5533396f61bcc7fb151e`; Run #992 is the exact-head evidence for `d1a14e3721d127e570905621eebd321b1e4e6da6`.
+- [ ] CI success does not close ACC-48/Gate B, approve pending DEC-02/03/04, establish owner acceptance on real Windows hardware, or authorize production migration.
+- [ ] Manual owner acceptance remains open: launch the packaged build on a clean Windows environment; verify product/purchase/sale/return/expense flows, persistence, backup/restore on a disposable database, real screen-reader behavior, keyboard-only operation, 200% zoom, and a small display.
+
+**Exact scope boundary:** Run #992 validates the current PR head, including the candidate valuation module and isolated SQLite adapter tests. It does not establish production integration. `app.py` does not import or call `inventory_valuation.py` / `inventory_valuation_store.py`; operational inventory routes still use the rounded `stock × avg_cost` reconstruction or direct stock updates. The route-level gaps and required integration order are recorded in `GATE-B-INVENTORY-VALUATION-INTEGRATION-CONTRACT-FA.md`. Keep PR #43 Draft until Gate B, accounting review, and owner acceptance are complete.
