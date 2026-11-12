@@ -218,7 +218,11 @@ class InventoryValuationStoreTests(unittest.TestCase):
 
     def test_invalid_metadata_json_is_rejected_before_writes(self):
         before = InventoryPosition(Decimal("10"), 1000)
-        invalid_values = ("not-json", "[]", '"text"', "null", "42")
+        invalid_values = (
+            "not-json", "[]", '"text"', "null", "42",
+            '{"amount": NaN}', '{"amount": Infinity}',
+            '{"amount": 1, "amount": 2}',
+        )
         for metadata in invalid_values:
             with self.subTest(metadata=metadata):
                 result = apply_purchase(before, "1", 100)
