@@ -216,6 +216,54 @@ class InventoryValuationStoreTests(unittest.TestCase):
             17,
         )
 
+    def test_invalid_metadata_json_is_rejected_before_writes(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        invalid_values = ("not-json", "[]", '"text"', "null", "42")
+        for metadata in invalid_values:
+            with self.subTest(metadata=metadata):
+                result = apply_purchase(before, "1", 100)
+                with self.assertRaisesRegex(ValueError, "metadata_json"):
+                    post_valuation_result(
+                        self.db, 1, result, "purchases", 21,
+                        "2026-11-11", metadata_json=metadata
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_product_id_must_be_positive_integral_sqlite_integer(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        for product_id in (True, False, 0, -1, 1.5, Decimal("NaN"),
+                           Decimal("Infinity"), 9223372036854775808):
+            with self.subTest(product_id=product_id):
+                result = apply_purchase(before, "1", 100)
+                with self.assertRaisesRegex(ValueError, "product_id"):
+                    post_valuation_result(
+                        self.db, product_id, result, "purchases", 22,
+                        "2026-11-11"
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
     def test_valuation_events_are_append_only(self):
         result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
         post_valuation_result(
