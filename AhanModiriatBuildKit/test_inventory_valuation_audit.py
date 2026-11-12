@@ -100,6 +100,16 @@ class InventoryValuationAuditTests(unittest.TestCase):
             "average cost is not an integer rial amount", product["exceptions"]
         )
 
+    def test_non_finite_or_non_numeric_legacy_values_are_reported(self):
+        self.db.execute(
+            "INSERT INTO products VALUES(1,'داده نامعتبر','NaN','Infinity')"
+        )
+        product = build_legacy_baseline_report(self.db)["products"][0]
+        self.assertFalse(product["eligible_for_estimated_baseline"])
+        self.assertIsNone(product["estimated_total_value_rial"])
+        self.assertIn("stock is not a finite numeric value", product["exceptions"])
+        self.assertIn("avg_cost is not a finite numeric value", product["exceptions"])
+
     def test_signed_64_bit_overflow_is_reported(self):
         self.db.execute(
             "INSERT INTO products VALUES(1,'بزرگ',2,?)",
