@@ -24,6 +24,23 @@ def _unique_json_object(pairs):
     return result
 
 
+def _sqlite_integer(value, label, minimum=0, maximum=9223372036854775807):
+    if isinstance(value, bool):
+        raise ValueError(label + " must fit a SQLite signed 64-bit integer")
+    try:
+        number = Decimal(str(value))
+    except Exception:
+        raise ValueError(label + " must fit a SQLite signed 64-bit integer") from None
+    if (
+        not number.is_finite()
+        or number != number.to_integral_value()
+        or number < minimum
+        or number > maximum
+    ):
+        raise ValueError(label + " must fit a SQLite signed 64-bit integer")
+    return int(number)
+
+
 def _sqlite_real_quantity(quantity):
     """Return a REAL-compatible quantity only when its decimal value round-trips."""
     quantity = Decimal(str(quantity))
@@ -150,6 +167,23 @@ def post_valuation_result(
         raise ValueError("source_id must be a positive SQLite integer")
     source_id = int(source_id_decimal)
     if not effective_date or not str(effective_date).strip():
+        raise ValueError("effective_date is required")
+
+    # SQLite INTEGER is signed 64-bit. Validate every persisted rial amount
+    # before opening a savepoint so overflow cannot become a driver-level error.
+    _sqlite_integer(result.after.total_value_rial, "total_value_rial")
+    _sqlite_integer(
+        result.value_delta_rial,
+        "value_delta_rial",
+        minimum=-9223372036854775808,
+        maximum=9223372036854775807,
+    )
+
+    if not isinstance(result.event_type, str) or not result.event_type.strip():
+        raise ValueError("event_type is required")
+    if not isinstance(source_table, str) or not source_table.strip():
+        raise ValueError("source_table is required")
+    if not isinstance(effective_date, str) or not effective_date.strip():
         raise ValueError("effective_date is required")
 
     # products.stock is currently declared REAL. Refuse quantities whose
