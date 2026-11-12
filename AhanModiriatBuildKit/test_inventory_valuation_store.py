@@ -171,6 +171,51 @@ class InventoryValuationStoreTests(unittest.TestCase):
         self.assertEqual(Decimal(str(stored[0])), Decimal("10.125"))
         self.assertEqual(stored[1], 1100)
 
+    def test_rial_integer_overflow_is_rejected_before_writes(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "1", 9223372036854775807)
+        with self.assertRaisesRegex(ValueError, "total_value_rial"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 23, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_event_source_and_effective_date_require_strings(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        for source_table, effective_date in (
+            (123, "2026-11-11"),
+            ("purchases", 20261111),
+        ):
+            with self.subTest(source_table=source_table, effective_date=effective_date):
+                with self.assertRaisesRegex(ValueError, "source_table|effective_date"):
+                    post_valuation_result(
+                        self.db, 1, result, source_table, 24,
+                        effective_date
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
     def test_source_id_must_be_a_positive_integral_sqlite_integer(self):
         before = InventoryPosition(Decimal("10"), 1000)
         invalid_ids = (
