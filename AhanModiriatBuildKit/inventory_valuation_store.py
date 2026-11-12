@@ -53,6 +53,45 @@ def _sqlite_real_quantity(quantity):
     return stored
 
 
+def _validate_valuation_result(result):
+    """Reject forged/internally inconsistent result objects before persistence."""
+    if not isinstance(result.before, InventoryPosition) or not isinstance(
+        result.after, InventoryPosition
+    ):
+        raise ValueError("valuation result positions must be InventoryPosition values")
+    direction = {
+        "purchase": 1,
+        "sales_return": 1,
+        "sale": -1,
+        "purchase_return": -1,
+    }.get(result.event_type)
+    if direction is None:
+        raise ValueError("unsupported valuation event_type")
+    try:
+        quantity_delta = Decimal(str(result.quantity_delta))
+    except Exception:
+        raise ValueError("quantity_delta must be a finite non-zero decimal") from None
+    if not quantity_delta.is_finite() or quantity_delta == 0:
+        raise ValueError("quantity_delta must be a finite non-zero decimal")
+    value_delta = _sqlite_integer(
+        result.value_delta_rial,
+        "value_delta_rial",
+        minimum=-9223372036854775808,
+        maximum=9223372036854775807,
+    )
+    event_value = _sqlite_integer(result.event_value_rial, "event_value_rial")
+    if quantity_delta * direction <= 0:
+        raise ValueError("quantity_delta direction does not match event_type")
+    if value_delta * direction < 0:
+        raise ValueError("value_delta_rial direction does not match event_type")
+    if event_value != abs(value_delta):
+        raise ValueError("event_value_rial must equal the absolute value delta")
+    if result.before.quantity + quantity_delta != result.after.quantity:
+        raise ValueError("valuation result quantity delta is inconsistent")
+    if result.before.total_value_rial + value_delta != result.after.total_value_rial:
+        raise ValueError("valuation result value delta is inconsistent")
+
+
 def ensure_valuation_schema(connection):
     """Create the event ledger and nullable total-value cache on a test/migration DB."""
     foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
