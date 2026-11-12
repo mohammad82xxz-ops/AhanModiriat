@@ -218,15 +218,24 @@ def _ensure_valuation_schema_impl(connection):
 
     # Valuation history is an audit ledger, not an editable cache. Corrections
     # must be represented by compensating events, never UPDATE/DELETE.
+    # Rebuild the guards on every schema validation. IF NOT EXISTS would
+    # silently preserve a same-named but weakened trigger left by an older
+    # or partially repaired schema.
+    connection.execute(
+        "DROP TRIGGER IF EXISTS inventory_valuation_events_no_update"
+    )
     connection.execute("""
-        CREATE TRIGGER IF NOT EXISTS inventory_valuation_events_no_update
+        CREATE TRIGGER inventory_valuation_events_no_update
         BEFORE UPDATE ON inventory_valuation_events
         BEGIN
             SELECT RAISE(ABORT, 'inventory valuation events are append-only');
         END
     """)
+    connection.execute(
+        "DROP TRIGGER IF EXISTS inventory_valuation_events_no_delete"
+    )
     connection.execute("""
-        CREATE TRIGGER IF NOT EXISTS inventory_valuation_events_no_delete
+        CREATE TRIGGER inventory_valuation_events_no_delete
         BEFORE DELETE ON inventory_valuation_events
         BEGIN
             SELECT RAISE(ABORT, 'inventory valuation events are append-only');
