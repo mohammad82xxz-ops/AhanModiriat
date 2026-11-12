@@ -107,6 +107,29 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_integral_decimal_rial_delta_is_normalized_before_sqlite_binding(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        after = InventoryPosition(Decimal("11"), 1100)
+        result = ValuationResult(
+            "purchase", before, after,
+            Decimal("1"), Decimal("100"), Decimal("100")
+        )
+        post_valuation_result(
+            self.db, 1, result, "purchases", 31, "2026-11-12"
+        )
+        event = self.db.execute("""
+            SELECT value_delta_rial, typeof(value_delta_rial)
+              FROM inventory_valuation_events
+             WHERE source_id=31
+        """).fetchone()
+        self.assertEqual(event, (100, "integer"))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (11.0, 1100),
+        )
+
     def test_stale_snapshot_is_rejected_without_writes(self):
         stale = InventoryPosition(Decimal("9"), 900)
         result = apply_purchase(stale, "1", 100)
