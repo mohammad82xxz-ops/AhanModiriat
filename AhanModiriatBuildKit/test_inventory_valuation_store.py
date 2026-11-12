@@ -472,6 +472,46 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_schema_setup_rejects_nullable_ledger_columns_atomically(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            connection.execute("""
+                CREATE TABLE inventory_valuation_events(
+                    id INTEGER PRIMARY KEY,
+                    product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                    source_table TEXT,
+                    source_id INTEGER,
+                    event_type TEXT,
+                    effective_date TEXT,
+                    quantity_delta TEXT,
+                    value_delta_rial INTEGER,
+                    quantity_after TEXT,
+                    total_value_after_rial INTEGER,
+                    created_at TEXT,
+                    metadata_json TEXT,
+                    UNIQUE(source_table, source_id, event_type)
+                )
+            """)
+            with self.assertRaisesRegex(ValueError, "must be NOT NULL"):
+                ensure_valuation_schema(connection)
+            product_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            self.assertNotIn("total_value_rial", product_columns)
+            self.assertEqual(
+                connection.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' "
+                    "AND name LIKE 'inventory_valuation_events_%'"
+                ).fetchone()[0],
+                0,
+            )
+        finally:
+            connection.close()
+
     def test_schema_setup_rejects_incompatible_existing_ledger_atomically(self):
         connection = sqlite3.connect(":memory:")
         connection.execute("PRAGMA foreign_keys=ON")
