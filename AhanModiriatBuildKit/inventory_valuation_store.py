@@ -95,6 +95,74 @@ def _validate_valuation_result(result):
     return value_delta, event_value
 
 
+def _validate_valuation_schema(connection):
+    """Fail closed when an existing ledger table is incompatible with this adapter."""
+    expected_types = {
+        "id": "INTEGER",
+        "product_id": "INTEGER",
+        "source_table": "TEXT",
+        "source_id": "INTEGER",
+        "event_type": "TEXT",
+        "effective_date": "TEXT",
+        "quantity_delta": "TEXT",
+        "value_delta_rial": "INTEGER",
+        "quantity_after": "TEXT",
+        "total_value_after_rial": "INTEGER",
+        "created_at": "TEXT",
+        "metadata_json": "TEXT",
+    }
+    event_columns = {
+        row[1]: (row[2] or "").upper()
+        for row in connection.execute(
+            "PRAGMA table_info(inventory_valuation_events)"
+        )
+    }
+    for name, expected_type in expected_types.items():
+        if event_columns.get(name) != expected_type:
+            raise ValueError(
+                "incompatible inventory_valuation_events schema: "
+                + name + " must be " + expected_type
+            )
+
+    product_columns = {
+        row[1]: (row[2] or "").upper()
+        for row in connection.execute("PRAGMA table_info(products)")
+    }
+    if product_columns.get("total_value_rial") != "INTEGER":
+        raise ValueError("products.total_value_rial must be INTEGER")
+
+    foreign_keys = connection.execute(
+        "PRAGMA foreign_key_list(inventory_valuation_events)"
+    ).fetchall()
+    if not any(
+        row[2] == "products" and row[3] == "product_id"
+        and row[4] == "id" and row[6].upper() == "RESTRICT"
+        for row in foreign_keys
+    ):
+        raise ValueError(
+            "inventory_valuation_events.product_id must reference products(id) ON DELETE RESTRICT"
+        )
+
+    has_source_unique = False
+    for index in connection.execute(
+        "PRAGMA index_list(inventory_valuation_events)"
+    ).fetchall():
+        if index[2]:
+            quoted_name = '"' + index[1].replace('"', '""') + '"'
+            indexed_columns = [
+                row[2] for row in connection.execute(
+                    "PRAGMA index_info(" + quoted_name + ")"
+                )
+            ]
+            if indexed_columns == ["source_table", "source_id", "event_type"]:
+                has_source_unique = True
+                break
+    if not has_source_unique:
+        raise ValueError(
+            "inventory_valuation_events requires UNIQUE(source_table, source_id, event_type)"
+        )
+
+
 def _ensure_valuation_schema_impl(connection):
     """Create the event ledger and nullable total-value cache on a test/migration DB."""
     foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
@@ -130,6 +198,8 @@ def _ensure_valuation_schema_impl(connection):
             CHECK(total_value_after_rial >= 0)
         )
     """)
+    _validate_valuation_schema(connection)
+
     connection.execute("""
         CREATE INDEX IF NOT EXISTS ix_inventory_valuation_product_date
         ON inventory_valuation_events(product_id, effective_date, id)
