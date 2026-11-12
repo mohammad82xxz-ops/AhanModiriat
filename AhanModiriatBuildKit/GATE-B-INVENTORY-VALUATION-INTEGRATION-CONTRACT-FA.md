@@ -218,3 +218,12 @@ Gate B فقط وقتی قابل بستن است که همهٔ موارد زیر 
 - این تغییر فقط helper مهاجرت و fixtureهای SQLite را سخت‌تر می‌کند؛ helper همچنان از `app.py` جداست و روی دیتابیس واقعی اجرا نشده است.
 - اجرای #1002 روی SHA قبلی `c00cb3711c4f41e434ad7341c9dd8c9258849a45` در آخرین بررسی در مرحله Lighthouse/axe بود؛ این اجرا شامل دو commit بالا نیست.
 - HEAD جدید `d2579d34c3620cacecc6e50696e6e7aded9353d5` باید CI مستقل خود را بگذراند؛ تا مشاهدهٔ Run متصل به همین SHA و موفقیت همهٔ Jobها، CI سبز برای HEAD جدید اعلام نمی‌شود.
+
+
+## 14. حفظ تراکنش فراخواننده هنگام آماده‌سازی schema — 2026-11-12
+
+- Commit `109cfe8982d1f85abf47f275e960b23eeed0d800`: تستی اضافه شد که `ensure_valuation_schema` را درون یک تراکنش از قبل باز اجرا می‌کند؛ سپس rollback تراکنش بیرونی باید هم تغییر DML فراخواننده و هم تمام DDL ایجادشده توسط helper را برگرداند.
+- این تست قرارداد مهم SAVEPOINT را تثبیت می‌کند: helper فقط savepoint خودش را release می‌کند و نباید تراکنش مالک را commit کند.
+- Run #1004 روی SHA پیشین `5c3bb98b77d0652a3fa891ad6d02ce394f531570`: Job `smoke-test` با تمام مراحل Compile، isolated tests، browser UI، finance/inventory، keyboard/zoom، Lighthouse/axe و بارگذاری artifactها موفق شد؛ Job `windows-onedir` هنگام آخرین بررسی هنوز queued بود.
+- HEAD جدید پس از تست فوق `109cfe8982d1f85abf47f275e960b23eeed0d800` است؛ Run #1004 این commit را شامل نمی‌شود و CI متصل به HEAD جدید باید جداگانه تأیید شود.
+- PR #43 همچنان Draft و ادغام‌نشده است. هیچ migration یا write روی دیتابیس واقعی انجام نشده است.
