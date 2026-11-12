@@ -472,6 +472,42 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_schema_setup_rolls_back_partial_ddl_on_failure(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            # Simulate a damaged/legacy object collision. The helper adds the
+            # projection column first, then index creation fails because this
+            # pre-existing table does not have product_id.
+            connection.execute(
+                "CREATE TABLE inventory_valuation_events(id INTEGER PRIMARY KEY)"
+            )
+            with self.assertRaises(sqlite3.OperationalError):
+                ensure_valuation_schema(connection)
+            product_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            event_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(inventory_valuation_events)"
+                )
+            }
+            self.assertNotIn("total_value_rial", product_columns)
+            self.assertEqual(event_columns, {"id"})
+            self.assertEqual(
+                connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' "
+                    "AND name='ix_inventory_valuation_product_date'"
+                ).fetchall(),
+                [],
+            )
+        finally:
+            connection.close()
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
