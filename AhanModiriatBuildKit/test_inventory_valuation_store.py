@@ -385,6 +385,27 @@ class InventoryValuationStoreTests(unittest.TestCase):
                AND event_type='purchase'
         """).fetchone()
         self.assertEqual(event, ("2026-11-11", "1", 100, "11", 1100))
+
+        # An explicit primary-key collision with a different source identity
+        # is also a REPLACE conflict and must not delete the original row.
+        original_id = self.db.execute(
+            "SELECT id FROM inventory_valuation_events WHERE source_id=26"
+        ).fetchone()[0]
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute("""
+                INSERT OR REPLACE INTO inventory_valuation_events(
+                    id, product_id, source_table, source_id, event_type,
+                    effective_date, quantity_delta, value_delta_rial,
+                    quantity_after, total_value_after_rial, metadata_json
+                ) VALUES (?, 1, 'purchases', 999, 'purchase',
+                          '2026-11-12', '999', 999, '999', 999, '{}')
+            """, (original_id,))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT id, source_id, value_delta_rial FROM inventory_valuation_events"
+            ).fetchall(),
+            [(original_id, 26, 100)],
+        )
         self.assertEqual(
             self.db.execute(
                 "SELECT stock, total_value_rial FROM products WHERE id=1"
