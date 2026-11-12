@@ -11,6 +11,19 @@ import sqlite3
 from inventory_valuation import InventoryPosition, ValuationResult
 
 
+def _reject_json_constant(value):
+    raise ValueError("non-standard JSON numeric constant: " + value)
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key: " + key)
+        result[key] = value
+    return result
+
+
 def _sqlite_real_quantity(quantity):
     """Return a REAL-compatible quantity only when its decimal value round-trips."""
     quantity = Decimal(str(quantity))
@@ -111,9 +124,13 @@ def post_valuation_result(
     if not isinstance(metadata_json, str):
         raise ValueError("metadata_json must be a JSON object string")
     try:
-        metadata = json.loads(metadata_json)
+        metadata = json.loads(
+            metadata_json,
+            parse_constant=_reject_json_constant,
+            object_pairs_hook=_unique_json_object,
+        )
     except (TypeError, ValueError):
-        raise ValueError("metadata_json must be valid JSON") from None
+        raise ValueError("metadata_json must be strict JSON without duplicate keys") from None
     if not isinstance(metadata, dict):
         raise ValueError("metadata_json must encode a JSON object")
     if not source_table or not str(source_table).strip():
