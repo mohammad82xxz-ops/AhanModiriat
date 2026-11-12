@@ -46,6 +46,23 @@ class InventoryValuationTests(unittest.TestCase):
         self.assertEqual(second.after.total_value_rial, 6)
         self.assertEqual(second.after.avg_cost_rial, 2)
 
+    def test_acc48_exact_two_consecutive_returns_preserve_total_value(self):
+        # Exact ACC-48 fixture: opening stock is 3 units / 6 rial.
+        # The source purchase being returned is 2 units / 2 rial, but the
+        # current position already includes only 3 units / 6 rial in total.
+        # Each partial return removes 1 unit and its 1-rial historical value.
+        position = InventoryPosition(Decimal("3"), 6)
+
+        first = apply_purchase_return(position, "1", 1)
+        self.assertEqual(first.after.quantity, Decimal("2"))
+        self.assertEqual(first.after.total_value_rial, 5)
+        self.assertEqual(first.after.avg_cost_rial, 3)
+
+        second = apply_purchase_return(first.after, "1", 1)
+        self.assertEqual(second.after.quantity, Decimal("1"))
+        self.assertEqual(second.after.total_value_rial, 4)
+        self.assertEqual(second.after.avg_cost_rial, 4)
+
     def test_final_sale_consumes_exact_remaining_value(self):
         position = InventoryPosition(Decimal("3"), 6)
         first = apply_sale(position, "1")
