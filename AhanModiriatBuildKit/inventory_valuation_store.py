@@ -92,6 +92,7 @@ def _validate_valuation_result(result):
         raise ValueError("valuation result quantity delta is inconsistent")
     if result.before.total_value_rial + value_delta != result.after.total_value_rial:
         raise ValueError("valuation result value delta is inconsistent")
+    return value_delta, event_value
 
 
 def ensure_valuation_schema(connection):
@@ -192,7 +193,7 @@ def post_valuation_result(
     """
     if not isinstance(result, ValuationResult):
         raise TypeError("result must be a ValuationResult")
-    _validate_valuation_result(result)
+    validated_value_delta_rial, _ = _validate_valuation_result(result)
     foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
     if not foreign_keys_enabled or foreign_keys_enabled[0] != 1:
         raise RuntimeError(
@@ -290,7 +291,7 @@ def post_valuation_result(
         """, (
             product_id, str(source_table), int(source_id), result.event_type,
             str(effective_date), str(result.quantity_delta),
-            result.value_delta_rial, str(result.after.quantity),
+            validated_value_delta_rial, str(result.after.quantity),
             result.after.total_value_rial, str(metadata_json),
         ))
         cursor = connection.execute("""
