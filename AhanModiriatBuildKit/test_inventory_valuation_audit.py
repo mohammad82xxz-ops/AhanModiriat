@@ -158,6 +158,25 @@ class InventoryValuationAuditTests(unittest.TestCase):
                 check.execute("INSERT INTO products VALUES(2,'x',1,1)")
             check.close()
 
+    def test_plain_tuple_row_factory_connection_is_supported(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("""
+                CREATE TABLE products(
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    stock REAL NOT NULL,
+                    avg_cost INTEGER NOT NULL
+                )
+            """)
+            connection.execute("INSERT INTO products VALUES(1,'ورق',2,30)")
+            report = build_legacy_baseline_report(connection)
+            self.assertEqual(
+                report["estimated_total_value_rial_for_eligible_products"], 60
+            )
+        finally:
+            connection.close()
+
     def test_nonexistent_database_file_is_not_created(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "missing.db"
