@@ -395,16 +395,23 @@ class InventoryValuationStoreTests(unittest.TestCase):
             "inventory_valuation_events_no_replace",
         ):
             self.db.execute('DROP TRIGGER "' + name + '"')
-        self.db.executescript("""
+        # Use execute() rather than executescript(): sqlite3.executescript()
+        # commits an open transaction implicitly, which would hide whether
+        # ensure_valuation_schema preserves its caller's transaction.
+        self.db.execute("""
             CREATE TRIGGER inventory_valuation_events_no_update
             BEFORE UPDATE ON inventory_valuation_events
-            BEGIN SELECT 1; END;
+            BEGIN SELECT 1; END
+        """)
+        self.db.execute("""
             CREATE TRIGGER inventory_valuation_events_no_delete
             BEFORE DELETE ON inventory_valuation_events
-            BEGIN SELECT 1; END;
+            BEGIN SELECT 1; END
+        """)
+        self.db.execute("""
             CREATE TRIGGER inventory_valuation_events_no_replace
             BEFORE INSERT ON inventory_valuation_events
-            BEGIN SELECT 1; END;
+            BEGIN SELECT 1; END
         """)
 
         ensure_valuation_schema(self.db)
