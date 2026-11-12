@@ -152,16 +152,21 @@ def ensure_valuation_schema(connection):
     """)
 
     # SQLite's REPLACE conflict algorithm can delete a conflicting row without
-    # firing DELETE triggers unless recursive_triggers is enabled. Reject an
-    # existing event identity in BEFORE INSERT so REPLACE cannot rewrite history.
+    # firing DELETE triggers unless recursive_triggers is enabled. Protect every
+    # UNIQUE conflict, including an explicit primary-key collision with a
+    # different source identity.
+    connection.execute(
+        "DROP TRIGGER IF EXISTS inventory_valuation_events_no_replace"
+    )
     connection.execute("""
-        CREATE TRIGGER IF NOT EXISTS inventory_valuation_events_no_replace
+        CREATE TRIGGER inventory_valuation_events_no_replace
         BEFORE INSERT ON inventory_valuation_events
         WHEN EXISTS (
             SELECT 1 FROM inventory_valuation_events
-             WHERE source_table=NEW.source_table
-               AND source_id=NEW.source_id
-               AND event_type=NEW.event_type
+             WHERE (NEW.id IS NOT NULL AND id=NEW.id)
+                OR (source_table=NEW.source_table
+                    AND source_id=NEW.source_id
+                    AND event_type=NEW.event_type)
         )
         BEGIN
             SELECT RAISE(ABORT, 'inventory valuation events are append-only');
