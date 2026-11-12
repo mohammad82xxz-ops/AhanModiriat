@@ -386,6 +386,59 @@ class InventoryValuationStoreTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(event, (100,))
 
+    def test_schema_setup_rebuilds_weakened_append_only_triggers(self):
+        # A same-named trigger may exist but have been weakened or replaced.
+        # Re-validating the schema must restore all three ledger guards.
+        for name in (
+            "inventory_valuation_events_no_update",
+            "inventory_valuation_events_no_delete",
+            "inventory_valuation_events_no_replace",
+        ):
+            self.db.execute('DROP TRIGGER "' + name + '"')
+        self.db.executescript("""
+            CREATE TRIGGER inventory_valuation_events_no_update
+            BEFORE UPDATE ON inventory_valuation_events
+            BEGIN SELECT 1; END;
+            CREATE TRIGGER inventory_valuation_events_no_delete
+            BEFORE DELETE ON inventory_valuation_events
+            BEGIN SELECT 1; END;
+            CREATE TRIGGER inventory_valuation_events_no_replace
+            BEFORE INSERT ON inventory_valuation_events
+            BEGIN SELECT 1; END;
+        """)
+
+        ensure_valuation_schema(self.db)
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 28, "2026-11-12"
+        )
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "UPDATE inventory_valuation_events SET value_delta_rial=999 "
+                "WHERE source_id=28"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "DELETE FROM inventory_valuation_events WHERE source_id=28"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute("""
+                INSERT OR REPLACE INTO inventory_valuation_events(
+                    product_id, source_table, source_id, event_type, effective_date,
+                    quantity_delta, value_delta_rial, quantity_after,
+                    total_value_after_rial, metadata_json
+                ) VALUES (1, 'purchases', 28, 'purchase', '2026-11-13',
+                          '999', 999, '999', 999, '{}')
+            """)
+        self.assertEqual(
+            self.db.execute(
+                "SELECT value_delta_rial FROM inventory_valuation_events "
+                "WHERE source_id=28"
+            ).fetchone(),
+            (100,),
+        )
+
     def test_insert_or_replace_cannot_rewrite_valuation_history(self):
         result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
         post_valuation_result(
