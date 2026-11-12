@@ -97,9 +97,14 @@ def build_legacy_baseline_report(connection):
     if missing:
         raise ValueError("products table is missing required columns: " + ", ".join(missing))
 
-    rows = connection.execute(
+    cursor = connection.execute(
         "SELECT id, name, stock, avg_cost FROM products ORDER BY id"
-    ).fetchall()
+    )
+    column_names = [item[0] for item in cursor.description]
+    rows = [
+        dict(row) if hasattr(row, "keys") else dict(zip(column_names, row))
+        for row in cursor.fetchall()
+    ]
     products = [_product_row_report(row) for row in rows]
     eligible = [
         item for item in products if item["eligible_for_estimated_baseline"]
