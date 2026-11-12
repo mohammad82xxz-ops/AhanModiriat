@@ -4,7 +4,7 @@ import sqlite3
 import unittest
 from decimal import Decimal
 
-from inventory_valuation import InventoryPosition, apply_purchase, apply_sale
+from inventory_valuation import InventoryPosition, ValuationResult, apply_purchase, apply_sale
 from inventory_valuation_store import ensure_valuation_schema, post_valuation_result
 
 
@@ -74,6 +74,37 @@ class InventoryValuationStoreTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM inventory_valuation_events"
             ).fetchone()[0],
             1,
+        )
+
+    def test_forged_or_inconsistent_valuation_results_are_rejected(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        forged = (
+            ValuationResult("purchase", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("2"), 100, 100),
+            ValuationResult("unknown", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("1"), 100, 100),
+            ValuationResult("purchase", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("-1"), 100, 100),
+            ValuationResult("purchase", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("1"), 100, 99),
+        )
+        for index, result in enumerate(forged, start=30):
+            with self.subTest(result=result):
+                with self.assertRaisesRegex(ValueError, "valuation|event_type|quantity_delta|event_value"):
+                    post_valuation_result(
+                        self.db, 1, result, "purchases", index, "2026-11-11"
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
         )
 
     def test_stale_snapshot_is_rejected_without_writes(self):
