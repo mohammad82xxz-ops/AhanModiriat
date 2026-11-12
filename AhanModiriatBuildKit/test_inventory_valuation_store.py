@@ -514,12 +514,12 @@ class InventoryValuationStoreTests(unittest.TestCase):
                 "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
             )
             # Simulate a damaged/legacy object collision. The helper adds the
-            # projection column first, then index creation fails because this
-            # pre-existing table does not have product_id.
+            # projection column first, then rejects this incomplete pre-existing
+            # ledger schema before creating indexes or triggers.
             connection.execute(
                 "CREATE TABLE inventory_valuation_events(id INTEGER PRIMARY KEY)"
             )
-            with self.assertRaises(sqlite3.OperationalError):
+            with self.assertRaisesRegex(ValueError, "incompatible.*schema"):
                 ensure_valuation_schema(connection)
             product_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(products)")
