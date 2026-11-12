@@ -55,6 +55,11 @@ def _sqlite_real_quantity(quantity):
 
 def ensure_valuation_schema(connection):
     """Create the event ledger and nullable total-value cache on a test/migration DB."""
+    foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
+    if not foreign_keys_enabled or foreign_keys_enabled[0] != 1:
+        raise RuntimeError(
+            "SQLite foreign-key enforcement must be enabled before valuation schema setup"
+        )
     columns = {
         row[1] for row in connection.execute("PRAGMA table_info(products)")
     }
@@ -124,6 +129,11 @@ def post_valuation_result(
     """
     if not isinstance(result, ValuationResult):
         raise TypeError("result must be a ValuationResult")
+    foreign_keys_enabled = connection.execute("PRAGMA foreign_keys").fetchone()
+    if not foreign_keys_enabled or foreign_keys_enabled[0] != 1:
+        raise RuntimeError(
+            "SQLite foreign-key enforcement must remain enabled for valuation writes"
+        )
     if isinstance(product_id, bool):
         raise ValueError("product_id must be a positive SQLite integer")
     try:
