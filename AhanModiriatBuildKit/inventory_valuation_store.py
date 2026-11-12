@@ -111,17 +111,28 @@ def _validate_valuation_schema(connection):
         "created_at": "TEXT",
         "metadata_json": "TEXT",
     }
-    event_columns = {
-        row[1]: (row[2] or "").upper()
+    event_info = {
+        row[1]: {"type": (row[2] or "").upper(), "notnull": row[3], "pk": row[5]}
         for row in connection.execute(
             "PRAGMA table_info(inventory_valuation_events)"
         )
     }
     for name, expected_type in expected_types.items():
-        if event_columns.get(name) != expected_type:
+        column = event_info.get(name)
+        if column is None or column["type"] != expected_type:
             raise ValueError(
                 "incompatible inventory_valuation_events schema: "
                 + name + " must be " + expected_type
+            )
+        if name == "id":
+            if column["pk"] != 1:
+                raise ValueError(
+                    "incompatible inventory_valuation_events schema: id must be the primary key"
+                )
+        elif column["notnull"] != 1:
+            raise ValueError(
+                "incompatible inventory_valuation_events schema: "
+                + name + " must be NOT NULL"
             )
 
     product_columns = {
