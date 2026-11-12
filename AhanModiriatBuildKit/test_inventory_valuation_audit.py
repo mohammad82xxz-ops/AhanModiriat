@@ -53,6 +53,52 @@ class InventoryValuationAuditTests(unittest.TestCase):
         self.assertEqual(self.db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
         json.dumps(report, ensure_ascii=False)
 
+    def test_existing_total_value_is_reported_separately_from_legacy_estimate(self):
+        self.db.execute("ALTER TABLE products ADD COLUMN total_value_rial INTEGER")
+        self.db.executemany(
+            "INSERT INTO products(id,name,stock,avg_cost,total_value_rial) VALUES(?,?,?,?,?)",
+            [
+                (1, "اختلاف یک‌ریالی", 3, 10, 29),
+                (2, "تطبیق دقیق", 2, 5, 10),
+                (3, "ارزش مبنا نامشخص", 0, 0, None),
+            ],
+        )
+        before_changes = self.db.total_changes
+        report = build_legacy_baseline_report(self.db)
+
+        self.assertTrue(report["stored_total_value_column_present"])
+        self.assertEqual(report["stored_total_value_valid_product_count"], 2)
+        self.assertEqual(report["stored_total_value_mismatch_count"], 1)
+        self.assertEqual(report["products"][0]["stored_total_value_rial"], 29)
+        self.assertFalse(
+            report["products"][0]["stored_total_value_matches_legacy_estimate"]
+        )
+        self.assertTrue(
+            report["products"][1]["stored_total_value_matches_legacy_estimate"]
+        )
+        self.assertEqual(report["products"][2]["stored_total_value_status"], "null")
+        self.assertIsNone(report["products"][2]["stored_total_value_rial"])
+        # A discrepancy is diagnostic only; it must not silently promote the
+        # rounded legacy estimate or rewrite the stored exact-value candidate.
+        self.assertEqual(
+            report["estimated_total_value_rial_for_eligible_products"], 40
+        )
+        self.assertEqual(self.db.total_changes, before_changes)
+
+    def test_invalid_stored_total_value_is_reported_without_affecting_legacy_estimate(self):
+        self.db.execute("ALTER TABLE products ADD COLUMN total_value_rial")
+        self.db.execute(
+            "INSERT INTO products(id,name,stock,avg_cost,total_value_rial) "
+            "VALUES(1,'مقدار ارزش نامعتبر',2,10,-1)"
+        )
+        product = build_legacy_baseline_report(self.db)["products"][0]
+
+        self.assertEqual(product["stored_total_value_status"], "invalid")
+        self.assertIsNone(product["stored_total_value_rial"])
+        self.assertIsNone(product["stored_total_value_matches_legacy_estimate"])
+        self.assertEqual(product["estimated_total_value_rial"], 20)
+        self.assertTrue(product["eligible_for_estimated_baseline"])
+
     def test_zero_cost_positive_stock_is_excluded_and_reported(self):
         self.db.execute(
             "INSERT INTO products VALUES(1,'کالای بدون بها',5,0)"
