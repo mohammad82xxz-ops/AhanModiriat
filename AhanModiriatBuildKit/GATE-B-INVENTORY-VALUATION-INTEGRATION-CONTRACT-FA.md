@@ -237,3 +237,11 @@ Gate B فقط وقتی قابل بستن است که همهٔ موارد زیر 
 - این اعتبارسنجی فقط در adapter آزمایشی و fixture SQLite است؛ هیچ schema واقعی یا دیتابیس عملیاتی تغییر نکرده است.
 - Run #1006 روی SHA پیشین `18af694e258fcf7efd575ade54b250cefcb47258` آغاز شد؛ Compile موفق و Isolated smoke tests در حال اجرا بود. این Run شامل commitهای بخش 15 نیست.
 - HEAD پس از تغییرات این بخش باید CI مستقل خود را بگذراند؛ نتایج #1004 یا #1006 به آن تعمیم داده نمی‌شوند.
+
+
+### وضعیت پیگیری اجرای #1006 و HEAD نهایی این مرحله
+
+- Run #1006 روی SHA `18af694e258fcf7efd575ade54b250cefcb47258`: Compile و Isolated smoke tests موفق؛ نصب Playwright موفق؛ Browser UI matrix در آخرین polling در حال اجرا بود. finance/inventory، keyboard/zoom، Lighthouse/axe و Job ویندوز هنوز نتیجه نهایی نداشتند.
+- HEAD بعد از اعتبارسنجی schema و تست ناسازگاری: `cc940ffab8cf4f4bf1845f557d27e45b7b2fe7f1`.
+- برای SHA نهایی `cc940ff...` هنوز workflow run متصل در فهرست GitHub مشاهده نشد؛ #1006 شامل تغییرات جدید schema نیست و نتیجه آن به HEAD فعلی تعمیم داده نمی‌شود.
+- وضعیت PR هنگام بررسی: open و Draft، ادغام‌نشده؛ GitHub مقدار mergeable در pollingها متغیر گزارش کرد و این موضوع بدون اقدام merge رها شد.
