@@ -332,6 +332,42 @@ class InventoryValuationStoreTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(event, (100,))
 
+    def test_schema_setup_requires_foreign_key_enforcement(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            with self.assertRaisesRegex(RuntimeError, "foreign-key enforcement"):
+                ensure_valuation_schema(connection)
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            self.assertNotIn("total_value_rial", columns)
+        finally:
+            connection.close()
+
+    def test_valuation_write_requires_foreign_key_enforcement(self):
+        self.db.commit()
+        self.db.execute("PRAGMA foreign_keys=OFF")
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        with self.assertRaisesRegex(RuntimeError, "foreign-key enforcement"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 25, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
     def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
         ensure_valuation_schema(self.db)
         ensure_valuation_schema(self.db)
