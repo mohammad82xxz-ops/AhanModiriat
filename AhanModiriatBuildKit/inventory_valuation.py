@@ -10,6 +10,8 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 
 def _decimal_quantity(value, label="quantity"):
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be a finite decimal quantity")
     try:
         quantity = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError):
@@ -43,6 +45,8 @@ class InventoryPosition:
     total_value_rial: int = 0
 
     def __post_init__(self):
+        if isinstance(self.quantity, bool):
+            raise ValueError("quantity must be a finite non-negative decimal")
         try:
             quantity = Decimal(str(self.quantity))
         except (InvalidOperation, ValueError, TypeError):
