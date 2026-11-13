@@ -101,6 +101,33 @@ def apply_sale(position, quantity):
     return ValuationResult("sale", position, after, -quantity, -issue_value, issue_value)
 
 
+
+def apply_inventory_shortage(position, quantity):
+    """Remove counted shortage at the approved DEC-02 weighted-average book value.
+
+    The value is allocated from the authoritative total book value, never from
+    the rounded unit-average projection. The final full-quantity adjustment
+    consumes the exact remaining value residual.
+    """
+    quantity = _decimal_quantity(quantity)
+    if quantity > position.quantity:
+        raise ValueError("inventory shortage exceeds available quantity")
+    if quantity == position.quantity:
+        shortage_value = position.total_value_rial
+    else:
+        shortage_value = _round_rial(
+            Decimal(position.total_value_rial) * quantity / position.quantity
+        )
+    after = InventoryPosition(
+        position.quantity - quantity,
+        position.total_value_rial - shortage_value,
+    )
+    return ValuationResult(
+        "inventory_shortage", position, after, -quantity, -shortage_value,
+        shortage_value,
+    )
+
+
 def apply_purchase_return(position, quantity, historical_return_value_rial):
     """Remove quantity at the already-decided historical purchase return value.
 

@@ -7,6 +7,7 @@ import unittest
 from inventory_valuation import (
     InventoryPosition,
     apply_purchase,
+    apply_inventory_shortage,
     apply_purchase_return,
     apply_sale,
     apply_sales_return,
@@ -69,6 +70,32 @@ class InventoryValuationTests(unittest.TestCase):
         self.assertEqual(second.after.quantity, Decimal("1"))
         self.assertEqual(second.after.total_value_rial, 4)
         self.assertEqual(second.after.avg_cost_rial, 4)
+
+    def test_dec02_shortage_uses_authoritative_total_value_and_half_up_rounding(self):
+        position = InventoryPosition(Decimal("3"), 101)
+
+        first = apply_inventory_shortage(position, "1.5")
+        self.assertEqual(first.event_type, "inventory_shortage")
+        self.assertEqual(first.event_value_rial, 51)  # 50.5 -> 51 (ROUND_HALF_UP)
+        self.assertEqual(first.quantity_delta, Decimal("-1.5"))
+        self.assertEqual(first.value_delta_rial, -51)
+        self.assertEqual(first.after, InventoryPosition(Decimal("1.5"), 50))
+
+        final = apply_inventory_shortage(first.after, "1.5")
+        self.assertEqual(final.event_value_rial, 50)  # consume exact residual
+        self.assertEqual(final.after, InventoryPosition())
+
+    def test_dec02_shortage_rejects_quantity_above_available_stock(self):
+        position = InventoryPosition(Decimal("2"), 100)
+        with self.assertRaisesRegex(ValueError, "exceeds available"):
+            apply_inventory_shortage(position, "2.01")
+
+    def test_dec02_shortage_rejects_zero_and_non_finite_quantity(self):
+        position = InventoryPosition(Decimal("2"), 100)
+        for quantity in ("0", "-1", "NaN", "Infinity", "invalid"):
+            with self.subTest(quantity=quantity):
+                with self.assertRaises(ValueError):
+                    apply_inventory_shortage(position, quantity)
 
     def test_final_sale_consumes_exact_remaining_value(self):
         position = InventoryPosition(Decimal("3"), 6)
