@@ -142,7 +142,7 @@ class InventoryValuationTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaises(ValueError):
                     apply_purchase(InventoryPosition(), "1", invalid)
-        for invalid in ("0", "-1", "NaN", "Infinity", "not-a-number"):
+        for invalid in ("0", "-1", "NaN", "Infinity", "not-a-number", True):
             with self.subTest(quantity=invalid):
                 with self.assertRaises(ValueError):
                     apply_purchase(InventoryPosition(), invalid, 1)
@@ -155,6 +155,15 @@ class InventoryValuationTests(unittest.TestCase):
             InventoryPosition(Decimal("0"), 1)
         with self.assertRaisesRegex(ValueError, "non-negative integer"):
             InventoryPosition(Decimal("1"), -1)
+        with self.assertRaisesRegex(ValueError, "non-negative decimal"):
+            InventoryPosition(True, 0)
+
+    def test_boolean_shortage_quantity_is_rejected(self):
+        position = InventoryPosition(Decimal("2"), 100)
+        for quantity in (True, False):
+            with self.subTest(quantity=quantity):
+                with self.assertRaisesRegex(ValueError, "finite decimal quantity"):
+                    apply_inventory_shortage(position, quantity)
 
 
 if __name__ == "__main__":
