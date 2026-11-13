@@ -151,9 +151,33 @@ def build_legacy_baseline_report(connection):
     stored_value_valid = [
         item for item in products if item["stored_total_value_status"] == "valid"
     ]
-    stored_value_mismatches = [
+    comparable_stored_values = [
         item for item in stored_value_valid
+        if item["estimated_total_value_rial"] is not None
+    ]
+    stored_value_mismatches = [
+        item for item in comparable_stored_values
         if item["stored_total_value_matches_legacy_estimate"] is False
+    ]
+    stored_value_status_counts = {
+        status: sum(
+            1 for item in products
+            if item["stored_total_value_status"] == status
+        )
+        for status in ("valid", "null", "invalid", "not_present")
+    }
+    stored_value_mismatch_products = [
+        {
+            "product_id": item["product_id"],
+            "product_name": item["product_name"],
+            "stored_total_value_rial": item["stored_total_value_rial"],
+            "estimated_total_value_rial": item["estimated_total_value_rial"],
+            "difference_rial": (
+                item["stored_total_value_rial"]
+                - item["estimated_total_value_rial"]
+            ),
+        }
+        for item in stored_value_mismatches
     ]
 
     return {
@@ -167,7 +191,20 @@ def build_legacy_baseline_report(connection):
         "exception_product_count": len(exceptions),
         "stored_total_value_column_present": has_stored_total_value,
         "stored_total_value_valid_product_count": len(stored_value_valid),
+        "stored_total_value_status_counts": stored_value_status_counts,
+        "stored_total_value_comparison_count": len(comparable_stored_values),
+        "stored_total_value_uncomparable_count": (
+            len(products) - len(comparable_stored_values)
+        ),
+        "stored_total_value_comparison_complete": (
+            has_stored_total_value
+            and len(comparable_stored_values) == len(products)
+        ),
         "stored_total_value_mismatch_count": len(stored_value_mismatches),
+        "stored_total_value_mismatch_products": stored_value_mismatch_products,
+        "stored_total_value_mismatch_total_delta_rial": sum(
+            item["difference_rial"] for item in stored_value_mismatch_products
+        ),
         "estimated_total_value_rial_for_eligible_products": estimated_total,
         "complete": not exceptions,
         "products": products,
