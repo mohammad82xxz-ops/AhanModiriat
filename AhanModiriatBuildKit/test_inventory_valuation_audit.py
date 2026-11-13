@@ -85,6 +85,40 @@ class InventoryValuationAuditTests(unittest.TestCase):
         )
         self.assertEqual(self.db.total_changes, before_changes)
 
+    def test_stored_value_comparison_lists_mismatches_and_uncomparable_rows(self):
+        self.db.execute("ALTER TABLE products ADD COLUMN total_value_rial INTEGER")
+        self.db.executemany(
+            "INSERT INTO products(id,name,stock,avg_cost,total_value_rial) VALUES(?,?,?,?,?)",
+            [
+                (1, "اختلاف یک‌ریالی", 3, 10, 29),
+                (2, "ارزش خالی", 2, 5, None),
+                (3, "ارزش نامعتبر", 2, 5, -1),
+                (4, "برآورد legacy نامعتبر", 5, 0, 20),
+            ],
+        )
+
+        report = build_legacy_baseline_report(self.db)
+
+        self.assertEqual(
+            report["stored_total_value_status_counts"],
+            {"valid": 2, "null": 1, "invalid": 1, "not_present": 0},
+        )
+        self.assertEqual(report["stored_total_value_comparison_count"], 1)
+        self.assertEqual(report["stored_total_value_uncomparable_count"], 3)
+        self.assertFalse(report["stored_total_value_comparison_complete"])
+        self.assertEqual(report["stored_total_value_mismatch_count"], 1)
+        self.assertEqual(
+            report["stored_total_value_mismatch_products"],
+            [{
+                "product_id": 1,
+                "product_name": "اختلاف یک‌ریالی",
+                "stored_total_value_rial": 29,
+                "estimated_total_value_rial": 30,
+                "difference_rial": -1,
+            }],
+        )
+        self.assertEqual(report["stored_total_value_mismatch_total_delta_rial"], -1)
+
     def test_invalid_stored_total_value_is_reported_without_affecting_legacy_estimate(self):
         self.db.execute("ALTER TABLE products ADD COLUMN total_value_rial")
         self.db.execute(
