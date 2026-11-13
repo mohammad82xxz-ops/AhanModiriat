@@ -2368,14 +2368,26 @@ class Handler(BaseHTTPRequestHandler):
                     remaining=max(0.0,bought_base-already)
                     if qty>remaining+0.000001: raise ValueError(f"مقدار مرجوعی از خرید اصلی بیشتر است؛ مانده {remaining:g} {purchase['unit']} است.")
                     if qty>float(purchase["stock"] or 0)+0.000001: raise ValueError("موجودی فعلی برای این مرجوعی کافی نیست.")
-                    unit_base_cost=Decimal(str(purchase["unit_cost"] or 0))/Decimal(str(factor))
-                    extra_per_base=Decimal(str(purchase["extra_cost"] or 0))/Decimal(str(bought_base)) if bought_base else Decimal(0)
-                    return_value=money_line_total(qty,unit_base_cost+extra_per_base)
+                    # Allocate the original purchase value cumulatively. This includes the
+                    # proportional share of ancillary costs and makes partial returns
+                    # add up exactly to the original line value despite integer-rial rounding.
+                    purchase_total_value=money_line_total(purchase["qty"],purchase["unit_cost"] or 0)+int(purchase["extra_cost"] or 0)
+                    already_value=int(scalar(c,"SELECT COALESCE(SUM(return_value),0) FROM purchase_returns WHERE purchase_id=?",(purchase_id,)) or 0)
+                    cumulative_value=money_proportion(purchase_total_value,already+qty,bought_base)
+                    return_value=cumulative_value-already_value
+                    if return_value<=0: raise ValueError("ارزش مرجوعی پس از تخصیص بهای خرید و هزینه‌های جانبی باید بیشتر از صفر باشد.")
                     if cash_refund>return_value+0.99: raise ValueError("وجه دریافتی از فروشنده نمی‌تواند از ارزش مرجوعی بیشتر باشد.")
                     product=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(purchase["product_id"],)).fetchone()
-                    old_stock=float(product["stock"] or 0); new_stock=old_stock-qty
+                    old_stock=float(product["stock"] or 0); old_value=money_line_total(old_stock,product["avg_cost"] or 0)
+                    new_stock=old_stock-qty
                     if new_stock < -0.000001: raise ValueError("موجودی فعلی از مقدار مرجوعی کمتر است.")
-                    new_stock=max(0.0,new_stock); new_avg=int(product["avg_cost"] or 0) if new_stock>0 else 0
+                    new_stock=max(0.0,new_stock)
+                    remaining_value=old_value-return_value
+                    if remaining_value < 0:
+                        raise ValueError("ارزش مرجوعی با بهای خرید اولیه از ارزش دفتری موجودی فعلی بیشتر است؛ ابتدا مغایرت بهای موجودی را بررسی و اصلاح کن.")
+                    if new_stock <= 0.000001 and remaining_value != 0:
+                        raise ValueError("با این مرجوعی موجودی صفر می‌شود اما ارزش دفتری باقی می‌ماند؛ مغایرت ارزش موجودی باید پیش از ثبت رفع شود.")
+                    new_avg=money_average(remaining_value,new_stock) if new_stock>0 else 0
                     cur=c.execute("""INSERT INTO purchase_returns(date,purchase_id,product_id,supplier,qty,return_value,cash_refund,reason,notes)
                                      VALUES(?,?,?,?,?,?,?,?,?)""",
                                   (to_iso_date(v("date",jalali_today())),purchase_id,purchase["product_id"],purchase["supplier"] or "",qty,return_value,cash_refund,reason,v("notes")))

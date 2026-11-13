@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """B1 characterization for partial returns and purchase-unit factors.
 
-This test freezes existing route semantics with synthetic data only. It does
-not approve the valuation policy or any proposed quantity redesign.
+Synthetic opening stock is valued consistently with the source purchase so
+DEC-01 historical-cost returns remain within the available inventory value.
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def main() -> None:
                    name,unit,stock,avg_cost,market_price,min_stock,
                    purchase_unit,purchase_factor,sale_unit,sale_factor
                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-            ("phase2 purchase return fixture", "kg", 20, 30, 100, 0,
+            ("phase2 purchase return fixture", "kg", 20, 3003, 100, 0,
              "bundle", 5, "kg", 1),
         )
         purchase_product_id = c.execute(
@@ -124,6 +124,7 @@ def main() -> None:
             assert purchase["qty"] == 2, purchase["qty"]
             assert purchase_return["qty"] == 2.5, purchase_return["qty"]
             assert purchase_product["stock"] == 17.5, purchase_product["stock"]
+            assert purchase_product["avg_cost"] == 3132, purchase_product["avg_cost"]
             assert purchase_return["return_value"] == 5250, purchase_return["return_value"]
             assert purchase_return["cash_refund"] == 400, purchase_return["cash_refund"]
             assert c.execute(
@@ -166,6 +167,7 @@ def main() -> None:
             assert sum(r["return_value"] for r in purchase_rows) == 21000
             assert sum(r["cash_refund"] for r in purchase_rows) == 1900
             assert purchase_product["stock"] == 10, purchase_product["stock"]
+            assert purchase_product["avg_cost"] == 3906, purchase_product["avg_cost"]
             assert c.execute(
                 """SELECT SUM(amount) FROM cash_movements
                    WHERE source_table='purchase_returns' AND source_id IN

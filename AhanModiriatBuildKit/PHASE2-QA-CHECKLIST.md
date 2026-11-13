@@ -239,3 +239,73 @@ The automated Windows OneDir build is not a substitute for launching and exercis
 - [ ] Complete keyboard-only navigation, screen-reader checks, and 200% zoom on the packaged build.
 - [ ] Check a narrow application window/small display for clipped forms, inaccessible actions, and unusable tables.
 - [ ] Record any defects and retest fixes before owner acceptance. Do not merge this PR until the owner explicitly approves.
+
+
+## DEC-01 — آزمون پذیرش سیاست مرجوعی خرید (شاخهٔ مستقل)
+
+- [x] CI روی شاخهٔ `fix/dec01-purchase-return-valuation-ci` با هر دو Job موفق شد؛ Run #921 روی SHA دقیق زیر سبز است.
+- [x] مرجوعی جزئی با ضریب تبدیل خرید، هزینهٔ جانبی و بهای تاریخی آزمون شد.
+- [x] چند مرجوعی از یک خرید آزمون شد؛ تخصیص تجمعی، مجموع ارزش را دقیقاً با سهم برگشتی خرید برابر نگه داشت.
+- [x] موجودی و میانگین بهای باقی‌مانده در هر مرحله با محاسبهٔ مستقل دستی تطبیق داده شد.
+- [x] مرجوعی با ارزش بیش از ارزش دفتری، بدون درج سند یا گردش نقدی رد شد.
+- [x] صفرشدن موجودی همراه با ارزش دفتری باقیمانده رد شد.
+- [x] وجه نقد واقعی مستقل از ارزش مرجوعی کنترل شد.
+- [x] ماندهٔ پرداختنی فروشنده پس از احتساب همهٔ خریدهای fixture، ارزش مرجوعی و وجه نقد دریافتی کنترل شد.
+- [x] SQLite integrity و foreign_key_check موفق شدند.
+
+**شواهد دقیق CI:** [Run #921](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386) — head: `598cf95769454693ecd83adea3b2444c442cbf59`.
+
+- [x] Job `smoke-test`: تست DEC-01، گردش مالی/انبار، ۱۴ مسیر axe بدون تخلف و ۱۰ گزارش Lighthouse موفق؛ امتیاز Performance و Accessibility در همهٔ گزارش‌ها ۱۰۰.
+- [x] Job `windows-onedir`: تست cross-process و ساخت OneDir ویندوز موفق.
+- [x] Artifactها بارگذاری شدند: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386/artifacts/13745593423)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386/artifacts/13745788526)، [اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42780798386/artifacts/13745992758).
+
+**مرز پذیرش:** CI و بازبینی عددی DEC-01 تکمیل شده‌اند؛ اجرای دستی بستهٔ Windows روی رایانهٔ مالک، صفحه‌خوان واقعی، بزرگ‌نمایی ۲۰۰٪، نمایشگر کوچک و backup/restore انسانی همچنان باز است. این موارد فقط با اجرای واقعی قابل علامت‌گذاری‌اند و مانع ادعای «پذیرش نهایی کل محصول» هستند.
+
+### اجرای CI روی commit کد/تست PR #43 — Run #933 (2026-11-11)
+
+- [x] اجرای Actions [#933](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971) روی SHA دقیق `db491ae44689eafb07ceb6e7da5ab9a7abbec6a8` با conclusion برابر `success` تکمیل شد. Runهای #925 و #930 روی SHAهای قدیمی‌تر صرفاً سابقه‌اند.
+- [x] هر دو Job موفق شدند: `smoke-test` و `windows-onedir`.
+- [x] تست‌های Compile و isolated smoke، تست DEC-01، گردش‌های مالی/انبار، ۱۴ مسیر UI در دو viewport و دو theme (۵۶ تصویر)، و keyboard/zoom proxies روی ۷ مسیر موفق شدند.
+- [x] axe-core هر ۱۴ مسیر را بدون violation ممیزی کرد؛ ۱۰ گزارش Lighthouse تولید شد. در هر ۱۰ گزارش Performance، Accessibility و Best Practices برابر ۱۰۰ و SEO برابر ۹۰ بود.
+- [x] آزمون cross-process token روی Windows و ساخت PyInstaller OneDir موفق شدند.
+- [x] Artifactهای همین اجرا: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834375833)، [Lighthouse و axe](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834231424)، [۵۶ اسکرین‌شات UI](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972259971/artifacts/13834181543).
+
+**یادداشت اصلاح تست:** اجرای #932 به‌علت انتظار نادرست تست برای ماندهٔ فروشنده fail شد؛ مقدار مورد انتظار، سه خرید fixture دیگر با همان نام فروشنده را لحاظ نمی‌کرد. انتظار تست به ۳۴٬۲۰۱ ریال اصلاح شد و اجرای #933 روی commit اصلاح‌شده با هر دو Job موفق شد.
+
+**مرز پذیرش دستی:** این اجرا پذیرش روی رایانهٔ واقعی مالک را اثبات نمی‌کند. اجرای بستهٔ OneDir، صفحه‌خوان واقعی، zoom ۲۰۰٪، نمایشگر کوچک و backup/restore روی دیتابیس آزمایشی همچنان باز است؛ دیتابیس واقعی نباید در این آزمون استفاده شود.
+
+
+### Historical CI evidence before final documentation sync — Run #936 (2026-11-11)
+
+- [x] GitHub Actions [Run #936](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079) completed with `success` on exact historical head `cca9dc0056e2c47ee4acd9ddc4b0d633bea939e3`. The later head `b1ecd09407935a7c621866e4e3329d085841e9a2` was validated by [Run #939](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42973746661), with both jobs successful; see PR #43 Checks for the latest branch status.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] Smoke job completed Compile, isolated tests, browser UI matrix, finance/inventory workflows, keyboard/zoom accessibility proxies, Lighthouse/axe audit and report/screenshot uploads.
+- [x] Windows job completed cross-process token characterization, PyInstaller installation, OneDir build and artifact upload.
+- [x] Artifacts from this exact run: [Windows OneDir](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834013246), [Lighthouse and axe reports](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13835025169), [UI screenshots](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/42972982079/artifacts/13834267392).
+
+**Manual acceptance remains open:** run the packaged app on the owner's Windows machine, verify real screen-reader behavior, 200% zoom, a small display, business scenarios and backup/restore against a disposable database only. Do not use the production database.
+
+
+## Latest exact-head CI evidence — PR #43, Run #991 (2026-11-12)
+
+- [x] GitHub Actions [Run #991](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43194692173) completed with conclusion `success` on the exact PR head `4a4bd569b6899be94c8b5533396f61bcc7fb151e`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] `smoke-test`: Compile, isolated smoke tests, Playwright installation, browser UI matrix/screenshots, finance and inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads all succeeded.
+- [x] `windows-onedir`: Windows cross-process token characterization, PyInstaller installation, OneDir build, and artifact upload all succeeded.
+- [ ] This CI result does not close ACC-48/Gate B, approve DEC-02/03/04 or other pending accounting policies, establish owner acceptance on a real Windows machine, or authorize a production database migration.
+- [ ] Manual acceptance remains outstanding: launch the exact packaged build on the owner's Windows environment; verify business workflows, persistence, backup/restore on a disposable database, real screen-reader operation, 200% zoom, and a small display.
+
+**Scope boundary:** Run #991 validates the exact code-bearing head above. Do not infer that the independent Gate-B candidate is integrated into the live application; the adapter remains isolated and the current application purchase-return route still reconstructs current book value from the rounded `stock × avg_cost` projection. ACC-48 therefore remains open.
+
+
+## Latest exact-head CI evidence — PR #43, Run #992 (2026-11-12)
+
+- [x] GitHub Actions [Run #992](https://github.com/mohammad82xxz-ops/AhanModiriat/actions/runs/43233770744) completed with conclusion `success` on exact PR head `d1a14e3721d127e570905621eebd321b1e4e6da6`.
+- [x] Both jobs passed: `smoke-test` and `windows-onedir`.
+- [x] `smoke-test` completed Compile, isolated smoke tests, Playwright installation, browser UI matrix/screenshots, finance and inventory workflows, keyboard/zoom accessibility proxies, Lighthouse + axe-core audit, and report/screenshot uploads.
+- [x] `windows-onedir` completed Windows cross-process token characterization, PyInstaller installation, OneDir build, and artifact upload.
+- [x] The preceding Run #991 applies only to code head `4a4bd569b6899be94c8b5533396f61bcc7fb151e`; Run #992 is the exact-head evidence for `d1a14e3721d127e570905621eebd321b1e4e6da6`.
+- [ ] CI success does not close ACC-48/Gate B, approve pending DEC-02/03/04, establish owner acceptance on real Windows hardware, or authorize production migration.
+- [ ] Manual owner acceptance remains open: launch the packaged build on a clean Windows environment; verify product/purchase/sale/return/expense flows, persistence, backup/restore on a disposable database, real screen-reader behavior, keyboard-only operation, 200% zoom, and a small display.
+
+**Exact scope boundary:** Run #992 validates the current PR head, including the candidate valuation module and isolated SQLite adapter tests. It does not establish production integration. `app.py` does not import or call `inventory_valuation.py` / `inventory_valuation_store.py`; operational inventory routes still use the rounded `stock × avg_cost` reconstruction or direct stock updates. The route-level gaps and required integration order are recorded in `GATE-B-INVENTORY-VALUATION-INTEGRATION-CONTRACT-FA.md`. Keep PR #43 Draft until Gate B, accounting review, and owner acceptance are complete.

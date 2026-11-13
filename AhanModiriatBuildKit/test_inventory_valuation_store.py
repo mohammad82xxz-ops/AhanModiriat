@@ -1,0 +1,731 @@
+# -*- coding: utf-8 -*-
+"""SQLite contract tests for the isolated Gate-B valuation persistence adapter."""
+import sqlite3
+import unittest
+from decimal import Decimal
+
+from inventory_valuation import InventoryPosition, ValuationResult, apply_purchase, apply_sale
+from inventory_valuation_store import ensure_valuation_schema, post_valuation_result
+
+
+class InventoryValuationStoreTests(unittest.TestCase):
+    def setUp(self):
+        self.db = sqlite3.connect(":memory:")
+        self.db.execute("PRAGMA foreign_keys=ON")
+        self.db.execute("""
+            CREATE TABLE products(
+                id INTEGER PRIMARY KEY,
+                stock REAL NOT NULL DEFAULT 0,
+                avg_cost INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        self.db.execute(
+            "INSERT INTO products(id, stock, avg_cost) VALUES (1, 10, 100)"
+        )
+        ensure_valuation_schema(self.db)
+        self.db.execute(
+            "UPDATE products SET total_value_rial=1000 WHERE id=1"
+        )
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_event_and_product_projection_commit_together(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "2", 500)
+        after = post_valuation_result(
+            self.db, 1, result, "purchases", 11, "2026-11-11"
+        )
+        row = self.db.execute(
+            "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=1"
+        ).fetchone()
+        event = self.db.execute(
+            "SELECT quantity_delta, value_delta_rial, quantity_after, "
+            "total_value_after_rial FROM inventory_valuation_events"
+        ).fetchone()
+        self.assertEqual(after, InventoryPosition(Decimal("12"), 1500))
+        self.assertEqual(row, (12.0, 125, 1500))
+        self.assertEqual(event, ("2", 500, "12", 1500))
+
+    def test_duplicate_source_event_rolls_back_cache_change(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 12, "2026-11-11"
+        )
+        # Rebuild from the persisted snapshot so the duplicate-source
+        # constraint, rather than the stale-snapshot guard, is exercised.
+        persisted = self.db.execute(
+            "SELECT stock, total_value_rial FROM products WHERE id=1"
+        ).fetchone()
+        retry_before = InventoryPosition(Decimal(str(persisted[0])), persisted[1])
+        retry_result = apply_purchase(retry_before, "1", 100)
+        with self.assertRaises(sqlite3.IntegrityError):
+            post_valuation_result(
+                self.db, 1, retry_result, "purchases", 12, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (11.0, 1100),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            1,
+        )
+
+    def test_forged_or_inconsistent_valuation_results_are_rejected(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        forged = (
+            ValuationResult("purchase", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("2"), 100, 100),
+            ValuationResult("unknown", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("1"), 100, 100),
+            ValuationResult("purchase", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("-1"), 100, 100),
+            ValuationResult("purchase", before, InventoryPosition(Decimal("11"), 1100),
+                            Decimal("1"), 100, 99),
+        )
+        for index, result in enumerate(forged, start=30):
+            with self.subTest(result=result):
+                with self.assertRaisesRegex(ValueError, "valuation|event_type|quantity_delta|event_value"):
+                    post_valuation_result(
+                        self.db, 1, result, "purchases", index, "2026-11-11"
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_integral_decimal_rial_delta_is_normalized_before_sqlite_binding(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        after = InventoryPosition(Decimal("11"), 1100)
+        result = ValuationResult(
+            "purchase", before, after,
+            Decimal("1"), Decimal("100"), Decimal("100")
+        )
+        post_valuation_result(
+            self.db, 1, result, "purchases", 31, "2026-11-12"
+        )
+        event = self.db.execute("""
+            SELECT value_delta_rial, typeof(value_delta_rial)
+              FROM inventory_valuation_events
+             WHERE source_id=31
+        """).fetchone()
+        self.assertEqual(event, (100, "integer"))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (11.0, 1100),
+        )
+
+    def test_stale_snapshot_is_rejected_without_writes(self):
+        stale = InventoryPosition(Decimal("9"), 900)
+        result = apply_purchase(stale, "1", 100)
+        with self.assertRaisesRegex(ValueError, "stale"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 13, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_concurrent_compare_and_swap_failure_rolls_back_event(self):
+        self.db.execute("""
+            CREATE TRIGGER ignore_product_valuation_update
+            BEFORE UPDATE OF stock, avg_cost, total_value_rial ON products
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END
+        """)
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        with self.assertRaisesRegex(ValueError, "concurrent inventory update"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 18, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 100, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_missing_baseline_fails_closed(self):
+        self.db.execute(
+            "UPDATE products SET total_value_rial=NULL WHERE id=1"
+        )
+        result = apply_sale(InventoryPosition(Decimal("10"), 1000), "1")
+        with self.assertRaisesRegex(ValueError, "baseline"):
+            post_valuation_result(
+                self.db, 1, result, "sales", 14, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock FROM products WHERE id=1"
+            ).fetchone()[0],
+            10.0,
+        )
+
+    def test_quantity_precision_loss_is_rejected_before_writes(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "0.123456789012345678901", 100)
+        with self.assertRaisesRegex(ValueError, "lose decimal precision"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 15, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_supported_fractional_quantity_round_trips_through_real(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "0.125", 100)
+        after = post_valuation_result(
+            self.db, 1, result, "purchases", 16, "2026-11-11"
+        )
+        stored = self.db.execute(
+            "SELECT stock, total_value_rial FROM products WHERE id=1"
+        ).fetchone()
+        self.assertEqual(after.quantity, Decimal("10.125"))
+        self.assertEqual(Decimal(str(stored[0])), Decimal("10.125"))
+        self.assertEqual(stored[1], 1100)
+
+    def test_derived_average_cost_overflow_is_rejected_before_writes(self):
+        self.db.execute(
+            "INSERT INTO products(id, stock, avg_cost, total_value_rial) "
+            "VALUES (2, 0, 0, 0)"
+        )
+        before = InventoryPosition(Decimal("0"), 0)
+        result = apply_purchase(before, "0.000000000000000001", 9223372036854775807)
+        with self.assertRaisesRegex(ValueError, "avg_cost"):
+            post_valuation_result(
+                self.db, 2, result, "purchases", 32, "2026-11-12"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=2"
+            ).fetchone(),
+            (0.0, 0, 0),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events WHERE source_id=32"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_rial_integer_overflow_is_rejected_before_writes(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        result = apply_purchase(before, "1", 9223372036854775807)
+        with self.assertRaisesRegex(ValueError, "total_value_rial"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 23, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_event_source_and_effective_date_require_strings(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        for source_table, effective_date in (
+            (123, "2026-11-11"),
+            ("purchases", 20261111),
+        ):
+            with self.subTest(source_table=source_table, effective_date=effective_date):
+                with self.assertRaisesRegex(ValueError, "source_table|effective_date"):
+                    post_valuation_result(
+                        self.db, 1, result, source_table, 24,
+                        effective_date
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_source_id_must_be_a_positive_integral_sqlite_integer(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        invalid_ids = (
+            True,
+            False,
+            0,
+            -1,
+            1.5,
+            Decimal("1.5"),
+            Decimal("NaN"),
+            Decimal("Infinity"),
+            9223372036854775808,
+        )
+        for source_id in invalid_ids:
+            with self.subTest(source_id=source_id):
+                result = apply_purchase(before, "1", 100)
+                with self.assertRaisesRegex(ValueError, "source_id"):
+                    post_valuation_result(
+                        self.db, 1, result, "purchases", source_id, "2026-11-11"
+                    )
+                self.assertEqual(
+                    self.db.execute(
+                        "SELECT stock, total_value_rial FROM products WHERE id=1"
+                    ).fetchone(),
+                    (10.0, 1000),
+                )
+                self.assertEqual(
+                    self.db.execute(
+                        "SELECT COUNT(*) FROM inventory_valuation_events"
+                    ).fetchone()[0],
+                    0,
+                )
+
+    def test_integral_decimal_source_id_is_normalized(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", Decimal("17.0"), "2026-11-11"
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT source_id FROM inventory_valuation_events"
+            ).fetchone()[0],
+            17,
+        )
+
+    def test_invalid_metadata_json_is_rejected_before_writes(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        invalid_values = (
+            "not-json", "[]", '"text"', "null", "42",
+            '{"amount": NaN}', '{"amount": Infinity}',
+            '{"amount": 1, "amount": 2}',
+        )
+        for metadata in invalid_values:
+            with self.subTest(metadata=metadata):
+                result = apply_purchase(before, "1", 100)
+                with self.assertRaisesRegex(ValueError, "metadata_json"):
+                    post_valuation_result(
+                        self.db, 1, result, "purchases", 21,
+                        "2026-11-11", metadata_json=metadata
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_product_id_must_be_positive_integral_sqlite_integer(self):
+        before = InventoryPosition(Decimal("10"), 1000)
+        for product_id in (True, False, 0, -1, 1.5, Decimal("NaN"),
+                           Decimal("Infinity"), 9223372036854775808):
+            with self.subTest(product_id=product_id):
+                result = apply_purchase(before, "1", 100)
+                with self.assertRaisesRegex(ValueError, "product_id"):
+                    post_valuation_result(
+                        self.db, product_id, result, "purchases", 22,
+                        "2026-11-11"
+                    )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_valuation_events_are_append_only(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 19, "2026-11-11"
+        )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "UPDATE inventory_valuation_events SET value_delta_rial=999 "
+                "WHERE source_id=19"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "DELETE FROM inventory_valuation_events WHERE source_id=19"
+            )
+        event = self.db.execute(
+            "SELECT value_delta_rial FROM inventory_valuation_events WHERE source_id=19"
+        ).fetchone()
+        self.assertEqual(event, (100,))
+
+    def test_schema_setup_rebuilds_weakened_append_only_triggers(self):
+        # A same-named trigger may exist but have been weakened or replaced.
+        # Re-validating the schema must restore all three ledger guards.
+        for name in (
+            "inventory_valuation_events_no_update",
+            "inventory_valuation_events_no_delete",
+            "inventory_valuation_events_no_replace",
+        ):
+            self.db.execute('DROP TRIGGER "' + name + '"')
+        # Use execute() rather than executescript(): sqlite3.executescript()
+        # commits an open transaction implicitly, which would hide whether
+        # ensure_valuation_schema preserves its caller's transaction.
+        self.db.execute("""
+            CREATE TRIGGER inventory_valuation_events_no_update
+            BEFORE UPDATE ON inventory_valuation_events
+            BEGIN SELECT 1; END
+        """)
+        self.db.execute("""
+            CREATE TRIGGER inventory_valuation_events_no_delete
+            BEFORE DELETE ON inventory_valuation_events
+            BEGIN SELECT 1; END
+        """)
+        self.db.execute("""
+            CREATE TRIGGER inventory_valuation_events_no_replace
+            BEFORE INSERT ON inventory_valuation_events
+            BEGIN SELECT 1; END
+        """)
+
+        ensure_valuation_schema(self.db)
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 28, "2026-11-12"
+        )
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "UPDATE inventory_valuation_events SET value_delta_rial=999 "
+                "WHERE source_id=28"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute(
+                "DELETE FROM inventory_valuation_events WHERE source_id=28"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute("""
+                INSERT OR REPLACE INTO inventory_valuation_events(
+                    product_id, source_table, source_id, event_type, effective_date,
+                    quantity_delta, value_delta_rial, quantity_after,
+                    total_value_after_rial, metadata_json
+                ) VALUES (1, 'purchases', 28, 'purchase', '2026-11-13',
+                          '999', 999, '999', 999, '{}')
+            """)
+        self.assertEqual(
+            self.db.execute(
+                "SELECT value_delta_rial FROM inventory_valuation_events "
+                "WHERE source_id=28"
+            ).fetchone(),
+            (100,),
+        )
+
+    def test_insert_or_replace_cannot_rewrite_valuation_history(self):
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        post_valuation_result(
+            self.db, 1, result, "purchases", 26, "2026-11-11"
+        )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute("""
+                INSERT OR REPLACE INTO inventory_valuation_events(
+                    product_id, source_table, source_id, event_type, effective_date,
+                    quantity_delta, value_delta_rial, quantity_after,
+                    total_value_after_rial, metadata_json
+                ) VALUES (1, 'purchases', 26, 'purchase', '2026-11-12',
+                          '999', 999, '999', 999, '{}')
+            """)
+        event = self.db.execute("""
+            SELECT effective_date, quantity_delta, value_delta_rial,
+                   quantity_after, total_value_after_rial
+              FROM inventory_valuation_events
+             WHERE source_table='purchases' AND source_id=26
+               AND event_type='purchase'
+        """).fetchone()
+        self.assertEqual(event, ("2026-11-11", "1", 100, "11", 1100))
+
+        # An explicit primary-key collision with a different source identity
+        # is also a REPLACE conflict and must not delete the original row.
+        original_id = self.db.execute(
+            "SELECT id FROM inventory_valuation_events WHERE source_id=26"
+        ).fetchone()[0]
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):
+            self.db.execute("""
+                INSERT OR REPLACE INTO inventory_valuation_events(
+                    id, product_id, source_table, source_id, event_type,
+                    effective_date, quantity_delta, value_delta_rial,
+                    quantity_after, total_value_after_rial, metadata_json
+                ) VALUES (?, 1, 'purchases', 999, 'purchase',
+                          '2026-11-12', '999', 999, '999', 999, '{}')
+            """, (original_id,))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT id, source_id, value_delta_rial FROM inventory_valuation_events"
+            ).fetchall(),
+            [(original_id, 26, 100)],
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (11.0, 1100),
+        )
+
+    def test_schema_setup_requires_foreign_key_enforcement(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            with self.assertRaisesRegex(RuntimeError, "foreign-key enforcement"):
+                ensure_valuation_schema(connection)
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            self.assertNotIn("total_value_rial", columns)
+        finally:
+            connection.close()
+
+    def test_valuation_write_requires_foreign_key_enforcement(self):
+        self.db.commit()
+        self.db.execute("PRAGMA foreign_keys=OFF")
+        result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)
+        with self.assertRaisesRegex(RuntimeError, "foreign-key enforcement"):
+            post_valuation_result(
+                self.db, 1, result, "purchases", 25, "2026-11-11"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=1"
+            ).fetchone(),
+            (10.0, 1000),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_schema_setup_rejects_nullable_ledger_columns_atomically(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            connection.execute("""
+                CREATE TABLE inventory_valuation_events(
+                    id INTEGER PRIMARY KEY,
+                    product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                    source_table TEXT,
+                    source_id INTEGER,
+                    event_type TEXT,
+                    effective_date TEXT,
+                    quantity_delta TEXT,
+                    value_delta_rial INTEGER,
+                    quantity_after TEXT,
+                    total_value_after_rial INTEGER,
+                    created_at TEXT,
+                    metadata_json TEXT,
+                    UNIQUE(source_table, source_id, event_type)
+                )
+            """)
+            with self.assertRaisesRegex(ValueError, "must be NOT NULL"):
+                ensure_valuation_schema(connection)
+            product_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            self.assertNotIn("total_value_rial", product_columns)
+            self.assertEqual(
+                connection.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' "
+                    "AND name LIKE 'inventory_valuation_events_%'"
+                ).fetchone()[0],
+                0,
+            )
+        finally:
+            connection.close()
+
+    def test_schema_setup_rejects_incompatible_existing_ledger_atomically(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            connection.execute(
+                "CREATE TABLE inventory_valuation_events("
+                "id INTEGER PRIMARY KEY, product_id INTEGER, effective_date TEXT)"
+            )
+            with self.assertRaisesRegex(ValueError, "incompatible.*schema"):
+                ensure_valuation_schema(connection)
+            product_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            self.assertNotIn("total_value_rial", product_columns)
+            event_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(inventory_valuation_events)"
+                )
+            }
+            self.assertEqual(event_columns, {"id", "product_id", "effective_date"})
+            self.assertEqual(
+                connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='trigger' "
+                    "AND name LIKE 'inventory_valuation_events_%'"
+                ).fetchall(),
+                [],
+            )
+        finally:
+            connection.close()
+
+    def test_schema_setup_rolls_back_partial_ddl_on_failure(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            # Simulate a damaged/legacy object collision. The helper adds the
+            # projection column first, then rejects this incomplete pre-existing
+            # ledger schema before creating indexes or triggers.
+            connection.execute(
+                "CREATE TABLE inventory_valuation_events(id INTEGER PRIMARY KEY)"
+            )
+            with self.assertRaisesRegex(ValueError, "incompatible.*schema"):
+                ensure_valuation_schema(connection)
+            product_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(products)")
+            }
+            event_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(inventory_valuation_events)"
+                )
+            }
+            self.assertNotIn("total_value_rial", product_columns)
+            self.assertEqual(event_columns, {"id"})
+            self.assertEqual(
+                connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' "
+                    "AND name='ix_inventory_valuation_product_date'"
+                ).fetchall(),
+                [],
+            )
+        finally:
+            connection.close()
+
+    def test_schema_setup_preserves_callers_outer_transaction(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        try:
+            connection.execute(
+                "CREATE TABLE products(id INTEGER PRIMARY KEY, stock REAL, avg_cost INTEGER)"
+            )
+            connection.execute(
+                "INSERT INTO products(id, stock, avg_cost) VALUES (1, 10, 100)"
+            )
+            connection.commit()
+            connection.execute("BEGIN")
+            connection.execute("UPDATE products SET stock=11 WHERE id=1")
+
+            ensure_valuation_schema(connection)
+
+            # The helper must release only its own savepoint, not commit the
+            # caller's transaction or make its DDL durable independently.
+            self.assertTrue(connection.in_transaction)
+            self.assertEqual(
+                connection.execute("SELECT stock FROM products WHERE id=1").fetchone(),
+                (11.0,),
+            )
+            self.assertIn(
+                "total_value_rial",
+                {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(products)")
+                },
+            )
+
+            connection.rollback()
+            self.assertEqual(
+                connection.execute("SELECT stock FROM products WHERE id=1").fetchone(),
+                (10.0,),
+            )
+            self.assertNotIn(
+                "total_value_rial",
+                {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(products)")
+                },
+            )
+            self.assertIsNone(
+                connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name='inventory_valuation_events'"
+                ).fetchone()
+            )
+        finally:
+            connection.close()
+
+    def test_schema_is_idempotent_and_foreign_keys_are_valid(self):
+        ensure_valuation_schema(self.db)
+        ensure_valuation_schema(self.db)
+        self.assertEqual(
+            self.db.execute("PRAGMA integrity_check").fetchone()[0], "ok"
+        )
+        self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
