@@ -8,7 +8,11 @@ from decimal import Decimal
 import json
 import sqlite3
 
-from inventory_valuation import InventoryPosition, ValuationResult
+from inventory_valuation import (
+    InventoryPosition,
+    ValuationResult,
+    _exact_decimal_add,
+)
 
 
 def _reject_json_constant(value):
@@ -89,7 +93,7 @@ def _validate_valuation_result(result):
         raise ValueError("value_delta_rial direction does not match event_type")
     if event_value != abs(value_delta):
         raise ValueError("event_value_rial must equal the absolute value delta")
-    if result.before.quantity + quantity_delta != result.after.quantity:
+    if _exact_decimal_add(result.before.quantity, quantity_delta) != result.after.quantity:
         raise ValueError("valuation result quantity delta is inconsistent")
     if result.before.total_value_rial + value_delta != result.after.total_value_rial:
         raise ValueError("valuation result value delta is inconsistent")

@@ -193,6 +193,25 @@ class InventoryValuationStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_forged_quantity_delta_cannot_hide_context_rounding_loss(self):
+        before = InventoryPosition(
+            Decimal("2.0000000000000000000000000001"), 100
+        )
+        # This after quantity is what context-limited Decimal addition would
+        # produce, but it is not the exact sum of the source quantities.
+        forged = ValuationResult(
+            "purchase",
+            before,
+            InventoryPosition(Decimal("3.000000000000000000000000000"), 100),
+            Decimal("1"),
+            0,
+            0,
+        )
+        with self.assertRaisesRegex(ValueError, "quantity delta is inconsistent"):
+            post_valuation_result(
+                self.db, 1, forged, "purchases", 99, "2026-11-14"
+            )
+
     def test_integral_decimal_rial_delta_is_normalized_before_sqlite_binding(self):
         before = InventoryPosition(Decimal("10"), 1000)
         after = InventoryPosition(Decimal("11"), 1100)

@@ -85,6 +85,31 @@ class InventoryValuationTests(unittest.TestCase):
         self.assertEqual(final.event_value_rial, 50)  # consume exact residual
         self.assertEqual(final.after, InventoryPosition())
 
+    def test_quantity_arithmetic_preserves_digits_beyond_decimal_context(self):
+        opening = InventoryPosition(
+            Decimal("2.0000000000000000000000000001"), 1
+        )
+        expected_after_add = Decimal("3.0000000000000000000000000001")
+        expected_after_subtract = Decimal("1.0000000000000000000000000001")
+
+        self.assertEqual(
+            apply_purchase(opening, "1", 0).after.quantity,
+            expected_after_add,
+        )
+        self.assertEqual(apply_sale(opening, "1").after.quantity, expected_after_subtract)
+        self.assertEqual(
+            apply_inventory_shortage(opening, "1").after.quantity,
+            expected_after_subtract,
+        )
+        self.assertEqual(
+            apply_purchase_return(opening, "1", 0).after.quantity,
+            expected_after_subtract,
+        )
+        self.assertEqual(
+            apply_sales_return(opening, "1", 0).after.quantity,
+            expected_after_add,
+        )
+
     def test_rial_allocation_and_average_cost_use_exact_decimal_ratios(self):
         # The default Decimal context (28 significant digits) rounds this
         # quotient to 0.5, although its exact value is just below the tie.

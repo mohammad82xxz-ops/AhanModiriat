@@ -37,6 +37,34 @@ def _nonnegative_rial(value, label="value"):
     return int(amount)
 
 
+def _exact_decimal_add(left, right, subtract=False):
+    """Add finite Decimals exactly, independent of the active context precision."""
+    left_sign, left_digits, left_exponent = left.as_tuple()
+    right_sign, right_digits, right_exponent = right.as_tuple()
+    common_exponent = min(left_exponent, right_exponent)
+
+    left_coefficient = int("".join(str(digit) for digit in left_digits))
+    right_coefficient = int("".join(str(digit) for digit in right_digits))
+    if left_sign:
+        left_coefficient = -left_coefficient
+    if right_sign:
+        right_coefficient = -right_coefficient
+    if subtract:
+        right_coefficient = -right_coefficient
+
+    coefficient = (
+        left_coefficient * (10 ** (left_exponent - common_exponent))
+        + right_coefficient * (10 ** (right_exponent - common_exponent))
+    )
+    sign = 1 if coefficient < 0 else 0
+    digits = tuple(int(char) for char in str(abs(coefficient))) if coefficient else (0,)
+    return Decimal((sign, digits, common_exponent))
+
+
+def _exact_decimal_subtract(left, right):
+    return _exact_decimal_add(left, right, subtract=True)
+
+
 def _round_ratio_half_up(numerator, denominator):
     """Round a non-negative rational to an integer, exactly (ties away from zero)."""
     quotient, remainder = divmod(numerator, denominator)
@@ -106,7 +134,7 @@ def apply_purchase(position, quantity, purchase_value_rial):
     quantity = _decimal_quantity(quantity)
     value = _nonnegative_rial(purchase_value_rial, "purchase_value_rial")
     after = InventoryPosition(
-        position.quantity + quantity,
+        _exact_decimal_add(position.quantity, quantity),
         position.total_value_rial + value,
     )
     return ValuationResult("purchase", position, after, quantity, value, value)
@@ -124,7 +152,7 @@ def apply_sale(position, quantity):
             position.total_value_rial, quantity, position.quantity
         )
     after = InventoryPosition(
-        position.quantity - quantity,
+        _exact_decimal_subtract(position.quantity, quantity),
         position.total_value_rial - issue_value,
     )
     return ValuationResult("sale", position, after, -quantity, -issue_value, issue_value)
@@ -148,7 +176,7 @@ def apply_inventory_shortage(position, quantity):
             position.total_value_rial, quantity, position.quantity
         )
     after = InventoryPosition(
-        position.quantity - quantity,
+        _exact_decimal_subtract(position.quantity, quantity),
         position.total_value_rial - shortage_value,
     )
     return ValuationResult(
@@ -169,7 +197,7 @@ def apply_purchase_return(position, quantity, historical_return_value_rial):
         raise ValueError("purchase return quantity exceeds available inventory")
     if value > position.total_value_rial:
         raise ValueError("purchase return value exceeds current inventory book value")
-    remaining_quantity = position.quantity - quantity
+    remaining_quantity = _exact_decimal_subtract(position.quantity, quantity)
     remaining_value = position.total_value_rial - value
     if remaining_quantity == 0 and remaining_value != 0:
         raise ValueError("purchase return would leave orphaned inventory value")
@@ -186,7 +214,7 @@ def apply_sales_return(position, quantity, original_sale_cost_value_rial):
         original_sale_cost_value_rial, "original_sale_cost_value_rial"
     )
     after = InventoryPosition(
-        position.quantity + quantity,
+        _exact_decimal_add(position.quantity, quantity),
         position.total_value_rial + value,
     )
     return ValuationResult("sales_return", position, after, quantity, value, value)
