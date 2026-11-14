@@ -4,7 +4,13 @@ import sqlite3
 import unittest
 from decimal import Decimal
 
-from inventory_valuation import InventoryPosition, ValuationResult, apply_purchase, apply_sale
+from inventory_valuation import (
+    InventoryPosition,
+    ValuationResult,
+    apply_inventory_shortage,
+    apply_purchase,
+    apply_sale,
+)
 from inventory_valuation_store import ensure_valuation_schema, post_valuation_result
 
 
@@ -46,6 +52,86 @@ class InventoryValuationStoreTests(unittest.TestCase):
         self.assertEqual(after, InventoryPosition(Decimal("12"), 1500))
         self.assertEqual(row, (12.0, 125, 1500))
         self.assertEqual(event, ("2", 500, "12", 1500))
+
+    def test_dec02_shortage_posts_exact_partial_and_final_residual_atomically(self):
+        self.db.execute(
+            "INSERT INTO products(id, stock, avg_cost, total_value_rial) "
+            "VALUES (2, 3, 34, 101)"
+        )
+        before = InventoryPosition(Decimal("3"), 101)
+        partial = apply_inventory_shortage(before, "1.5")
+        after_partial = post_valuation_result(
+            self.db, 2, partial, "inventory_adjustments", 40, "2026-11-14"
+        )
+
+        self.assertEqual(after_partial, InventoryPosition(Decimal("1.5"), 50))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=2"
+            ).fetchone(),
+            (1.5, 33, 50),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT event_type, quantity_delta, value_delta_rial, "
+                "quantity_after, total_value_after_rial "
+                "FROM inventory_valuation_events WHERE product_id=2"
+            ).fetchone(),
+            ("inventory_shortage", "-1.5", -51, "1.5", 50),
+        )
+
+        final = apply_inventory_shortage(after_partial, "1.5")
+        after_final = post_valuation_result(
+            self.db, 2, final, "inventory_adjustments", 41, "2026-11-14"
+        )
+        self.assertEqual(after_final, InventoryPosition())
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, avg_cost, total_value_rial FROM products WHERE id=2"
+            ).fetchone(),
+            (0.0, 0, 0),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT value_delta_rial FROM inventory_valuation_events "
+                "WHERE product_id=2 ORDER BY id"
+            ).fetchall(),
+            [(-51,), (-50,)],
+        )
+
+    def test_duplicate_shortage_event_rolls_back_product_projection(self):
+        self.db.execute(
+            "INSERT INTO products(id, stock, avg_cost, total_value_rial) "
+            "VALUES (2, 3, 34, 101)"
+        )
+        before = InventoryPosition(Decimal("3"), 101)
+        first = apply_inventory_shortage(before, "1")
+        post_valuation_result(
+            self.db, 2, first, "inventory_adjustments", 42, "2026-11-14"
+        )
+        persisted = self.db.execute(
+            "SELECT stock, total_value_rial FROM products WHERE id=2"
+        ).fetchone()
+        retry_before = InventoryPosition(Decimal(str(persisted[0])), persisted[1])
+        retry = apply_inventory_shortage(retry_before, "1")
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            post_valuation_result(
+                self.db, 2, retry, "inventory_adjustments", 42, "2026-11-14"
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT stock, total_value_rial FROM products WHERE id=2"
+            ).fetchone(),
+            (2.0, 67),
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM inventory_valuation_events "
+                "WHERE product_id=2 AND event_type='inventory_shortage'"
+            ).fetchone()[0],
+            1,
+        )
 
     def test_duplicate_source_event_rolls_back_cache_change(self):
         result = apply_purchase(InventoryPosition(Decimal("10"), 1000), "1", 100)

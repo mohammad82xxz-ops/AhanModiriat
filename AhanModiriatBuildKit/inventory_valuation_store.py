@@ -66,6 +66,7 @@ def _validate_valuation_result(result):
         "sales_return": 1,
         "sale": -1,
         "purchase_return": -1,
+        "inventory_shortage": -1,
     }.get(result.event_type)
     if direction is None:
         raise ValueError("unsupported valuation event_type")
