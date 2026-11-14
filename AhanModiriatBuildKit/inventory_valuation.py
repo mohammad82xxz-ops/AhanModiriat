@@ -6,7 +6,7 @@ inventory total is the source of truth; unit average is a rounded projection.
 It is a Gate-B candidate and is not wired to the live product cache or schema.
 """
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation
 
 MAX_SQLITE_INTEGER = 9_223_372_036_854_775_807
 
