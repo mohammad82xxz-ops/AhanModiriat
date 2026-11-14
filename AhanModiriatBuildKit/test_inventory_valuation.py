@@ -155,8 +155,10 @@ class InventoryValuationTests(unittest.TestCase):
             InventoryPosition(Decimal("0"), 1)
         with self.assertRaisesRegex(ValueError, "non-negative integer"):
             InventoryPosition(Decimal("1"), -1)
-        with self.assertRaisesRegex(ValueError, "non-negative decimal"):
-            InventoryPosition(True, 0)
+        for quantity in (True, False):
+            with self.subTest(quantity=quantity):
+                with self.assertRaisesRegex(ValueError, "non-negative decimal"):
+                    InventoryPosition(quantity, 0)
 
     def test_boolean_shortage_quantity_is_rejected(self):
         position = InventoryPosition(Decimal("2"), 100)
@@ -164,6 +166,21 @@ class InventoryValuationTests(unittest.TestCase):
             with self.subTest(quantity=quantity):
                 with self.assertRaisesRegex(ValueError, "finite decimal quantity"):
                     apply_inventory_shortage(position, quantity)
+
+    def test_all_public_quantity_operations_reject_boolean_quantities(self):
+        position = InventoryPosition(Decimal("2"), 100)
+        operations = (
+            ("purchase", lambda quantity: apply_purchase(position, quantity, 10)),
+            ("sale", lambda quantity: apply_sale(position, quantity)),
+            ("inventory shortage", lambda quantity: apply_inventory_shortage(position, quantity)),
+            ("purchase return", lambda quantity: apply_purchase_return(position, quantity, 10)),
+            ("sales return", lambda quantity: apply_sales_return(position, quantity, 10)),
+        )
+        for operation_name, operation in operations:
+            for quantity in (True, False):
+                with self.subTest(operation=operation_name, quantity=quantity):
+                    with self.assertRaisesRegex(ValueError, "finite decimal quantity"):
+                        operation(quantity)
 
 
 if __name__ == "__main__":
