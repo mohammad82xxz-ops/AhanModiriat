@@ -85,6 +85,33 @@ class InventoryValuationTests(unittest.TestCase):
         self.assertEqual(final.event_value_rial, 50)  # consume exact residual
         self.assertEqual(final.after, InventoryPosition())
 
+    def test_rial_allocation_and_average_cost_use_exact_decimal_ratios(self):
+        # The default Decimal context (28 significant digits) rounds this
+        # quotient to 0.5, although its exact value is just below the tie.
+        tiny_value = InventoryPosition(
+            Decimal("2.0000000000000000000000000001"), 1
+        )
+        self.assertEqual(tiny_value.avg_cost_rial, 0)
+
+        # With a long fractional quantity, context-rounded division allocates
+        # 853,545,252,508,034,026 rial; exact rational half-up is one rial less.
+        whole = Decimal("1631261616.724509607390292047")
+        part = Decimal("499378118.7278741261103901043")
+        value = 2_788_179_049_776_350_000
+        position = InventoryPosition(whole, value)
+        expected = 853_545_252_508_034_025
+
+        sale = apply_sale(position, part)
+        shortage = apply_inventory_shortage(position, part)
+        self.assertEqual(sale.event_value_rial, expected)
+        self.assertEqual(shortage.event_value_rial, expected)
+        self.assertEqual(
+            sale.after.total_value_rial + sale.event_value_rial, value
+        )
+        self.assertEqual(
+            shortage.after.total_value_rial + shortage.event_value_rial, value
+        )
+
     def test_dec02_shortage_rejects_quantity_above_available_stock(self):
         position = InventoryPosition(Decimal("2"), 100)
         with self.assertRaisesRegex(ValueError, "exceeds available"):
