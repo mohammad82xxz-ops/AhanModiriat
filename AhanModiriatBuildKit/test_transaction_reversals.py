@@ -297,20 +297,20 @@ def main():
         # A stock-only correction remains allowed and must be recorded as its own movement.
         stock_page=post(port,"update_product",{
             "product_id":pid,"name":"reversal steel","code":"","unit":"kg","stock":"8",
-            "avg_cost":"5","market_price":"10","min_stock":"0","notes":"",
+            "avg_cost":"5.1","market_price":"10","min_stock":"0","notes":"",
             "category":"سایر","purchase_unit":"kg","purchase_factor":"1",
             "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
         })
         assert "مشخصات کالا به‌روزرسانی شد" in stock_page
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 8 and p["avg_cost"] == 50 and p["purchase_factor"] == 1
+            assert p["stock"] == 8 and p["avg_cost"] == 51 and p["purchase_factor"] == 1
             assert c.execute("SELECT amount FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 400
 
         post(port, "delete_sale", {"record_id":sale_id})
         with app.conn() as c:
             p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
-            assert p["stock"] == 10 and p["avg_cost"] == 50
+            assert p["stock"] == 10 and p["avg_cost"] == 51
             assert c.execute("SELECT COUNT(*) FROM sales WHERE id=?", (sale_id,)).fetchone()[0] == 0
             assert c.execute("SELECT COUNT(*) FROM cash_movements WHERE source_table='sales' AND source_id=?", (sale_id,)).fetchone()[0] == 0
 
