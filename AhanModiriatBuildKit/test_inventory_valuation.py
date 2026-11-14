@@ -110,6 +110,28 @@ class InventoryValuationTests(unittest.TestCase):
             expected_after_add,
         )
 
+
+    def test_negative_quantity_deltas_preserve_digits_beyond_decimal_context(self):
+        before = InventoryPosition(
+            Decimal("3.0000000000000000000000000002"), 300
+        )
+        quantity = Decimal("1.0000000000000000000000000001")
+        expected_delta = Decimal("-1.0000000000000000000000000001")
+        expected_after = Decimal("2.0000000000000000000000000001")
+
+        with localcontext() as context:
+            context.prec = 28
+            results = (
+                apply_sale(before, quantity),
+                apply_inventory_shortage(before, quantity),
+                apply_purchase_return(before, quantity, 100),
+            )
+
+        for result in results:
+            with self.subTest(event_type=result.event_type):
+                self.assertEqual(result.quantity_delta, expected_delta)
+                self.assertEqual(result.after.quantity, expected_after)
+
     def test_rial_allocation_and_average_cost_use_exact_decimal_ratios(self):
         # The default Decimal context (28 significant digits) rounds this
         # quotient to 0.5, although its exact value is just below the tie.

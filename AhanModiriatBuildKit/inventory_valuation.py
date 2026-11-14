@@ -155,7 +155,7 @@ def apply_sale(position, quantity):
         _exact_decimal_subtract(position.quantity, quantity),
         position.total_value_rial - issue_value,
     )
-    return ValuationResult("sale", position, after, -quantity, -issue_value, issue_value)
+    return ValuationResult("sale", position, after, quantity.copy_negate(), -issue_value, issue_value)
 
 
 
@@ -180,7 +180,7 @@ def apply_inventory_shortage(position, quantity):
         position.total_value_rial - shortage_value,
     )
     return ValuationResult(
-        "inventory_shortage", position, after, -quantity, -shortage_value,
+        "inventory_shortage", position, after, quantity.copy_negate(), -shortage_value,
         shortage_value,
     )
 
@@ -203,7 +203,7 @@ def apply_purchase_return(position, quantity, historical_return_value_rial):
         raise ValueError("purchase return would leave orphaned inventory value")
     after = InventoryPosition(remaining_quantity, remaining_value)
     return ValuationResult(
-        "purchase_return", position, after, -quantity, -value, value
+        "purchase_return", position, after, quantity.copy_negate(), -value, value
     )
 
 
