@@ -182,6 +182,20 @@ class InventoryValuationTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "finite decimal quantity"):
                         operation(quantity)
 
+    def test_all_public_money_inputs_reject_boolean_values(self):
+        position = InventoryPosition(Decimal("2"), 100)
+        operations = (
+            ("position book value", lambda amount: InventoryPosition(Decimal("1"), amount)),
+            ("purchase value", lambda amount: apply_purchase(position, "1", amount)),
+            ("purchase return value", lambda amount: apply_purchase_return(position, "1", amount)),
+            ("sales return cost", lambda amount: apply_sales_return(position, "1", amount)),
+        )
+        for operation_name, operation in operations:
+            for amount in (True, False):
+                with self.subTest(operation=operation_name, amount=amount):
+                    with self.assertRaisesRegex(ValueError, "non-negative integer"):
+                        operation(amount)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
