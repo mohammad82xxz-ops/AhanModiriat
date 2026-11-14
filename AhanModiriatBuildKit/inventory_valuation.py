@@ -180,7 +180,7 @@ def apply_inventory_shortage(position, quantity):
         position.total_value_rial - shortage_value,
     )
     return ValuationResult(
-        "inventory_shortage", position, after, -quantity, -shortage_value,
+        "inventory_shortage", position, after, quantity.copy_negate(), -shortage_value,
         shortage_value,
     )
 
