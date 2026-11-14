@@ -251,11 +251,8 @@ class InventoryValuationStoreTests(unittest.TestCase):
 
     def test_rial_integer_overflow_is_rejected_before_writes(self):
         before = InventoryPosition(Decimal("10"), 1000)
-        result = apply_purchase(before, "1", 9223372036854775807)
-        with self.assertRaisesRegex(ValueError, "total_value_rial"):
-            post_valuation_result(
-                self.db, 1, result, "purchases", 23, "2026-11-11"
-            )
+        with self.assertRaisesRegex(ValueError, "SQLite signed 64-bit"):
+            apply_purchase(before, "1", 9223372036854775807)
         self.assertEqual(
             self.db.execute(
                 "SELECT stock, total_value_rial FROM products WHERE id=1"

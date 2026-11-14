@@ -8,6 +8,8 @@ It is a Gate-B candidate and is not wired to the live product cache or schema.
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+MAX_SQLITE_INTEGER = 9_223_372_036_854_775_807
+
 
 def _decimal_quantity(value, label="quantity"):
     if isinstance(value, bool):
@@ -30,6 +32,8 @@ def _nonnegative_rial(value, label="value"):
         raise ValueError(f"{label} must be a non-negative integer rial amount") from None
     if not amount.is_finite() or amount < 0 or amount != amount.to_integral_value():
         raise ValueError(f"{label} must be a non-negative integer rial amount")
+    if amount > MAX_SQLITE_INTEGER:
+        raise ValueError(f"{label} must fit SQLite signed 64-bit integer")
     return int(amount)
 
 
