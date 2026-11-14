@@ -2148,7 +2148,12 @@ class Handler(BaseHTTPRequestHandler):
                     roll_weight=strict_number(v('roll_weight'),'وزن رول',True); sheet_area=strict_number(v('sheet_area'),'مساحت ورق',True)
                     if new_stock<0 or avg_cost<0 or market_price<0 or min_stock<0 or roll_weight<0 or sheet_area<0:
                         raise ValueError('موجودی، قیمت‌ها، حداقل موجودی و مشخصات اندازه‌گیری نباید منفی باشند.')
-                    old_stock=float(p['stock'] or 0); stock_delta=new_stock-old_stock
+                    old_stock=float(p['stock'] or 0)
+                    # ACC-60 guard: never let the product editor rewrite the cost basis
+                    # of opening inventory or any product with transaction history.
+                    if avg_cost != int(p['avg_cost'] or 0) and (has_movement or old_stock > 0.000001):
+                        raise ValueError('تغییر مستقیم بهای میانگین کالای دارای موجودی یا سابقه گردش مجاز نیست؛ اصلاح ارزش موجودی باید از مسیر سند ارزش‌گذاری انجام شود.')
+                    stock_delta=new_stock-old_stock
                     c.execute('UPDATE products SET name=?,code=?,unit=?,stock=?,avg_cost=?,market_price=?,min_stock=?,notes=?,category=?,purchase_unit=?,purchase_factor=?,sale_unit=?,sale_factor=?,roll_weight=?,sheet_area=? WHERE id=?',
                               (product_name,v('code'),v('unit'),new_stock,avg_cost,market_price,min_stock,v('notes'),v('category','سایر'),v('purchase_unit'),pf,v('sale_unit'),sf,roll_weight,sheet_area,pid))
                     if abs(stock_delta)>0.000001:
