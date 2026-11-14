@@ -54,10 +54,28 @@ def main():
             assert response.status == 200
             assert "انبارگردانی و تعدیل موجودی" in page
 
+        # A product with transaction history must not accept a direct average-cost rewrite.
+        unsafe_edit_data=urllib.parse.urlencode({
+            "product_id":str(pid),"name":"test steel","code":"","unit":"kg","stock":"7",
+            "avg_cost":"11","market_price":"15","min_stock":"0","notes":"unsafe cost edit",
+            "category":"سایر","purchase_unit":"bundle","purchase_factor":"10",
+            "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
+        }).encode("utf-8")
+        unsafe_edit_request=urllib.request.Request(
+            f"http://127.0.0.1:{port}/update_product",data=unsafe_edit_data,
+            headers={"Host":f"127.0.0.1:{port}","Content-Type":"application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        with urllib.request.urlopen(unsafe_edit_request,timeout=5) as response:
+            assert response.status==200
+        with app.conn() as c:
+            unchanged=c.execute("SELECT stock,avg_cost FROM products WHERE id=?",(pid,)).fetchone()
+            assert unchanged["stock"]==7 and unchanged["avg_cost"]==10, tuple(unchanged)
+
         # Editing stock from the product form must also create an inventory movement.
         edit_data=urllib.parse.urlencode({
             "product_id":str(pid),"name":"test steel","code":"","unit":"kg","stock":"6",
-            "avg_cost":"10","market_price":"15","min_stock":"0","notes":"manual correction",
+            "avg_cost":"1","market_price":"15","min_stock":"0","notes":"manual correction",
             "category":"سایر","purchase_unit":"bundle","purchase_factor":"10",
             "sale_unit":"kg","sale_factor":"1","roll_weight":"0","sheet_area":"0"
         }).encode("utf-8")
@@ -77,7 +95,7 @@ def main():
     with app.conn() as c:
         p = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
         assert p["stock"] == 6, p["stock"]  # 7 after physical count, then 6 via the product editor.
-        assert p["avg_cost"] == 100, p["avg_cost"]
+        assert p["avg_cost"] == 10, p["avg_cost"]
         adjustment = c.execute("SELECT * FROM inventory_adjustments WHERE product_id=?", (pid,)).fetchone()
         assert adjustment is not None
         assert adjustment["expected_qty"] == 21
