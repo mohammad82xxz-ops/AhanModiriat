@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Golden tests for the pure Gate-B inventory valuation candidate."""
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from dataclasses import FrozenInstanceError
 import unittest
 
@@ -136,6 +136,37 @@ class InventoryValuationTests(unittest.TestCase):
         self.assertEqual(
             shortage.after.total_value_rial + shortage.event_value_rial, value
         )
+
+    def test_exact_quantity_and_rial_math_ignore_low_decimal_context_precision(self):
+        # A hostile caller context must not round inventory quantities or
+        # change a one-rial allocation at a half-up boundary.
+        with localcontext() as context:
+            context.prec = 2
+            opening = InventoryPosition(
+                Decimal("2.0000000000000000000000000001"), 1
+            )
+            self.assertEqual(
+                apply_purchase(opening, "1", 0).after.quantity,
+                Decimal("3.0000000000000000000000000001"),
+            )
+            self.assertEqual(
+                apply_sale(opening, "1").after.quantity,
+                Decimal("1.0000000000000000000000000001"),
+            )
+            self.assertEqual(opening.avg_cost_rial, 0)
+
+            whole = Decimal("1631261616.724509607390292047")
+            part = Decimal("499378118.7278741261103901043")
+            value = 2_788_179_049_776_350_000
+            position = InventoryPosition(whole, value)
+            self.assertEqual(
+                apply_sale(position, part).event_value_rial,
+                853_545_252_508_034_025,
+            )
+            self.assertEqual(
+                apply_inventory_shortage(position, part).event_value_rial,
+                853_545_252_508_034_025,
+            )
 
     def test_dec02_shortage_rejects_quantity_above_available_stock(self):
         position = InventoryPosition(Decimal("2"), 100)
