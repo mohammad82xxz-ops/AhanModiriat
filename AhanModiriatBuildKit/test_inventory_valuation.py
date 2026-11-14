@@ -147,6 +147,23 @@ class InventoryValuationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     apply_purchase(InventoryPosition(), invalid, 1)
 
+    def test_book_value_must_fit_sqlite_signed_64_bit_integer(self):
+        maximum = 9_223_372_036_854_775_807
+        position = InventoryPosition(Decimal("1"), maximum)
+        self.assertEqual(position.total_value_rial, maximum)
+
+        for invalid in (maximum + 1, str(maximum + 1), Decimal(maximum + 1)):
+            with self.subTest(value=invalid):
+                with self.assertRaisesRegex(ValueError, "SQLite signed 64-bit"):
+                    InventoryPosition(Decimal("1"), invalid)
+
+        for operation in (
+            lambda: apply_purchase(position, "1", 1),
+            lambda: apply_sales_return(position, "1", 1),
+        ):
+            with self.assertRaisesRegex(ValueError, "SQLite signed 64-bit"):
+                operation()
+
     def test_positions_are_immutable_and_reject_invalid_state(self):
         position = InventoryPosition(Decimal("1.25"), 100)
         with self.assertRaises(FrozenInstanceError):
