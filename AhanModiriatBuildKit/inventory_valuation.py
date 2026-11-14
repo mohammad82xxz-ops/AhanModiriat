@@ -6,7 +6,7 @@ inventory total is the source of truth; unit average is a rounded projection.
 It is a Gate-B candidate and is not wired to the live product cache or schema.
 """
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation
 
 MAX_SQLITE_INTEGER = 9_223_372_036_854_775_807
 
@@ -37,8 +37,29 @@ def _nonnegative_rial(value, label="value"):
     return int(amount)
 
 
-def _round_rial(value):
-    return int(Decimal(value).to_integral_value(rounding=ROUND_HALF_UP))
+def _round_ratio_half_up(numerator, denominator):
+    """Round a non-negative rational to an integer, exactly (ties away from zero)."""
+    quotient, remainder = divmod(numerator, denominator)
+    return quotient + (1 if remainder * 2 >= denominator else 0)
+
+
+def _round_value_allocation(total_value_rial, part_quantity, total_quantity):
+    """Allocate integer rial value by an exact Decimal quantity ratio."""
+    part_num, part_den = part_quantity.as_integer_ratio()
+    total_num, total_den = total_quantity.as_integer_ratio()
+    return _round_ratio_half_up(
+        total_value_rial * part_num * total_den,
+        part_den * total_num,
+    )
+
+
+def _round_average_cost(total_value_rial, quantity):
+    """Derive the rounded unit-cost projection without Decimal context loss."""
+    quantity_num, quantity_den = quantity.as_integer_ratio()
+    return _round_ratio_half_up(
+        total_value_rial * quantity_den,
+        quantity_num,
+    )
 
 
 @dataclass(frozen=True)
@@ -67,7 +88,7 @@ class InventoryPosition:
     def avg_cost_rial(self):
         if self.quantity == 0:
             return 0
-        return _round_rial(Decimal(self.total_value_rial) / self.quantity)
+        return _round_average_cost(self.total_value_rial, self.quantity)
 
 
 @dataclass(frozen=True)
@@ -99,8 +120,8 @@ def apply_sale(position, quantity):
     if quantity == position.quantity:
         issue_value = position.total_value_rial
     else:
-        issue_value = _round_rial(
-            Decimal(position.total_value_rial) * quantity / position.quantity
+        issue_value = _round_value_allocation(
+            position.total_value_rial, quantity, position.quantity
         )
     after = InventoryPosition(
         position.quantity - quantity,
@@ -123,8 +144,8 @@ def apply_inventory_shortage(position, quantity):
     if quantity == position.quantity:
         shortage_value = position.total_value_rial
     else:
-        shortage_value = _round_rial(
-            Decimal(position.total_value_rial) * quantity / position.quantity
+        shortage_value = _round_value_allocation(
+            position.total_value_rial, quantity, position.quantity
         )
     after = InventoryPosition(
         position.quantity - quantity,
